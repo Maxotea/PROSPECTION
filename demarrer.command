@@ -1,6 +1,8 @@
 #!/bin/bash
 # ⚔️ La Chasse — démarrage en double-clic (macOS).
-# Si macOS bloque l'ouverture : clic droit sur ce fichier → « Ouvrir » (une seule fois).
+# Premier lancement bloqué par Apple ? C'est normal (fichier téléchargé d'internet) :
+#   Réglages Système → Confidentialité et sécurité → tout en bas → « Ouvrir quand même »,
+#   puis re-double-clique. Une seule fois.
 cd "$(dirname "$0")"
 
 if ! command -v node >/dev/null 2>&1; then

@@ -15,8 +15,8 @@ Trois moteurs :
 Prérequis : **Node.js ≥ 22.13** (aucun `npm install`, aucune dépendance) — installe la version **LTS** depuis [nodejs.org](https://nodejs.org/fr) si besoin.
 
 **Sans terminal (recommandé)** : télécharge le projet (GitHub → bouton vert **Code** → **Download ZIP** → décompresse), puis double-clique :
-- sur Mac : **`demarrer.command`** (si macOS bloque : clic droit → « Ouvrir », une seule fois)
-- sur Windows : **`demarrer.bat`**
+- sur Mac : **`demarrer.command`**. Au premier lancement, macOS bloque (« Apple n'a pas pu confirmer… ») : clique **« Terminé »** (pas « corbeille »), puis **Réglages Système → Confidentialité et sécurité → tout en bas → « Ouvrir quand même »**, et re-double-clique. C'est une seule fois. (Plan B : ouvre Terminal, tape `bash ` avec un espace, glisse le fichier dans la fenêtre, Entrée.)
+- sur Windows : **`demarrer.bat`** (si « Windows a protégé votre PC » : « Informations complémentaires » → « Exécuter quand même »).
 
 Le navigateur s'ouvre tout seul sur l'app. **Laisse la petite fenêtre noire ouverte** : c'est elle qui fait tourner l'Autopilote.
 
