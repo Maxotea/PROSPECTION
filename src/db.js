@@ -138,6 +138,74 @@ CREATE TABLE IF NOT EXISTS inbox (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+
+-- ---------------- Autopilote : séquences email ----------------
+CREATE TABLE IF NOT EXISTS sequences (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  code TEXT UNIQUE,
+  name TEXT NOT NULL,
+  segment TEXT DEFAULT '',
+  description TEXT DEFAULT '',
+  active INTEGER DEFAULT 1,
+  builtin INTEGER DEFAULT 0,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sequence_steps (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  sequence_id INTEGER NOT NULL REFERENCES sequences(id) ON DELETE CASCADE,
+  step_index INTEGER NOT NULL,
+  delay_days INTEGER DEFAULT 0,
+  template_code TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_steps_seq ON sequence_steps(sequence_id);
+
+CREATE TABLE IF NOT EXISTS enrollments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  contact_id INTEGER NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+  sequence_id INTEGER NOT NULL REFERENCES sequences(id) ON DELETE CASCADE,
+  status TEXT DEFAULT 'active',      -- active | paused | replied | finished | stopped | bounced
+  current_step INTEGER DEFAULT 0,    -- index de la PROCHAINE étape à envoyer
+  next_send_at TEXT DEFAULT '',      -- jour (YYYY-MM-DD)
+  first_message_id TEXT DEFAULT '',  -- pour garder les relances dans le même fil Gmail
+  first_subject TEXT DEFAULT '',
+  stop_reason TEXT DEFAULT '',
+  started_at TEXT NOT NULL,
+  last_sent_at TEXT DEFAULT '',
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_enroll_contact ON enrollments(contact_id);
+CREATE INDEX IF NOT EXISTS idx_enroll_status ON enrollments(status, next_send_at);
+
+CREATE TABLE IF NOT EXISTS outbox (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  enrollment_id INTEGER REFERENCES enrollments(id) ON DELETE CASCADE,
+  contact_id INTEGER REFERENCES contacts(id) ON DELETE CASCADE,
+  step_index INTEGER DEFAULT 0,
+  to_email TEXT NOT NULL,
+  subject TEXT DEFAULT '',
+  body TEXT DEFAULT '',
+  status TEXT DEFAULT 'awaiting_review', -- awaiting_review | queued | sent | failed | cancelled
+  scheduled_at TEXT DEFAULT '',          -- ISO — heure d'envoi planifiée
+  sent_at TEXT DEFAULT '',
+  message_id TEXT DEFAULT '',
+  error TEXT DEFAULT '',
+  day TEXT DEFAULT '',               -- jour local de création (comptage du cap quotidien)
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_outbox_status ON outbox(status, scheduled_at);
+CREATE INDEX IF NOT EXISTS idx_outbox_day ON outbox(day, status);
+
+CREATE TABLE IF NOT EXISTS replies (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  imap_uid INTEGER,
+  contact_id INTEGER,
+  from_email TEXT DEFAULT '',
+  subject TEXT DEFAULT '',
+  received_at TEXT DEFAULT '',
+  created_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_replies_uid ON replies(imap_uid);
 `);
 
 // ---------------------------------------------------------------- helpers
@@ -179,6 +247,23 @@ const SETTINGS_DEFAULTS = {
   fullenrich_api_key: '',
   hubspot_token: '',
   anthropic_api_key: '',
+  // Autopilote (envoi Gmail)
+  gmail_user: '',
+  gmail_app_password: '',
+  smtp_host: 'smtp.gmail.com',
+  smtp_port: '465',
+  smtp_secure: '1',
+  imap_host: 'imap.gmail.com',
+  imap_port: '993',
+  imap_secure: '1',
+  autopilot_enabled: '0',
+  autopilot_mode: 'review',      // 'review' : chaque email attend ton feu vert ; 'auto' : envoi direct
+  autopilot_daily_cap: '20',
+  autopilot_window_start: '9',
+  autopilot_window_end: '18',
+  autopilot_weekdays_only: '1',
+  autopilot_last_uid: '0',
+  booking_url: '',
 };
 
 // Variables d'environnement prioritaires sur la base (pratique pour .env).
@@ -187,6 +272,8 @@ const ENV_MAP = {
   fullenrich_api_key: 'FULLENRICH_API_KEY',
   hubspot_token: 'HUBSPOT_TOKEN',
   anthropic_api_key: 'ANTHROPIC_API_KEY',
+  gmail_user: 'GMAIL_USER',
+  gmail_app_password: 'GMAIL_APP_PASSWORD',
 };
 
 function getSetting(key) {

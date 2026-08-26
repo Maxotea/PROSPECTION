@@ -29,7 +29,7 @@ const DEMO_CONTACTS = [
 
 function seedDemo(wipe = false) {
   if (wipe) {
-    for (const t of ['activities', 'deals', 'inbox', 'enrich_jobs', 'badges', 'quest_awards', 'contacts']) run(`DELETE FROM ${t}`);
+    for (const t of ['activities', 'deals', 'inbox', 'enrich_jobs', 'badges', 'quest_awards', 'outbox', 'enrollments', 'replies', 'sequences', 'contacts']) run(`DELETE FROM ${t}`);
   }
   if (get(`SELECT id FROM contacts WHERE origin = 'demo' LIMIT 1`)) {
     return { already: true, message: 'La démo est déjà chargée.' };

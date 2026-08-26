@@ -26,9 +26,11 @@ const pennylane = require('./src/integrations/pennylane');
 const fullenrich = require('./src/integrations/fullenrich');
 const hubspot = require('./src/integrations/hubspot');
 const claude = require('./src/integrations/claude');
+const autopilot = require('./src/autopilot');
 const { seedDemo } = require('./seed');
 
 playbooks.seedTemplates(dbApi);
+playbooks.seedSequences(dbApi);
 
 const PORT = Number(process.env.PORT || 1337);
 const HOST = process.env.HOST || '127.0.0.1';
@@ -85,7 +87,7 @@ function route(method, pattern, handler) {
 const USER_ACTIONS = ['note', 'connexion_linkedin', 'message_envoye', 'relance', 'appel', 'reponse_envoyee', 'reponse_recue', 'rdv_pris', 'devis_envoye', 'devis_accepte', 'facture', 'disqualifie'];
 
 // ---- état global (dashboard)
-route('GET', '/api/state', async () => game.fullState());
+route('GET', '/api/state', async () => ({ ...game.fullState(), autopilot: autopilot.state() }));
 
 // ---- contacts
 route('GET', '/api/contacts', async (req, params, query) => {
@@ -212,7 +214,12 @@ route('GET', '/api/queue', async (req, params, query) => {
 route('POST', '/api/actions', async (req) => {
   const body = await readBody(req);
   if (!USER_ACTIONS.includes(body.type)) throw httpError(400, `Type d'action non autorisé : ${body.type}`);
-  return game.logAction({ contact_id: body.contact_id || null, deal_id: body.deal_id || null, type: body.type, note: body.note || '', meta: body.meta || {} });
+  const res = game.logAction({ contact_id: body.contact_id || null, deal_id: body.deal_id || null, type: body.type, note: body.note || '', meta: body.meta || {} });
+  // Une réponse (ou une disqualification) loggée à la main stoppe la séquence Autopilote du contact.
+  if (body.contact_id && ['reponse_recue', 'rdv_pris', 'disqualifie'].includes(body.type)) {
+    autopilot.stopForContact(body.contact_id, body.type === 'disqualifie' ? 'disqualifié' : 'a répondu 🎉', body.type === 'disqualifie' ? 'stopped' : 'replied');
+  }
+  return res;
 });
 
 // ---- templates
@@ -314,7 +321,7 @@ route('POST', '/api/ai/draft', async (req) => {
 });
 
 // ---- réglages
-const SECRET_KEYS = ['pennylane_api_key', 'fullenrich_api_key', 'hubspot_token', 'anthropic_api_key'];
+const SECRET_KEYS = ['pennylane_api_key', 'fullenrich_api_key', 'hubspot_token', 'anthropic_api_key', 'gmail_app_password'];
 const MASK = '••••••••';
 route('GET', '/api/settings', async () => {
   const s = dbApi.allSettings();
@@ -363,6 +370,129 @@ route('POST', '/api/hubspot/push', async (req) => {
   return hubspot.pushMany(b.contact_ids || []);
 });
 
+// ---- 🤖 Autopilote : séquences
+route('GET', '/api/sequences', async () => {
+  const sequences = all('SELECT * FROM sequences ORDER BY builtin DESC, id').map((s) => ({
+    ...s,
+    steps: all('SELECT * FROM sequence_steps WHERE sequence_id = ? ORDER BY step_index', s.id),
+    active_count: Number(get(`SELECT COUNT(*) AS n FROM enrollments WHERE sequence_id = ? AND status = 'active'`, s.id).n),
+    replied_count: Number(get(`SELECT COUNT(*) AS n FROM enrollments WHERE sequence_id = ? AND status = 'replied'`, s.id).n),
+    finished_count: Number(get(`SELECT COUNT(*) AS n FROM enrollments WHERE sequence_id = ? AND status = 'finished'`, s.id).n),
+  }));
+  return { sequences };
+});
+route('POST', '/api/sequences', async (req) => {
+  const b = await readBody(req);
+  const { lastId } = run('INSERT INTO sequences (code, name, segment, description, builtin, created_at) VALUES (?, ?, ?, ?, 0, ?)',
+    `custom_${Date.now()}`, b.name || 'Nouvelle séquence', b.segment || '', b.description || '', nowIso());
+  for (let i = 0; i < (b.steps || []).length; i++) {
+    run('INSERT INTO sequence_steps (sequence_id, step_index, delay_days, template_code) VALUES (?, ?, ?, ?)',
+      lastId, i, Number(b.steps[i].delay_days) || 0, b.steps[i].template_code);
+  }
+  return { id: lastId };
+});
+route('PATCH', '/api/sequences/:id', async (req, params) => {
+  const b = await readBody(req);
+  const seq = get('SELECT * FROM sequences WHERE id = ?', params.id);
+  if (!seq) throw httpError(404, 'Séquence introuvable');
+  if (b.name !== undefined || b.active !== undefined || b.description !== undefined || b.segment !== undefined) {
+    run('UPDATE sequences SET name = ?, active = ?, description = ?, segment = ? WHERE id = ?',
+      b.name !== undefined ? b.name : seq.name,
+      b.active !== undefined ? (b.active ? 1 : 0) : seq.active,
+      b.description !== undefined ? b.description : seq.description,
+      b.segment !== undefined ? b.segment : seq.segment,
+      params.id);
+  }
+  if (Array.isArray(b.steps)) {
+    run('DELETE FROM sequence_steps WHERE sequence_id = ?', params.id);
+    for (let i = 0; i < b.steps.length; i++) {
+      run('INSERT INTO sequence_steps (sequence_id, step_index, delay_days, template_code) VALUES (?, ?, ?, ?)',
+        params.id, i, Number(b.steps[i].delay_days) || 0, b.steps[i].template_code);
+    }
+  }
+  return { ok: true };
+});
+route('DELETE', '/api/sequences/:id', async (req, params) => {
+  const n = Number(get(`SELECT COUNT(*) AS n FROM enrollments WHERE sequence_id = ? AND status = 'active'`, params.id).n);
+  if (n > 0) throw httpError(400, `${n} contact(s) encore actifs dans cette séquence — stoppe-les d'abord.`);
+  run('DELETE FROM sequences WHERE id = ? AND builtin = 0', params.id);
+  return { ok: true };
+});
+route('POST', '/api/sequences/:id/enroll', async (req, params) => {
+  const b = await readBody(req);
+  return autopilot.enroll(Number(params.id), b.contact_ids || []);
+});
+
+// ---- 🤖 Autopilote : enrôlements, file d'envoi, moteur
+route('GET', '/api/enrollments', async (req, params, query) => {
+  const where = query.status ? `WHERE e.status = ?` : '';
+  const args = query.status ? [query.status] : [];
+  const enrollments = all(`
+    SELECT e.*, c.first_name, c.last_name, c.company, c.email, s.name AS seq_name,
+      (SELECT COUNT(*) FROM sequence_steps st WHERE st.sequence_id = e.sequence_id) AS total_steps
+    FROM enrollments e JOIN contacts c ON c.id = e.contact_id JOIN sequences s ON s.id = e.sequence_id
+    ${where} ORDER BY e.updated_at DESC LIMIT 300`, ...args);
+  return { enrollments };
+});
+route('PATCH', '/api/enrollments/:id', async (req, params) => {
+  const b = await readBody(req);
+  const e = get('SELECT * FROM enrollments WHERE id = ?', params.id);
+  if (!e) throw httpError(404, 'Enrôlement introuvable');
+  if (b.status === 'active') {
+    const next = e.next_send_at && e.next_send_at > localDay() ? e.next_send_at : localDay();
+    run(`UPDATE enrollments SET status = 'active', stop_reason = '', next_send_at = ?, updated_at = ? WHERE id = ?`, next, nowIso(), params.id);
+  } else if (['paused', 'stopped'].includes(b.status)) {
+    run(`UPDATE enrollments SET status = ?, stop_reason = ?, updated_at = ? WHERE id = ?`, b.status, b.reason || 'manuel', nowIso(), params.id);
+    run(`UPDATE outbox SET status = 'cancelled', error = 'séquence mise en pause' WHERE enrollment_id = ? AND status IN ('awaiting_review','queued')`, params.id);
+  }
+  return { ok: true };
+});
+route('GET', '/api/outbox', async (req, params, query) => {
+  const where = query.status ? `WHERE o.status = ?` : '';
+  const args = query.status ? [query.status] : [];
+  const items = all(`
+    SELECT o.*, c.first_name, c.last_name, c.company, s.name AS seq_name
+    FROM outbox o LEFT JOIN contacts c ON c.id = o.contact_id
+    LEFT JOIN enrollments e ON e.id = o.enrollment_id LEFT JOIN sequences s ON s.id = e.sequence_id
+    ${where} ORDER BY o.id DESC LIMIT 200`, ...args);
+  return { items };
+});
+route('PATCH', '/api/outbox/:id', async (req, params) => {
+  const b = await readBody(req);
+  const item = get(`SELECT * FROM outbox WHERE id = ? AND status = 'awaiting_review'`, params.id);
+  if (!item) throw httpError(400, 'Seuls les emails en attente de validation sont modifiables.');
+  run('UPDATE outbox SET subject = ?, body = ? WHERE id = ?',
+    b.subject !== undefined ? b.subject : item.subject, b.body !== undefined ? b.body : item.body, params.id);
+  return { ok: true };
+});
+route('POST', '/api/outbox/:id/approve', async (req, params) => ({ approved: autopilot.approve([Number(params.id)]) }));
+route('POST', '/api/outbox/approve_all', async () => ({ approved: autopilot.approveAll() }));
+route('POST', '/api/outbox/:id/cancel', async (req, params) => {
+  const item = get('SELECT * FROM outbox WHERE id = ?', params.id);
+  if (!item) throw httpError(404, 'Introuvable');
+  run(`UPDATE outbox SET status = 'cancelled' WHERE id = ? AND status IN ('awaiting_review','queued')`, params.id);
+  if (item.enrollment_id) run(`UPDATE enrollments SET status = 'paused', stop_reason = 'email annulé manuellement', updated_at = ? WHERE id = ?`, nowIso(), item.enrollment_id);
+  return { ok: true };
+});
+route('POST', '/api/autopilot/tick', async (req) => {
+  const b = await readBody(req);
+  return autopilot.tick({ ignoreWindow: !!b.ignore_window, force: true });
+});
+route('GET', '/api/autopilot/state', async () => autopilot.state());
+
+// ---- 🤖 Autopilote : Gmail (tests + scan de la boîte)
+route('POST', '/api/mail/test_smtp', async () => autopilot.testSmtp());
+route('POST', '/api/mail/test_imap', async () => autopilot.testImap());
+route('POST', '/api/mail/send_test', async () => autopilot.sendTestEmail());
+route('POST', '/api/mail/scan', async (req) => {
+  const b = await readBody(req);
+  return { found: await autopilot.scanSent({ days: Number(b.days) || 730 }) };
+});
+route('POST', '/api/mail/scan_import', async (req) => {
+  const b = await readBody(req);
+  return autopilot.importScanned(b.entries || []);
+});
+
 // ---- démo
 route('POST', '/api/demo', async () => seedDemo(false));
 
@@ -396,6 +526,28 @@ const server = http.createServer(async (req, res) => {
 
   serveStatic(res, u.pathname);
 });
+
+// Boucle Autopilote : toutes les 10 minutes (si activé + Gmail configuré).
+let ticking = false;
+async function autopilotLoop() {
+  if (ticking) return;
+  ticking = true;
+  try {
+    const r = await autopilot.tick();
+    if (r && !r.skipped && ((r.flush && r.flush.sent) || (r.replies && r.replies.replies))) {
+      console.log(`[autopilote] envoyés: ${r.flush ? r.flush.sent : 0} · réponses: ${r.replies ? r.replies.replies : 0}`);
+    }
+    if (r && (r.replies_error || r.flush_error)) console.error('[autopilote]', r.replies_error || r.flush_error);
+  } catch (e) {
+    console.error('[autopilote]', e.message);
+  } finally {
+    ticking = false;
+  }
+}
+if (process.env.NODE_ENV !== 'test') {
+  setInterval(autopilotLoop, 10 * 60 * 1000);
+  setTimeout(autopilotLoop, 20 * 1000); // premier passage peu après le démarrage
+}
 
 server.listen(PORT, HOST, () => {
   console.log(`

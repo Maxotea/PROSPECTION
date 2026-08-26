@@ -113,7 +113,7 @@ async function celebrate(res) {
 }
 
 // ---------------------------------------------------------------- routeur
-const VIEWS = { qg: vQG, chasse: vChasse, pipeline: vPipeline, contacts: vContacts, inbox: vInbox, import: vImport, reglages: vReglages };
+const VIEWS = { qg: vQG, chasse: vChasse, autopilot: vAutopilot, pipeline: vPipeline, contacts: vContacts, inbox: vInbox, import: vImport, reglages: vReglages };
 
 async function render() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
@@ -184,6 +184,19 @@ async function vQG(view) {
         </div>
       </div>
       <div class="grid">
+        <div class="card" style="border-color:${S.autopilot.enabled ? 'rgba(5,150,105,.5)' : 'var(--border)'}">
+          <div class="spread">
+            <div>
+              <h2 style="margin-bottom:2px">🤖 Autopilote ${S.autopilot.enabled ? '<span class="chip ok">ACTIF</span>' : S.autopilot.configured ? '<span class="chip">en veille</span>' : '<span class="chip due">à brancher</span>'}</h2>
+              <div class="muted small">
+                ${S.autopilot.configured
+                  ? `📤 ${S.autopilot.sent_today}/${S.autopilot.daily_cap} aujourd'hui · 👥 ${S.autopilot.active_enrollments} en séquence${S.autopilot.awaiting ? ` · 👀 <b style="color:var(--gold2)">${S.autopilot.awaiting} email(s) à valider</b>` : ''}${S.autopilot.replies_today ? ` · 💬 ${S.autopilot.replies_today} réponse(s) !` : ''}`
+                  : 'Branche ton Gmail et laisse la machine relancer tes anciens clients toute seule.'}
+              </div>
+            </div>
+            <a href="#/autopilot"><button class="${S.autopilot.awaiting ? 'gold' : ''}">${S.autopilot.awaiting ? '👀 Valider' : 'Ouvrir'}</button></a>
+          </div>
+        </div>
         <div class="card">
           <div class="level-badge">
             <div class="lvl-num">${S.level.level}</div>
@@ -521,6 +534,7 @@ async function vContacts(view) {
     </div>
     ${cSelected.size ? `<div class="toolbar card" style="padding:10px 14px">
       <b>${cSelected.size} sélectionné(s) :</b>
+      <button id="b-sequence" class="primary">🤖 Enrôler en séquence</button>
       <button id="b-enrich">🧪 Enrichir (FullEnrich)</button>
       <button id="b-hubspot">⬆️ Pousser vers HubSpot</button>
       <select id="b-seg"><option value="">→ Typologie…</option>${Object.entries(S.segments).map(([k, s]) => `<option value="${k}">${s.emoji} ${esc(s.label)}</option>`).join('')}</select>
@@ -576,6 +590,7 @@ async function vContacts(view) {
       await api('/contacts/bulk', { method: 'POST', body: { ids: [...cSelected], patch: { segment: e.target.value } } });
       fx.toast('✅ Typologie mise à jour'); vContacts(view);
     };
+    $('#b-sequence').onclick = () => sequencePickerModal([...cSelected], () => { cSelected.clear(); vContacts(view); });
     $('#b-enrich').onclick = () => launchEnrich([...cSelected], () => vContacts(view));
     $('#b-hubspot').onclick = async () => {
       const btn = $('#b-hubspot'); btn.disabled = true;
@@ -1032,6 +1047,315 @@ async function vInbox(view) {
   $$('[data-del-tpl]', view).forEach((b) => { b.onclick = async () => { if (confirm('Supprimer ce template ?')) { await api(`/templates/${b.dataset.delTpl}`, { method: 'DELETE' }); await getTemplates(true); vInbox(view); } }; });
 }
 
+// ================================================================ 🤖 AUTOPILOTE
+const OUTBOX_STATUS = { awaiting_review: '👀 à valider', queued: '⏱️ planifié', sent: '✅ envoyé', failed: '⚠️ échec', cancelled: '✖ annulé' };
+const ENROLL_STATUS = { active: '🟢 en cours', paused: '⏸️ en pause', replied: '💬 A RÉPONDU', finished: '🏁 terminée', stopped: '⏹️ stoppée', bounced: '📛 bounce' };
+
+async function vAutopilot(view) {
+  await refreshState();
+  const ap = S.autopilot;
+  const { sequences } = await api('/sequences');
+  const { items: awaiting } = await api('/outbox?status=awaiting_review');
+  const { items: queuedItems } = await api('/outbox?status=queued');
+  const { items: recent } = await api('/outbox');
+  const { enrollments } = await api('/enrollments');
+  const tpls = await getTemplates();
+
+  const notConfigured = !ap.configured ? `
+    <div class="card" style="border-color:rgba(234,179,8,.5)">
+      <h2>🔌 Branche ton Gmail (2 minutes)</h2>
+      <ol>
+        <li>Active la <b>validation en 2 étapes</b> sur ton compte Google (si pas déjà fait) ;</li>
+        <li>Va sur <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">myaccount.google.com/apppasswords</a> → crée un mot de passe d'application « La Chasse » ;</li>
+        <li>Colle-le dans <a href="#/reglages">Réglages → Gmail</a> avec ton adresse, puis teste SMTP + IMAP.</li>
+      </ol>
+      <p class="muted small">L'autopilote enverra depuis TON adresse Gmail (réponses naturelles, délivrabilité maximale), gardera chaque relance dans le même fil, et lira ta boîte pour détecter les réponses — jamais les contenus, seulement les en-têtes.</p>
+    </div>` : '';
+
+  view.innerHTML = `
+    <div class="view-header spread">
+      <div><h1>🤖 Autopilote</h1><div class="sub">La machine prospecte, toi tu prends les calls. Une réponse = séquence stoppée + tâche « proposer un RDV ».</div></div>
+      <div class="row">
+        <button id="ap-tick" ${ap.configured ? '' : 'disabled'}>▶️ Exécuter maintenant</button>
+      </div>
+    </div>
+    ${notConfigured}
+    <div class="card">
+      <div class="row" style="gap:22px">
+        <label class="chip" style="cursor:pointer;font-size:14px;padding:8px 14px">
+          <input type="checkbox" id="ap-enabled" ${ap.enabled ? 'checked' : ''} ${ap.configured ? '' : 'disabled'}>
+          ${ap.enabled ? '🟢 Autopilote ACTIF' : '⚪ Autopilote en veille'}
+        </label>
+        <label class="field" style="flex-direction:row;align-items:center;gap:8px">Mode
+          <select id="ap-mode">
+            <option value="review" ${ap.mode === 'review' ? 'selected' : ''}>👀 Revue — je valide chaque email</option>
+            <option value="auto" ${ap.mode === 'auto' ? 'selected' : ''}>🚀 Auto — envoi sans validation</option>
+          </select>
+        </label>
+        <div class="muted small">📤 <b>${ap.sent_today}</b>/${ap.daily_cap} envoyés aujourd'hui · 🕘 fenêtre ${ap.window} · 👥 <b>${ap.active_enrollments}</b> en séquence · 💬 <b>${ap.replies_today}</b> réponse(s) auto détectée(s) aujourd'hui</div>
+      </div>
+    </div>
+
+    ${awaiting.length ? `
+    <div class="card" style="margin-top:14px;border-color:rgba(234,179,8,.45)">
+      <div class="spread"><h2>👀 À valider (${awaiting.length})</h2><button class="gold" id="ap-approve-all">✅ Tout approuver</button></div>
+      ${awaiting.map((o) => `
+        <div class="deal-line" style="flex-direction:column;align-items:stretch" data-ob="${o.id}">
+          <div class="spread">
+            <div><b>${esc(o.first_name || '')} ${esc(o.last_name || '')}</b> <span class="muted">&lt;${esc(o.to_email)}&gt; · ${esc(o.seq_name || '')} · étape ${o.step_index + 1}</span></div>
+            <div class="row">
+              <button class="primary" data-ob-approve="${o.id}">✅ Approuver</button>
+              <button class="ghost" data-ob-cancel="${o.id}">✖</button>
+            </div>
+          </div>
+          <input data-ob-subject="${o.id}" value="${esc(o.subject)}" style="margin:6px 0">
+          <textarea data-ob-body="${o.id}" rows="5">${esc(o.body)}</textarea>
+        </div>`).join('')}
+    </div>` : ''}
+
+    ${queuedItems.length ? `
+    <div class="card" style="margin-top:14px">
+      <h2>⏱️ Départ imminent (${queuedItems.length})</h2>
+      ${queuedItems.map((o) => `<div class="small" style="padding:4px 0">📨 ${esc(o.first_name || '')} ${esc(o.last_name || '')} — « ${esc(o.subject)} » · ${o.scheduled_at ? new Date(o.scheduled_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : 'dès que possible'} <button class="ghost" data-ob-cancel="${o.id}" style="padding:2px 8px">✖</button></div>`).join('')}
+    </div>` : ''}
+
+    <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:14px;align-items:start">
+      <div class="card">
+        <div class="spread"><h2>🧬 Séquences</h2><button id="seq-new">➕ Créer</button></div>
+        ${sequences.map((s) => `
+          <div class="deal-line" style="flex-direction:column;align-items:stretch">
+            <div class="spread">
+              <div>
+                <b>${esc(s.name)}</b> ${s.active ? '' : '<span class="chip">⏸️ inactive</span>'}
+                ${s.segment ? segChip(s.segment) : ''}
+                <div class="muted small">${s.steps.map((st, i) => `${i === 0 ? 'J0' : 'J+' + s.steps.slice(1, i + 1).reduce((a, x) => a + x.delay_days, 0)} ${esc((tpls.find((t) => t.code === st.template_code) || { name: st.template_code }).name.replace(/^[^ ]+ /, ''))}`).join(' → ')}</div>
+                <div class="small">🟢 ${s.active_count} en cours · 💬 ${s.replied_count} réponses · 🏁 ${s.finished_count} terminées</div>
+              </div>
+              <div class="row">
+                <button class="primary" data-seq-enroll="${s.id}">👥 Enrôler</button>
+                <button class="ghost" data-seq-edit="${s.id}">✏️</button>
+              </div>
+            </div>
+          </div>`).join('')}
+        <p class="muted small">💡 Commence par « 🔮 Réactivation anciens clients » : importe Pennylane, enrôle tous tes anciens clients, active l'autopilote.</p>
+      </div>
+      <div class="card">
+        <h2>👥 En séquence (${enrollments.length})</h2>
+        <div class="table-scroll"><table class="list">
+          <thead><tr><th>Contact</th><th>Séquence</th><th>Étape</th><th>Prochain envoi</th><th>Statut</th><th></th></tr></thead>
+          <tbody>${enrollments.slice(0, 60).map((e) => `<tr>
+            <td class="t-name">${esc(e.first_name)} ${esc(e.last_name)}<div class="t-sub">${esc(e.company || e.email)}</div></td>
+            <td class="small">${esc(e.seq_name)}</td>
+            <td class="mono">${Math.min(e.current_step + 1, e.total_steps)}/${e.total_steps}</td>
+            <td class="small">${e.status === 'active' ? (e.next_send_at ? dueLabel(e.next_send_at) : '—') : '—'}</td>
+            <td class="small">${ENROLL_STATUS[e.status] || esc(e.status)}${e.stop_reason ? `<div class="faint">${esc(e.stop_reason)}</div>` : ''}</td>
+            <td class="row" style="justify-content:flex-end">
+              ${e.status === 'active' ? `<button class="ghost" data-en-pause="${e.id}" title="Pause">⏸️</button>` : ''}
+              ${['paused', 'stopped'].includes(e.status) ? `<button class="ghost" data-en-resume="${e.id}" title="Reprendre">▶️</button>` : ''}
+              ${['active', 'paused'].includes(e.status) ? `<button class="ghost" data-en-stop="${e.id}" title="Stopper">⏹️</button>` : ''}
+            </td>
+          </tr>`).join('')}</tbody>
+        </table></div>
+        ${enrollments.length === 0 ? '<p class="muted small">Personne en séquence. Clique « 👥 Enrôler » sur une séquence, ou sélectionne des contacts dans la vue Contacts.</p>' : ''}
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h2>📜 Journal d'envoi</h2>
+      ${recent.filter((o) => ['sent', 'failed', 'cancelled'].includes(o.status)).slice(0, 15).map((o) => `
+        <div class="small" style="padding:3px 0">${OUTBOX_STATUS[o.status]} · ${esc(o.first_name || '')} ${esc(o.last_name || '')} — « ${esc(o.subject)} » ${o.sent_at ? '· ' + fmtDateTime(o.sent_at) : ''}${o.error ? ` <span style="color:var(--red2)">${esc(o.error.slice(0, 90))}</span>` : ''}</div>`).join('') || '<p class="muted small">Rien envoyé pour l’instant.</p>'}
+    </div>`;
+
+  // --- interrupteurs
+  $('#ap-enabled').onchange = async (e) => {
+    await api('/settings', { method: 'PUT', body: { autopilot_enabled: e.target.checked ? '1' : '0' } });
+    fx.toast(e.target.checked ? '🟢 Autopilote activé — il tourne toutes les 10 min' : '⚪ Autopilote en veille');
+    fx.play('pop');
+    vAutopilot(view);
+  };
+  $('#ap-mode').onchange = async (e) => {
+    await api('/settings', { method: 'PUT', body: { autopilot_mode: e.target.value } });
+    fx.toast(e.target.value === 'auto' ? '🚀 Mode AUTO : les emails partent sans validation' : '👀 Mode revue : chaque email attend ton feu vert');
+    vAutopilot(view);
+  };
+  $('#ap-tick').onclick = async () => {
+    const btn = $('#ap-tick'); btn.disabled = true; btn.textContent = '▶️ …';
+    try {
+      const r = await api('/autopilot/tick', { method: 'POST', body: { ignore_window: true } });
+      const bits = [];
+      if (r.replies && r.replies.replies) bits.push(`💬 ${r.replies.replies} réponse(s) détectée(s)`);
+      if (r.due && r.due.queued) bits.push(`📝 ${r.due.queued} email(s) préparé(s)`);
+      if (r.flush && r.flush.sent) bits.push(`📤 ${r.flush.sent} envoyé(s)`);
+      if (r.due && r.due.reason) bits.push(r.due.reason);
+      if (r.replies_error) fx.error(r.replies_error);
+      if (r.flush_error) fx.error(r.flush_error);
+      fx.toast(bits.length ? bits.join(' · ') : 'Rien à faire pour le moment ✅');
+      await celebrate({});
+      vAutopilot(view);
+    } catch (e) { fx.error(e.message); btn.disabled = false; btn.textContent = '▶️ Exécuter maintenant'; }
+  };
+
+  // --- file d'envoi
+  const approveOne = async (id) => {
+    const subject = $(`[data-ob-subject="${id}"]`, view);
+    const body = $(`[data-ob-body="${id}"]`, view);
+    if (subject && body) await api(`/outbox/${id}`, { method: 'PATCH', body: { subject: subject.value, body: body.value } });
+    await api(`/outbox/${id}/approve`, { method: 'POST' });
+  };
+  const apAll = $('#ap-approve-all');
+  if (apAll) apAll.onclick = async () => {
+    try {
+      for (const o of awaiting) await approveOne(o.id);
+      fx.toast(`✅ ${awaiting.length} email(s) approuvé(s) — envoi dans les minutes qui viennent`);
+      fx.play('quest');
+      vAutopilot(view);
+    } catch (e) { fx.error(e.message); }
+  };
+  $$('[data-ob-approve]', view).forEach((b) => {
+    b.onclick = async () => { try { await approveOne(Number(b.dataset.obApprove)); fx.toast('✅ Approuvé'); vAutopilot(view); } catch (e) { fx.error(e.message); } };
+  });
+  $$('[data-ob-cancel]', view).forEach((b) => {
+    b.onclick = async () => { try { await api(`/outbox/${b.dataset.obCancel}/cancel`, { method: 'POST' }); fx.toast('✖ Annulé (séquence en pause)'); vAutopilot(view); } catch (e) { fx.error(e.message); } };
+  });
+
+  // --- enrôlements
+  $$('[data-en-pause]', view).forEach((b) => { b.onclick = async () => { await api(`/enrollments/${b.dataset.enPause}`, { method: 'PATCH', body: { status: 'paused' } }); vAutopilot(view); }; });
+  $$('[data-en-resume]', view).forEach((b) => { b.onclick = async () => { await api(`/enrollments/${b.dataset.enResume}`, { method: 'PATCH', body: { status: 'active' } }); fx.toast('▶️ Séquence reprise'); vAutopilot(view); }; });
+  $$('[data-en-stop]', view).forEach((b) => { b.onclick = async () => { await api(`/enrollments/${b.dataset.enStop}`, { method: 'PATCH', body: { status: 'stopped' } }); vAutopilot(view); }; });
+
+  // --- séquences
+  $('#seq-new').onclick = () => seqEditModal(null, tpls, () => vAutopilot(view));
+  $$('[data-seq-edit]', view).forEach((b) => { b.onclick = () => seqEditModal(sequences.find((s) => String(s.id) === b.dataset.seqEdit), tpls, () => vAutopilot(view)); });
+  $$('[data-seq-enroll]', view).forEach((b) => {
+    b.onclick = () => enrollPickerModal(sequences.find((s) => String(s.id) === b.dataset.seqEnroll), () => vAutopilot(view));
+  });
+}
+
+// Choisir des contacts à enrôler dans une séquence donnée.
+async function enrollPickerModal(seq, after) {
+  const { contacts } = await api('/contacts?limit=500');
+  const eligible = contacts.filter((c) => c.email && !['gagne', 'perdu'].includes(c.stage));
+  const m = modal(`
+    <h2>👥 Enrôler dans « ${esc(seq.name)} »</h2>
+    <p class="muted small">Seuls les contacts AVEC email sont listés (enrichis les autres via FullEnrich). Un contact = une séquence à la fois. Premier email : dès le prochain passage de l'autopilote.</p>
+    <div class="row" style="margin:8px 0">
+      <input type="search" id="ep-search" placeholder="🔍 filtrer…" style="flex:1">
+      <label class="chip" style="cursor:pointer"><input type="checkbox" id="ep-former"> 💰 anciens clients</label>
+      <label class="chip" style="cursor:pointer"><input type="checkbox" id="ep-all"> tout cocher</label>
+    </div>
+    <div id="ep-list" style="max-height:320px;overflow-y:auto"></div>
+    <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="primary big" id="ep-go">🤖 Enrôler la sélection</button></div>`);
+
+  const checked = new Set();
+  const renderList = () => {
+    const q = $('#ep-search', m).value.toLowerCase();
+    const former = $('#ep-former', m).checked;
+    const list = eligible.filter((c) => (!former || c.is_former_client) &&
+      (!q || `${c.first_name} ${c.last_name} ${c.company} ${c.email}`.toLowerCase().includes(q)));
+    $('#ep-list', m).innerHTML = list.map((c) => `
+      <label class="row" style="padding:5px 6px;border-bottom:1px solid var(--border);cursor:pointer">
+        <input type="checkbox" data-ep="${c.id}" ${checked.has(c.id) ? 'checked' : ''}>
+        <b>${esc(c.first_name)} ${esc(c.last_name)}</b> ${c.is_former_client ? '💰' : ''}
+        <span class="muted small">${esc(c.company || '')} · ${esc(c.email)}</span>
+        ${segChip(c.segment)}
+      </label>`).join('') || '<p class="muted small">Aucun contact éligible avec ces filtres.</p>';
+    $$('[data-ep]', m).forEach((cb) => { cb.onchange = () => { cb.checked ? checked.add(Number(cb.dataset.ep)) : checked.delete(Number(cb.dataset.ep)); syncGo(); }; });
+    return list;
+  };
+  const syncGo = () => { $('#ep-go', m).textContent = `🤖 Enrôler ${checked.size || 'la sélection'}`; };
+  $('#ep-search', m).oninput = renderList;
+  $('#ep-former', m).onchange = renderList;
+  $('#ep-all', m).onchange = (e) => { const list = renderList(); list.forEach((c) => e.target.checked ? checked.add(c.id) : checked.delete(c.id)); renderList(); syncGo(); };
+  renderList();
+
+  $('#ep-go', m).onclick = async () => {
+    if (!checked.size) { fx.error('Coche au moins un contact.'); return; }
+    try {
+      const r = await api(`/sequences/${seq.id}/enroll`, { method: 'POST', body: { contact_ids: [...checked] } });
+      m.remove();
+      fx.toast(`🤖 ${r.enrolled} enrôlé(s) dans « ${esc(seq.name)} »${r.skipped.length ? ` · ${r.skipped.length} ignoré(s)` : ''}`);
+      fx.play('quest');
+      if (r.skipped.length) fx.toast(`Ignorés : ${r.skipped.slice(0, 3).map((s) => s.reason).join(', ')}${r.skipped.length > 3 ? '…' : ''}`, '', 5000);
+      if (after) after();
+    } catch (e) { fx.error(e.message); }
+  };
+}
+
+// Choisir une séquence pour des contacts déjà sélectionnés (vue Contacts).
+async function sequencePickerModal(contactIds, after) {
+  const { sequences } = await api('/sequences');
+  const m = modal(`
+    <h2>🤖 Enrôler ${contactIds.length} contact(s)</h2>
+    <div class="grid" style="margin-top:10px">
+      ${sequences.filter((s) => s.active).map((s) => `
+        <button data-pick-seq="${s.id}" style="justify-content:flex-start;text-align:left">
+          <div><b>${esc(s.name)}</b><div class="muted small">${esc(s.description || '')} · ${s.steps.length} étapes</div></div>
+        </button>`).join('')}
+    </div>`);
+  $$('[data-pick-seq]', m).forEach((b) => {
+    b.onclick = async () => {
+      try {
+        const r = await api(`/sequences/${b.dataset.pickSeq}/enroll`, { method: 'POST', body: { contact_ids: contactIds } });
+        m.remove();
+        fx.toast(`🤖 ${r.enrolled} enrôlé(s)${r.skipped.length ? ` · ${r.skipped.length} ignoré(s) (${r.skipped.slice(0, 2).map((s) => s.reason).join(', ')}…)` : ''}`, '', 5000);
+        fx.play('quest');
+        if (after) after();
+      } catch (e) { fx.error(e.message); }
+    };
+  });
+}
+
+// Éditeur de séquence (étapes : délai + template).
+function seqEditModal(seq, tpls, after) {
+  const steps = seq ? seq.steps.map((s) => ({ delay_days: s.delay_days, template_code: s.template_code })) : [{ delay_days: 0, template_code: 'pme_first' }];
+  const stepRow = (s, i) => `
+    <div class="row" data-step-row style="margin-bottom:6px">
+      <span class="chip">${i === 0 ? 'J0' : '⏳ +'}</span>
+      ${i === 0 ? '' : `<input type="number" class="st-delay" value="${s.delay_days}" min="1" style="width:70px" title="jours après l'étape précédente"> j puis`}
+      <select class="st-tpl" style="flex:1">${tpls.map((t) => `<option value="${t.code}" ${t.code === s.template_code ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select>
+      <button class="ghost st-del">🗑</button>
+    </div>`;
+  const m = modal(`
+    <h2>${seq ? '✏️ Modifier' : '➕ Nouvelle'} séquence</h2>
+    <div class="form-grid" style="margin:10px 0">
+      <label class="field wide">Nom<input id="sq-name" value="${esc(seq ? seq.name : '')}" placeholder="Ex : Relance devis dormants"></label>
+      <label class="field">Typologie<select id="sq-seg"><option value="">Toutes</option>${Object.entries(S.segments).filter(([k]) => k !== 'inconnu').map(([k, s]) => `<option value="${k}" ${seq && seq.segment === k ? 'selected' : ''}>${s.emoji} ${esc(s.label)}</option>`).join('')}</select></label>
+      <label class="chip" style="cursor:pointer;margin-top:18px"><input type="checkbox" id="sq-active" ${!seq || seq.active ? 'checked' : ''}> séquence active</label>
+    </div>
+    <h3>Étapes</h3>
+    <div id="sq-steps">${steps.map(stepRow).join('')}</div>
+    <button class="ghost" id="sq-add">➕ Ajouter une étape</button>
+    <div class="row" style="justify-content:space-between;margin-top:14px">
+      ${seq && !seq.builtin ? `<button class="danger" id="sq-del">🗑 Supprimer</button>` : '<span></span>'}
+      <button class="primary" id="sq-save">💾 Enregistrer</button>
+    </div>`);
+  const redraw = () => { $$('[data-step-row]', m).forEach((r, i) => { const del = $('.st-del', r); del.onclick = () => { if ($$('[data-step-row]', m).length > 1) { r.remove(); } }; }); };
+  redraw();
+  $('#sq-add', m).onclick = () => {
+    const container = $('#sq-steps', m);
+    container.insertAdjacentHTML('beforeend', stepRow({ delay_days: 4, template_code: tpls[0].code }, container.children.length));
+    redraw();
+  };
+  $('#sq-save', m).onclick = async () => {
+    const newSteps = $$('[data-step-row]', m).map((r, i) => ({
+      delay_days: i === 0 ? 0 : Number(($('.st-delay', r) || { value: 4 }).value) || 1,
+      template_code: $('.st-tpl', r).value,
+    }));
+    const body = { name: $('#sq-name', m).value || 'Séquence', segment: $('#sq-seg', m).value, active: $('#sq-active', m).checked, steps: newSteps };
+    try {
+      if (seq) await api(`/sequences/${seq.id}`, { method: 'PATCH', body });
+      else await api('/sequences', { method: 'POST', body });
+      m.remove(); if (after) after();
+    } catch (e) { fx.error(e.message); }
+  };
+  const delBtn = $('#sq-del', m);
+  if (delBtn) delBtn.onclick = async () => {
+    if (!confirm('Supprimer cette séquence ?')) return;
+    try { await api(`/sequences/${seq.id}`, { method: 'DELETE' }); m.remove(); if (after) after(); }
+    catch (e) { fx.error(e.message); }
+  };
+}
+
 // ================================================================ IMPORTS
 let csvData = null; // { headers, rows, auto_mapping }
 
@@ -1059,6 +1383,15 @@ async function vImport(view) {
           <h2>🟠 HubSpot — CRM hybride</h2>
           <p class="muted small">Import des contacts HubSpot ici, et push des contacts de la Chasse vers HubSpot (bouton ⬆️ sur les fiches / la vue Contacts). La Chasse pilote la prospection, HubSpot reste ta base "officielle".</p>
           <div class="row"><button id="hs-test">🔌 Tester</button><button class="primary" id="hs-import">📥 Importer les contacts</button><span id="hs-status" class="small muted"></span></div>
+        </div>
+        <div class="card">
+          <h2>📧 Gmail — retrouve tes contacts</h2>
+          <p class="muted small">Scanne le dossier « Messages envoyés » de ta boîte (en-têtes uniquement, jamais le contenu) pour retrouver toutes les personnes à qui tu as déjà écrit — souvent des clients ou prospects oubliés.</p>
+          <div class="row">
+            <select id="gm-days"><option value="365">12 derniers mois</option><option value="730" selected>24 derniers mois</option><option value="1825">5 ans</option></select>
+            <button class="primary" id="gm-scan">🔍 Scanner ma boîte</button>
+          </div>
+          <div id="gm-results"></div>
         </div>
         <div class="card">
           <h2>🧪 FullEnrich — emails & téléphones</h2>
@@ -1104,6 +1437,37 @@ async function vImport(view) {
       el.textContent = `✅ ${r.created} nouveaux, ${r.merged} fusionnés (${r.total} contacts HubSpot)`;
       await refreshState();
     } catch (e) { el.textContent = ''; fx.error(e.message); }
+  };
+
+  // --- scan Gmail
+  $('#gm-scan').onclick = async () => {
+    const btn = $('#gm-scan'); btn.disabled = true; btn.textContent = '🔍 Scan en cours…';
+    try {
+      const { found } = await api('/mail/scan', { method: 'POST', body: { days: Number($('#gm-days').value) } });
+      const news = found.filter((f) => !f.existing_id);
+      $('#gm-results').innerHTML = `
+        <p style="margin-top:10px"><b>${found.length}</b> correspondant(s) trouvés — <b>${news.length}</b> pas encore dans le CRM :</p>
+        <div style="max-height:260px;overflow-y:auto">
+          ${found.slice(0, 200).map((f, i) => `
+            <label class="row small" style="padding:3px 4px;border-bottom:1px solid var(--border);cursor:pointer">
+              <input type="checkbox" data-gm="${i}" ${f.existing_id ? '' : 'checked'}>
+              <b>${esc(f.name || f.email.split('@')[0])}</b>
+              <span class="muted">${esc(f.email)} · ${f.count} email(s) · dernier ${String(f.last_date).slice(0, 10)}</span>
+              ${f.existing_id ? '<span class="chip ok">déjà dans le CRM</span>' : ''}
+            </label>`).join('')}
+        </div>
+        <button class="primary" id="gm-import" style="margin-top:8px">📥 Importer la sélection</button>`;
+      $('#gm-import').onclick = async () => {
+        const entries = [...view.querySelectorAll('[data-gm]:checked')].map((cb) => found[Number(cb.dataset.gm)]);
+        if (!entries.length) { fx.error('Coche au moins un correspondant.'); return; }
+        const r = await api('/mail/scan_import', { method: 'POST', body: { entries } });
+        fx.toast(`📥 Gmail : ${r.created} créés, ${r.merged} fusionnés`);
+        fx.xp(Math.min(r.created, 50));
+        await refreshState();
+        vImport(view);
+      };
+    } catch (e) { fx.error(e.message); }
+    btn.disabled = false; btn.textContent = '🔍 Scanner ma boîte';
   };
 
   // --- FullEnrich
@@ -1228,6 +1592,26 @@ async function vReglages(view) {
           <p class="muted small">Pour tout remettre à zéro : <code>npm run reset</code> (ou supprime data/prospection.db).</p>
         </div>
       </div>
+      <div class="grid">
+      <div class="card">
+        <h2>📧 Gmail & Autopilote</h2>
+        <p class="muted small">L'autopilote envoie depuis TON Gmail et lit les en-têtes de ta boîte pour détecter les réponses. Crée un <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">mot de passe d'application</a> (nécessite la validation en 2 étapes).</p>
+        <div class="form-grid">
+          <label class="field">Adresse Gmail<input id="s-gmail" value="${esc(s.gmail_user)}" placeholder="toi@gmail.com"></label>
+          <label class="field">Mot de passe d'application<input id="s-gmailpw" type="password" value="${esc(s.gmail_app_password)}"></label>
+          <label class="field">Cap d'envoi / jour<input id="s-cap" type="number" min="1" max="100" value="${esc(s.autopilot_daily_cap)}"></label>
+          <label class="field">Fenêtre d'envoi<div class="row"><input id="s-ws" type="number" min="0" max="23" value="${esc(s.autopilot_window_start)}" style="width:64px">h → <input id="s-we" type="number" min="1" max="24" value="${esc(s.autopilot_window_end)}" style="width:64px">h</div></label>
+          <label class="field wide">Lien de RDV (Calendly, Google…) — variable {lien_rdv}<input id="s-booking" value="${esc(s.booking_url)}" placeholder="https://calendly.com/…"></label>
+          <label class="chip wide" style="cursor:pointer"><input type="checkbox" id="s-weekdays" ${s.autopilot_weekdays_only !== '0' ? 'checked' : ''}> envoyer uniquement en jours ouvrés</label>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button data-mailtest="test_smtp">🔌 Tester SMTP</button>
+          <button data-mailtest="test_imap">🔌 Tester IMAP</button>
+          <button data-mailtest="send_test" class="gold">📤 M'envoyer un email de test</button>
+        </div>
+        <p class="small" id="t-mail"></p>
+        <p class="muted small">💡 Enregistre les réglages avant de tester. Démarre avec un cap bas (10-15/jour) puis monte progressivement : c'est la meilleure protection de ta délivrabilité.</p>
+      </div>
       <div class="card">
         <h2>🔑 Clés API</h2>
         <p class="muted small">Chaque clé est stockée en local. Les champs affichent « •••• » quand une clé est déjà enregistrée : ne les modifie que pour la remplacer.</p>
@@ -1251,6 +1635,7 @@ async function vReglages(view) {
           <datalist id="models"><option value="claude-sonnet-5"><option value="claude-opus-5"><option value="claude-haiku-4-5-20251001"></datalist>
         </label>
       </div>
+      </div>
     </div>
     <div class="row" style="margin-top:16px"><button class="primary big" id="s-save">💾 Enregistrer les réglages</button><span id="s-status" class="muted"></span></div>`;
 
@@ -1261,6 +1646,10 @@ async function vReglages(view) {
         objectif_factures: $('#s-goal').value, seuil_grand_compte: $('#s-seuil').value,
         pennylane_api_key: $('#s-pl').value, fullenrich_api_key: $('#s-fe').value,
         hubspot_token: $('#s-hs').value, anthropic_api_key: $('#s-ai').value, ai_model: $('#s-model').value,
+        gmail_user: $('#s-gmail').value, gmail_app_password: $('#s-gmailpw').value,
+        autopilot_daily_cap: $('#s-cap').value, autopilot_window_start: $('#s-ws').value,
+        autopilot_window_end: $('#s-we').value, autopilot_weekdays_only: $('#s-weekdays').checked ? '1' : '0',
+        booking_url: $('#s-booking').value,
       } });
       $('#s-status').textContent = '✅ Enregistré';
       fx.play('pop');
@@ -1269,6 +1658,17 @@ async function vReglages(view) {
     } catch (e) { fx.error(e.message); }
   };
   $$('[data-test]', view).forEach((b) => { b.onclick = () => testIntegration(b.dataset.test, $(`#t-${b.dataset.test}`)); });
+  $$('[data-mailtest]', view).forEach((b) => {
+    b.onclick = async () => {
+      const el = $('#t-mail'); el.textContent = '⏳…'; b.disabled = true;
+      try {
+        const r = await api(`/mail/${b.dataset.mailtest}`, { method: 'POST' });
+        el.textContent = '✅ ' + (r.message || 'OK');
+        fx.play('pop');
+      } catch (e) { el.textContent = ''; fx.error(e.message); }
+      b.disabled = false;
+    };
+  });
   $('#s-demo').onclick = async () => {
     try { const r = await api('/demo', { method: 'POST' }); fx.toast(esc(r.message)); await refreshState(); }
     catch (e) { fx.error(e.message); }

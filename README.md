@@ -1,8 +1,11 @@
-# ⚔️ La Chasse — CRM de prospection gamifié (OTEA Production)
+# ⚔️ La Chasse — CRM de prospection gamifié + Autopilote (OTEA Production)
 
 Un outil de prospection **local, zéro dépendance**, pensé pour un seul objectif : **déclencher 5 factures**.
 
-Il réunit tout le workflow : import des **anciens clients Pennylane**, des listes **LinkedIn / Sales Navigator**, enrichissement **FullEnrich** (emails + téléphones), CRM par **typologies de clients**, relances automatiquement planifiées, **devis Pennylane en 2 clics**, réponses aux demandes entrantes (avec IA en option), et une couche de **gamification** complète (XP, niveaux, quêtes du jour, streak, badges, boss final) pour que prospecter devienne un jeu et plus une corvée.
+Deux moteurs :
+
+1. **🤖 L'Autopilote** — la machine qui prospecte à ta place : elle enrôle tes contacts (anciens clients Pennylane, HubSpot, ta boîte Gmail) dans des **séquences email**, envoie depuis **ton Gmail** (chaque relance reste dans le même fil), respecte un cap quotidien et des horaires ouvrés, **détecte les réponses dans ta boîte** et stoppe la séquence dès qu'on te répond — il ne te reste qu'à transformer la réponse en call.
+2. **🎮 Le CRM gamifié** — import Pennylane / LinkedIn / HubSpot, enrichissement FullEnrich, typologies de clients, Mode Chasse, devis Pennylane en 2 clics, XP, quêtes, streak, badges, boss final « 5 factures ».
 
 ---
 
@@ -21,6 +24,51 @@ npm start          # ou : node server.js
 Pour essayer avec des données fictives : `npm run demo` (et `npm run reset` pour tout remettre à zéro).
 
 Toutes tes données (contacts, clés API, historique) restent **sur ta machine**, dans `data/prospection.db` (gitignoré). Le serveur n'écoute que sur `127.0.0.1`.
+
+---
+
+## 🤖 L'Autopilote — la machine qui prospecte à ta place
+
+### Brancher ton Gmail (2 minutes, sans projet Google Cloud)
+
+1. Active la **validation en 2 étapes** sur ton compte Google ;
+2. Va sur [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords) → crée un mot de passe d'application « La Chasse » ;
+3. Colle-le dans **Réglages → Gmail & Autopilote** avec ton adresse → **Tester SMTP** + **Tester IMAP** → « 📤 M'envoyer un email de test ».
+
+### La boucle (toutes les 10 minutes quand l'Autopilote est actif)
+
+1. **Détection des réponses** : lecture des *en-têtes* (jamais les contenus) des nouveaux emails de ta boîte. Si un prospect en séquence a répondu → séquence **stoppée**, +25 XP, contact passé « En discussion », et une tâche « Répondre → proposer un call » apparaît dans Réponses + Mode Chasse.
+2. **Planification** : chaque contact enrôlé dont l'étape est due (J0, J+4, J+10…) a son email généré depuis les templates, personnalisé (prénom, boîte, {lien_rdv}…).
+3. **Envoi** : sous le **cap quotidien** (20 par défaut — démarre à 10-15), dans la **fenêtre 9h-18h**, **jours ouvrés**, avec 3 à 7 minutes entre chaque envoi. Les relances partent **dans le même fil Gmail** que le premier message (In-Reply-To) — c'est ce qui fait répondre.
+
+### Deux modes
+
+- **👀 Revue** (défaut) : chaque email attend ta validation dans la vue Autopilote — tu peux l'éditer, l'approuver, ou tout approuver d'un clic.
+- **🚀 Auto** : envoi sans validation. À activer quand tu fais confiance aux séquences.
+
+### Séquences fournies (modifiables, + création libre)
+
+| Séquence | Étapes |
+|---|---|
+| 🔮 **Réactivation anciens clients** | J0 « On remet ça ? » → J+4 relance douce → J+12 dernière |
+| 🐘 Conquête grand compte | J0 étude de cas → J+7 relance → J+21 long terme |
+| 🏪 Offre packagée PME | J0 offre → J+4 rappel prix → J+14 dernière |
+| 🏃 Événementiel / B2C | J0 aftermovie → J+3 urgence saison |
+
+**Workflow gagnant** : Imports → Pennylane (anciens clients) → vue Autopilote → « 👥 Enrôler » sur Réactivation → active l'Autopilote. Les réponses tombent, tu prends les calls.
+
+### Garde-fous intégrés
+
+- Une réponse (même détectée à la main) **stoppe la séquence** — personne ne reçoit une relance après avoir répondu ;
+- Un bounce (adresse refusée) marque l'email invalide et stoppe la séquence ;
+- Un contact = **une seule séquence à la fois** ; jamais d'enrôlement sans email ; les contacts en séquence sortent de la file du Mode Chasse ;
+- Cap quotidien + fenêtre horaire + jours ouvrés + espacement aléatoire : le rythme d'un humain, pas d'un robot ;
+- **Délivrabilité** : tu envoies depuis ton vrai Gmail (SPF/DKIM déjà en place), à faible volume, en texte simple — la meilleure config possible. Monte le cap progressivement.
+- **Cadre légal (France/RGPD)** : la réactivation de clients existants est du B2B légitime ; pour la prospection B2B à froid, reste sur des adresses professionnelles, propose toujours une porte de sortie et honore immédiatement tout « stop » (la séquence s'arrête à la moindre réponse, quelle qu'elle soit).
+
+### Scanner ta boîte Gmail
+
+**Imports → Gmail** : scanne le dossier « Messages envoyés » (en-têtes uniquement) et retrouve tous tes correspondants — souvent des clients oubliés — avec volume d'échanges et date du dernier contact, prêts à importer puis enrôler.
 
 ---
 
@@ -84,14 +132,16 @@ Les clés sont stockées en local (ou via un fichier `.env` : `PENNYLANE_API_KEY
 
 ## 🧱 Sous le capot
 
-- **Zéro dépendance** : Node ≥ 22.13, SQLite natif (`node:sqlite`), frontend vanilla. `git clone` → `node server.js`, c'est tout.
-- `server.js` — serveur HTTP + API REST (`/api/*`) · `src/db.js` — schéma + upsert/dédoublonnage · `src/gamification.js` — XP, niveaux, quêtes, streak, badges, boss · `src/playbooks.js` — segments, cadences, templates · `src/integrations/` — Pennylane, FullEnrich, HubSpot, Claude · `public/` — l'app.
-- API Pennylane **v2** (`/api/external/v2` : `customers`, `customer_invoices`, `quotes`, `create_from_quote`) ; FullEnrich **v2** (`/api/v2/contact/enrich/bulk`, fallback v1 automatique) ; HubSpot **v3**.
+- **Zéro dépendance** : Node ≥ 22.13, SQLite natif (`node:sqlite`), frontend vanilla, clients **SMTP et IMAP écrits maison** (`src/mail/`). `git clone` → `node server.js`, c'est tout.
+- `server.js` — serveur HTTP + API REST (`/api/*`) + boucle Autopilote (10 min) · `src/autopilot.js` — séquences, enrôlements, file d'envoi, détection des réponses · `src/db.js` — schéma + upsert/dédoublonnage · `src/gamification.js` — XP, niveaux, quêtes, streak, badges, boss · `src/playbooks.js` — segments, cadences, templates, séquences · `src/integrations/` — Pennylane, FullEnrich, HubSpot, Claude · `public/` — l'app.
+- API Pennylane **v2** (`/api/external/v2` : `customers`, `customer_invoices`, `quotes`, `create_from_quote`) ; FullEnrich **v2** (`/api/v2/contact/enrich/bulk`, fallback v1 automatique) ; HubSpot **v3** ; Gmail en **SMTP/IMAP standard** (mot de passe d'application, aucun projet Google Cloud à créer).
 - Les réponses d'API inattendues remontent **verbatim** dans l'interface pour diagnostiquer vite.
+- **Tests** : `npm test` — 10 tests du moteur Autopilote contre des serveurs SMTP/IMAP factices (envoi, threading, réponses, bounces, cap, scan).
 
 ## 🗺️ Pistes pour la suite
 
-- Connexion boîte mail (Gmail) pour aspirer les demandes entrantes automatiquement
+- Aspirer le *contenu* des demandes entrantes Gmail dans l'inbox (aujourd'hui : détection + en-têtes)
 - Détection automatique des factures payées via l'API Pennylane (boss auto-rempli)
 - Sync HubSpot bidirectionnelle programmée
+- Stats de séquences (taux d'ouverture impossible sans tracking pixel — volontairement exclu ; taux de réponse par séquence, lui, est déjà là)
 - Multi-joueur (si l'équipe grandit : leaderboard)

@@ -342,9 +342,11 @@ function contactScore(c) {
 // File du Mode Chasse : les actions dues aujourd'hui, puis les jamais-contactés, triés par score.
 function huntQueue(limit = 15) {
   const today = localDay();
+  // Les contacts en séquence Autopilote active sont exclus : la machine s'en occupe.
   const due = all(
     `SELECT * FROM contacts WHERE archived = 0 AND stage NOT IN ('gagne','perdu')
-     AND ((next_action_at != '' AND next_action_at <= ?) OR (next_action_at = '' AND stage = 'a_contacter'))`,
+     AND ((next_action_at != '' AND next_action_at <= ?) OR (next_action_at = '' AND stage = 'a_contacter'))
+     AND id NOT IN (SELECT contact_id FROM enrollments WHERE status = 'active')`,
     today
   );
   const scored = due.map((c) => ({ ...c, score: contactScore(c) }));

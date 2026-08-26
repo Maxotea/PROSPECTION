@@ -289,6 +289,63 @@ Le plus efficace reste un appel de 15 minutes — je vous propose un créneau d�
   },
 ];
 
+// ---------------------------------------------------------------- séquences seedées (Autopilote)
+// Chaque étape : delay_days = jours APRÈS l'étape précédente (0 = envoi immédiat à l'enrôlement).
+// Toutes les étapes partent en EMAIL (l'Autopilote n'envoie que des emails) —
+// les relances restent dans le même fil Gmail que le premier message.
+const SEQUENCE_SEED = [
+  {
+    code: 'seq_reactivation', name: '🔮 Réactivation anciens clients', segment: '',
+    description: 'La séquence la plus rentable : réveiller ceux qui ont déjà payé.',
+    steps: [
+      { delay_days: 0, template_code: 'reactivation' },
+      { delay_days: 4, template_code: 'gc_relance_1' },
+      { delay_days: 8, template_code: 'pme_relance_2' },
+    ],
+  },
+  {
+    code: 'seq_grand_compte', name: '🐘 Conquête grand compte', segment: 'grand_compte',
+    description: 'Étude de cas → relance douce → relance long terme.',
+    steps: [
+      { delay_days: 0, template_code: 'gc_email_1' },
+      { delay_days: 7, template_code: 'gc_relance_1' },
+      { delay_days: 14, template_code: 'gc_relance_2' },
+    ],
+  },
+  {
+    code: 'seq_pme', name: '🏪 Offre packagée PME', segment: 'pme',
+    description: 'Offre directe → rappel prix → dernière relance.',
+    steps: [
+      { delay_days: 0, template_code: 'pme_first' },
+      { delay_days: 4, template_code: 'pme_relance_1' },
+      { delay_days: 10, template_code: 'pme_relance_2' },
+    ],
+  },
+  {
+    code: 'seq_b2c', name: '🏃 Événementiel / B2C', segment: 'b2c_event',
+    description: 'Aftermovie & couverture événement, avec urgence de saison.',
+    steps: [
+      { delay_days: 0, template_code: 'b2c_first' },
+      { delay_days: 3, template_code: 'b2c_relance_2' },
+    ],
+  },
+];
+
+function seedSequences(dbApi) {
+  const { get, run, nowIso } = dbApi;
+  for (const s of SEQUENCE_SEED) {
+    let seq = get('SELECT id FROM sequences WHERE code = ?', s.code);
+    if (!seq) {
+      const { lastId } = run('INSERT INTO sequences (code, name, segment, description, builtin, created_at) VALUES (?, ?, ?, ?, 1, ?)',
+        s.code, s.name, s.segment, s.description, nowIso());
+      for (let i = 0; i < s.steps.length; i++) {
+        run('INSERT INTO sequence_steps (sequence_id, step_index, delay_days, template_code) VALUES (?, ?, ?, ?)',
+          lastId, i, s.steps[i].delay_days, s.steps[i].template_code);
+      }
+    }
+  }
+}
+
 function seedTemplates(dbApi) {
   const { get, run } = dbApi;
   for (const t of TEMPLATE_SEED) {
@@ -313,9 +370,10 @@ function renderTemplate(tpl, contact, settings) {
     moi: settings.user_name || '',
     ma_boite: settings.company_name || '',
     signature: settings.user_signature || settings.user_name || '',
+    lien_rdv: settings.booking_url || '',
   };
   const fill = (s) => String(s || '').replace(/\{(\w+)\}/g, (m, k) => (vars[k] !== undefined ? vars[k] : m));
   return { subject: fill(tpl.subject), body: fill(tpl.body), channel: tpl.channel, name: tpl.name, code: tpl.code };
 }
 
-module.exports = { SEGMENTS, STAGES, CADENCES, FIRST_TOUCH, TEMPLATE_SEED, seedTemplates, renderTemplate, suggestedTemplateCode, nextStepAfter };
+module.exports = { SEGMENTS, STAGES, CADENCES, FIRST_TOUCH, TEMPLATE_SEED, SEQUENCE_SEED, seedTemplates, seedSequences, renderTemplate, suggestedTemplateCode, nextStepAfter };

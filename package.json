@@ -9,6 +9,7 @@
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning server.js",
     "demo": "node --disable-warning=ExperimentalWarning seed.js",
-    "reset": "node --disable-warning=ExperimentalWarning seed.js --wipe"
+    "reset": "node --disable-warning=ExperimentalWarning seed.js --wipe",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js"
   }
 }
