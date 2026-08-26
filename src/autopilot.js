@@ -333,6 +333,46 @@ function importScanned(entries) {
   return { created, merged };
 }
 
+// ---------------------------------------------------------------- envoi direct (Mode Chasse / fiche contact)
+// Envoie UN email tout de suite, hors séquence : compté dans le cap quotidien,
+// loggé dans le journal, XP et étape pipeline comme un envoi manuel.
+async function sendOneOff({ contact_id, subject, body }) {
+  const contact = get('SELECT * FROM contacts WHERE id = ?', contact_id);
+  if (!contact) throw new Error('Contact introuvable');
+  if (!contact.email) throw new Error("Ce contact n'a pas d'email — enrichis-le (FullEnrich) ou contacte-le via LinkedIn.");
+  const cfg = mailCfg();
+  const cap = Number(getSetting('autopilot_daily_cap') || 20);
+  if (sentToday() >= cap) throw new Error(`Cap quotidien atteint (${cap} emails aujourd'hui). Remonte-le dans Réglages si besoin.`);
+
+  let messageId;
+  try {
+    ({ messageId } = await smtp.sendMail({
+      ...cfg.smtp, from: cfg.from, fromName: getSetting('user_name') || cfg.fromName,
+      to: contact.email, subject: subject || '(sans objet)', body: body || '',
+    }));
+  } catch (e) {
+    if (e.rejectedRecipient) {
+      dbApi.updateContact(contact.id, { email_status: 'invalid' });
+      throw new Error(`Adresse refusée par le serveur (email marqué invalide) : ${e.message}`);
+    }
+    throw e;
+  }
+
+  run(`INSERT INTO outbox (contact_id, step_index, to_email, subject, body, status, sent_at, message_id, day, created_at)
+       VALUES (?, 0, ?, ?, ?, 'sent', ?, ?, ?, ?)`,
+    contact.id, contact.email, subject || '', body || '', nowIso(), messageId, localDay(), nowIso());
+
+  const touchTypes = ['connexion_linkedin', 'message_envoye', 'relance', 'appel', 'reponse_envoyee'];
+  const touches = Number(get(`SELECT COUNT(*) AS n FROM activities WHERE contact_id = ? AND type IN (${touchTypes.map(() => '?').join(',')})`, contact.id, ...touchTypes).n);
+  const celebration = game.logAction({
+    contact_id: contact.id,
+    type: touches > 0 ? 'relance' : 'message_envoye',
+    note: `📤 Email envoyé — « ${String(subject || '').slice(0, 70)} »`,
+    meta: { direct_send: true, message_id: messageId },
+  });
+  return { message_id: messageId, to: contact.email, celebration };
+}
+
 // ---------------------------------------------------------------- tests de connexion
 async function testSmtp() { await smtp.testAuth({ ...mailCfg().smtp }); return { ok: true, message: 'SMTP Gmail OK — prêt à envoyer' }; }
 async function testImap() { await imap.testLogin(mailCfg().imap); return { ok: true, message: 'IMAP Gmail OK — détection des réponses prête' }; }
@@ -348,5 +388,5 @@ async function sendTestEmail() {
 
 module.exports = {
   isConfigured, enroll, stopForContact, pollReplies, processDue, approve, approveAll,
-  flushOutbox, tick, state, scanSent, importScanned, testSmtp, testImap, sendTestEmail,
+  flushOutbox, tick, state, scanSent, importScanned, testSmtp, testImap, sendTestEmail, sendOneOff,
 };

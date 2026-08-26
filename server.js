@@ -119,12 +119,14 @@ route('GET', '/api/contacts', async (req, params, query) => {
   if (query.due === '1') { where.push(`stage NOT IN ('gagne','perdu') AND next_action_at != '' AND next_action_at <= ?`); args.push(localDay()); }
 
   const total = Number(get(`SELECT COUNT(*) AS n FROM contacts WHERE ${where.join(' AND ')}`, ...args).n);
-  const sortCols = { updated_at: 'updated_at', created_at: 'created_at', name: 'last_name', company: 'company', next_action_at: 'next_action_at', revenue: 'revenue_history' };
+  const sortCols = { updated_at: 'updated_at', created_at: 'created_at', name: 'last_name', company: 'company', next_action_at: 'next_action_at', revenue: 'revenue_history', segment: 'segment', stage: 'stage' };
   const sort = sortCols[query.sort] || 'updated_at';
   const dir = query.dir === 'asc' ? 'ASC' : 'DESC';
+  // Les contacts sans échéance passent en dernier quand on trie par prochaine action.
+  const orderBy = sort === 'next_action_at' ? `(next_action_at = '') ASC, next_action_at ${dir}` : `${sort} ${dir}`;
   const limit = Math.min(Number(query.limit) || 100, 500);
   const offset = Number(query.offset) || 0;
-  const rows = all(`SELECT * FROM contacts WHERE ${where.join(' AND ')} ORDER BY ${sort} ${dir} LIMIT ${limit} OFFSET ${offset}`, ...args);
+  const rows = all(`SELECT * FROM contacts WHERE ${where.join(' AND ')} ORDER BY ${orderBy} LIMIT ${limit} OFFSET ${offset}`, ...args);
   return { total, contacts: rows };
 });
 
@@ -498,6 +500,10 @@ route('POST', '/api/autopilot/tick', async (req) => {
 route('GET', '/api/autopilot/state', async () => autopilot.state());
 
 // ---- 🤖 Autopilote : Gmail (tests + scan de la boîte)
+route('POST', '/api/mail/send_one', async (req) => {
+  const b = await readBody(req);
+  return autopilot.sendOneOff({ contact_id: b.contact_id, subject: b.subject, body: b.body });
+});
 route('POST', '/api/mail/test_smtp', async () => autopilot.testSmtp());
 route('POST', '/api/mail/test_imap', async () => autopilot.testImap());
 route('POST', '/api/mail/send_test', async () => autopilot.sendTestEmail());

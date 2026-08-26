@@ -385,14 +385,18 @@ async function vChasse(view) {
         <textarea id="hunt-body" placeholder="Ton message…"></textarea>
       </div>
       <div class="hunt-actions">
-        <button class="primary" data-act="send">✉️ Message envoyé <span class="kbd">1</span></button>
-        ${c.linkedin_url ? `<button data-act="connect">🔗 Connexion envoyée <span class="kbd">2</span></button>` : ''}
-        <button data-act="call">📞 Appelé <span class="kbd">3</span></button>
-        <button data-act="replied">💬 A répondu <span class="kbd">4</span></button>
-        <button class="gold" data-act="meeting">📅 RDV pris <span class="kbd">5</span></button>
-        <button data-act="skip">⏭️ Plus tard <span class="kbd">6</span></button>
-        <button class="danger" data-act="disqualify">🪦 Disqualifier <span class="kbd">7</span></button>
+        ${S.autopilot.configured && c.email
+          ? `<button class="primary" data-act="sendreal">📤 ENVOYER l'email <span class="kbd"></span></button>
+             <button data-act="send" title="Si tu as envoyé le message toi-même (LinkedIn, autre boîte…)">✔️ Envoyé moi-même <span class="kbd"></span></button>`
+          : `<button class="primary" data-act="send">✉️ Marquer envoyé (copie le texte) <span class="kbd"></span></button>`}
+        ${c.linkedin_url ? `<button data-act="connect">🔗 Connexion envoyée <span class="kbd"></span></button>` : ''}
+        <button data-act="call">📞 Appelé <span class="kbd"></span></button>
+        <button data-act="replied">💬 A répondu <span class="kbd"></span></button>
+        <button class="gold" data-act="meeting">📅 RDV pris <span class="kbd"></span></button>
+        <button data-act="skip">⏭️ Plus tard <span class="kbd"></span></button>
+        <button class="danger" data-act="disqualify">🪦 Disqualifier <span class="kbd"></span></button>
       </div>
+      ${S.autopilot.configured && c.email ? '' : `<p class="muted small" style="margin-top:8px">ℹ️ ${c.email ? 'Branche ton email dans Réglages pour envoyer directement d’ici.' : 'Pas d’email sur cette fiche : passe par LinkedIn, ou enrichis-la via FullEnrich.'} Les boutons ci-dessus ne font que NOTER ce que tu as fait — ils n'envoient rien.</p>`}
     </div>`;
 
   const renderTpl = async () => {
@@ -429,20 +433,36 @@ async function vChasse(view) {
   };
 
   const advance = () => { hunt.idx++; vChasse(view); };
-  const act = async (type, { note = '', noXp = false } = {}) => {
+  const scored = async (res) => {
+    const now = Date.now();
+    hunt.combo = now - hunt.lastAt < 90000 ? hunt.combo + 1 : 1;
+    hunt.lastAt = now;
+    hunt.xp += res.xp_gained || 0; hunt.actions++;
+    await celebrate(res);
+  };
+  const act = async (type, { note = '' } = {}) => {
     try {
-      if (noXp) { advance(); return; }
       const res = await api('/actions', { method: 'POST', body: { contact_id: c.id, type, note } });
-      const now = Date.now();
-      hunt.combo = now - hunt.lastAt < 90000 ? hunt.combo + 1 : 1;
-      hunt.lastAt = now;
-      hunt.xp += res.xp_gained; hunt.actions++;
-      await celebrate(res);
+      await scored(res);
       advance();
     } catch (e) { fx.error(e.message); }
   };
   const tplName = () => { const t = tpls.find((x) => x.id === Number($('#hunt-tpl').value)); return t ? t.name : ''; };
   const handlers = {
+    // Envoi RÉEL depuis ta boîte (compté dans le cap quotidien, comme l'autopilote).
+    sendreal: async () => {
+      const btn = $('[data-act="sendreal"]', view);
+      btn.disabled = true; btn.textContent = '📤 Envoi en cours…';
+      try {
+        const r = await api('/mail/send_one', { method: 'POST', body: { contact_id: c.id, subject: $('#hunt-subject').value, body: $('#hunt-body').value } });
+        fx.toast(`📤 Email envoyé à ${esc(r.to)}`);
+        await scored(r.celebration);
+        advance();
+      } catch (e) {
+        fx.error(e.message);
+        btn.disabled = false; btn.textContent = '📤 ENVOYER l\'email';
+      }
+    },
     send: async () => { await copyText($('#hunt-body').value); act(c.touches > 0 ? 'relance' : 'message_envoye', { note: tplName() }); },
     connect: () => act('connexion_linkedin', { note: 'Depuis le Mode Chasse' }),
     call: () => act('appel'),
@@ -454,13 +474,15 @@ async function vChasse(view) {
     },
     disqualify: () => act('disqualifie'),
   };
-  $$('[data-act]', view).forEach((b) => { b.onclick = () => handlers[b.dataset.act](); });
+  // Raccourcis clavier numérotés dans l'ordre d'affichage des boutons.
+  const actButtons = $$('.hunt-actions [data-act]', view);
+  actButtons.forEach((b, i) => { const k = $('.kbd', b); if (k) k.textContent = String(i + 1); b.onclick = () => handlers[b.dataset.act](); });
   view.onkeydown = null;
   document.onkeydown = (e) => {
     if (location.hash.replace('#/', '') !== 'chasse' || !hunt) { document.onkeydown = null; return; }
     if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
-    const map = { 1: 'send', 2: 'connect', 3: 'call', 4: 'replied', 5: 'meeting', 6: 'skip', 7: 'disqualify' };
-    if (map[e.key]) { const btn = $(`[data-act="${map[e.key]}"]`, view); if (btn) btn.click(); }
+    const idx = Number(e.key) - 1;
+    if (idx >= 0 && actButtons[idx]) actButtons[idx].click();
   };
 }
 
@@ -735,7 +757,7 @@ async function vPipeline(view) {
 }
 
 // ================================================================ CONTACTS
-const cFilter = { search: '', segment: '', stage: '', origin: '', former: false, enrichable: false, campaign: 0 };
+const cFilter = { search: '', segment: '', stage: '', origin: '', former: false, enrichable: false, campaign: 0, sort: 'updated_at', dir: 'desc' };
 const cSelected = new Set();
 
 async function vContacts(view) {
@@ -747,6 +769,8 @@ async function vContacts(view) {
   if (cFilter.former) params.set('former', '1');
   if (cFilter.enrichable) params.set('enrichable', '1');
   if (cFilter.campaign) params.set('campaign', String(cFilter.campaign));
+  params.set('sort', cFilter.sort);
+  params.set('dir', cFilter.dir);
   const { total, contacts } = await api('/contacts?' + params);
   const { campaigns: campList } = await api('/campaigns');
 
@@ -779,16 +803,20 @@ async function vContacts(view) {
     <div class="card table-scroll" style="padding:6px 10px">
       <table class="list">
         <thead><tr>
-          <th><input type="checkbox" id="c-all"></th><th>Contact</th><th>Typologie</th><th>Étape</th><th>Data</th><th>Prochaine action</th><th>CA hist.</th>
+          <th><input type="checkbox" id="c-all"></th>
+          ${[['name', 'Contact'], ['segment', 'Typologie'], ['stage', 'Étape'], ['', 'Data'], ['next_action_at', 'Prochaine action'], ['revenue', 'CA hist.']]
+            .map(([k, label]) => k
+              ? `<th data-sort-col="${k}" style="cursor:pointer" title="Trier">${label} ${cFilter.sort === k ? (cFilter.dir === 'asc' ? '▲' : '▼') : '<span class="faint">↕</span>'}</th>`
+              : `<th>${label}</th>`).join('')}
         </tr></thead>
         <tbody>
           ${contacts.map((c) => `<tr class="rowc" data-id="${c.id}">
             <td><input type="checkbox" class="c-check" data-id="${c.id}" ${cSelected.has(c.id) ? 'checked' : ''}></td>
             <td><div class="t-name">${esc(c.first_name)} ${esc(c.last_name)} ${c.is_former_client ? '💰' : ''}</div><div class="t-sub">${esc(c.company || '')}${c.job_title ? ' · ' + esc(c.job_title) : ''}</div></td>
-            <td>${segChip(c.segment)}</td>
-            <td>${stageLabel(c.stage)}</td>
+            <td><select class="cell-mini" data-seg-id="${c.id}" title="Changer la typologie">${Object.entries(S.segments).map(([k, s]) => `<option value="${k}" ${c.segment === k ? 'selected' : ''}>${s.emoji} ${esc(s.label)}</option>`).join('')}</select></td>
+            <td><select class="cell-mini" data-stage-id="${c.id}" title="Changer l'étape">${S.stages.map((s) => `<option value="${s.code}" ${c.stage === s.code ? 'selected' : ''}>${s.emoji} ${esc(s.label)}</option>`).join('')}</select></td>
             <td class="presence" title="email / téléphone / LinkedIn">${c.email ? '✉️' : '·'}${c.phone ? '☎️' : '·'}${c.linkedin_url ? '🔗' : '·'}</td>
-            <td class="small">${c.next_action ? `${esc(c.next_action)}<br><span class="muted">${dueLabel(c.next_action_at)}</span>` : '<span class="faint">—</span>'}</td>
+            <td class="small">${c.next_action ? `${esc(c.next_action)}<br><span class="muted">${dueLabel(c.next_action_at)}</span>` : '<span class="faint">—</span>'} <button class="ghost cell-mini" data-na-id="${c.id}" title="Modifier la prochaine action">✏️</button></td>
             <td>${c.revenue_history ? eur(c.revenue_history) : '<span class="faint">—</span>'}</td>
           </tr>`).join('')}
         </tbody>
@@ -812,7 +840,67 @@ async function vContacts(view) {
   $$('.c-check', view).forEach((cb) => {
     cb.onclick = (e) => { e.stopPropagation(); const id = Number(cb.dataset.id); cb.checked ? cSelected.add(id) : cSelected.delete(id); vContacts(view); };
   });
-  $$('tr.rowc', view).forEach((tr) => { tr.onclick = (e) => { if (e.target.type !== 'checkbox') openContact(tr.dataset.id); }; });
+  $$('tr.rowc', view).forEach((tr) => {
+    tr.onclick = (e) => { if (e.target.closest('select, button, input, a, label')) return; openContact(tr.dataset.id); };
+  });
+
+  // Tri par colonne
+  $$('[data-sort-col]', view).forEach((h) => {
+    h.onclick = () => {
+      const k = h.dataset.sortCol;
+      if (cFilter.sort === k) cFilter.dir = cFilter.dir === 'asc' ? 'desc' : 'asc';
+      else { cFilter.sort = k; cFilter.dir = k === 'next_action_at' ? 'asc' : 'desc'; }
+      vContacts(view);
+    };
+  });
+
+  // Édition directe : typologie, étape, prochaine action
+  $$('[data-seg-id]', view).forEach((sel) => {
+    sel.onchange = async () => {
+      try { await api(`/contacts/${sel.dataset.segId}`, { method: 'PATCH', body: { segment: sel.value } }); fx.play('pop'); }
+      catch (e) { fx.error(e.message); vContacts(view); }
+    };
+  });
+  $$('[data-stage-id]', view).forEach((sel) => {
+    sel.onchange = async () => {
+      try {
+        const r = await api(`/contacts/${sel.dataset.stageId}`, { method: 'PATCH', body: { stage: sel.value } });
+        await celebrate(r.celebration);
+      } catch (e) { fx.error(e.message); vContacts(view); }
+    };
+  });
+  $$('[data-na-id]', view).forEach((b) => {
+    b.onclick = () => {
+      const contact = contacts.find((x) => String(x.id) === b.dataset.naId);
+      const m = modal(`
+        <h2>📆 Prochaine action — ${esc(contact.first_name)} ${esc(contact.last_name)}</h2>
+        <div class="form-grid" style="margin-top:10px">
+          <label class="field wide">Quoi faire<input id="na-what" value="${esc(contact.next_action)}" placeholder="Ex : Relancer le devis, appeler après son événement…"></label>
+          <label class="field">Pour quand<input id="na-when" type="date" value="${esc(contact.next_action_at)}"></label>
+          <div class="row" style="margin-top:18px">
+            <button class="ghost" data-quick="0">Aujourd'hui</button>
+            <button class="ghost" data-quick="1">Demain</button>
+            <button class="ghost" data-quick="3">+3 j</button>
+            <button class="ghost" data-quick="7">+7 j</button>
+          </div>
+        </div>
+        <div class="row" style="justify-content:space-between;margin-top:14px">
+          <button class="ghost" id="na-clear">🗑 Effacer</button>
+          <button class="primary" id="na-save">💾 Enregistrer</button>
+        </div>`);
+      $$('[data-quick]', m).forEach((q) => { q.onclick = () => { $('#na-when', m).value = addDaysStr(today(), Number(q.dataset.quick)); }; });
+      $('#na-save', m).onclick = async () => {
+        try {
+          await api(`/contacts/${contact.id}`, { method: 'PATCH', body: { next_action: $('#na-what', m).value, next_action_at: $('#na-when', m).value } });
+          m.remove(); fx.toast('📆 Prochaine action mise à jour'); vContacts(view);
+        } catch (e) { fx.error(e.message); }
+      };
+      $('#na-clear', m).onclick = async () => {
+        try { await api(`/contacts/${contact.id}`, { method: 'PATCH', body: { next_action: '', next_action_at: '' } }); m.remove(); vContacts(view); }
+        catch (e) { fx.error(e.message); }
+      };
+    };
+  });
 
   $('#c-new').onclick = () => newContactModal(() => vContacts(view));
   if (cSelected.size) {
@@ -978,7 +1066,8 @@ async function openContact(id) {
       <textarea id="d-body" rows="7"></textarea>
       <div class="row" style="margin-top:8px">
         <button id="d-copy">📋 Copier</button>
-        ${c.email ? `<a id="d-send-mail" href="#"><button class="primary">✉️ Ouvrir l'email</button></a>` : ''}
+        ${c.email && S.autopilot.configured ? `<button class="primary" id="d-sendreal">📤 Envoyer maintenant</button>` : ''}
+        ${c.email ? `<a id="d-send-mail" href="#"><button>✉️ Ouvrir dans ma messagerie</button></a>` : ''}
         <span style="flex:1"></span>
         <select id="d-log-type">
           <option value="message_envoye">📤 Message envoyé</option>
@@ -1064,6 +1153,16 @@ async function openContact(id) {
   $('#d-body').oninput = syncMail;
   await renderTpl();
   $('#d-copy').onclick = async () => { await copyText($('#d-body').value); fx.toast('📋 Copié'); };
+  const sendRealBtn = $('#d-sendreal');
+  if (sendRealBtn) sendRealBtn.onclick = async () => {
+    sendRealBtn.disabled = true; sendRealBtn.textContent = '📤 Envoi…';
+    try {
+      const r = await api('/mail/send_one', { method: 'POST', body: { contact_id: c.id, subject: $('#d-subject').value, body: $('#d-body').value } });
+      fx.toast(`📤 Email envoyé à ${esc(r.to)}`);
+      await celebrate(r.celebration);
+      openContact(c.id);
+    } catch (e) { fx.error(e.message); sendRealBtn.disabled = false; sendRealBtn.textContent = '📤 Envoyer maintenant'; }
+  };
   $('#d-ai').onclick = async () => {
     const btn = $('#d-ai'); btn.disabled = true; btn.textContent = '✨ …';
     try {
@@ -1836,16 +1935,35 @@ async function vReglages(view) {
       </div>
       <div class="grid">
       <div class="card">
-        <h2>📧 Gmail & Autopilote</h2>
-        <p class="muted small">L'autopilote envoie depuis TON Gmail et lit les en-têtes de ta boîte pour détecter les réponses. Crée un <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">mot de passe d'application</a> (nécessite la validation en 2 étapes).</p>
+        <h2>📧 Email & Autopilote</h2>
+        <p class="muted small">L'autopilote envoie depuis TA boîte et lit les en-têtes pour détecter les réponses. <b>Gmail / Google Workspace</b> : crée un <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">mot de passe d'application</a> (nécessite la <a href="https://myaccount.google.com/security" target="_blank" rel="noopener">validation en 2 étapes</a>). <b>OVH, Ionos, Infomaniak…</b> : ton mot de passe email normal suffit.</p>
         <div class="form-grid">
-          <label class="field">Adresse Gmail<input id="s-gmail" value="${esc(s.gmail_user)}" placeholder="toi@gmail.com"></label>
-          <label class="field">Mot de passe d'application<input id="s-gmailpw" type="password" value="${esc(s.gmail_app_password)}"></label>
+          <label class="field">Fournisseur de ta boîte
+            <select id="s-provider">
+              <option value="gmail">Gmail / Google Workspace</option>
+              <option value="ovh">OVH</option>
+              <option value="ionos">Ionos (1&1)</option>
+              <option value="infomaniak">Infomaniak</option>
+              <option value="zoho">Zoho Mail</option>
+              <option value="custom">Autre (serveurs manuels)</option>
+            </select>
+          </label>
+          <label class="field">Adresse email d'envoi<input id="s-gmail" value="${esc(s.gmail_user)}" placeholder="contact@taboite.com"></label>
+          <label class="field wide">Mot de passe <span class="faint">(d'application pour Gmail, normal pour les autres)</span><input id="s-gmailpw" type="password" value="${esc(s.gmail_app_password)}"></label>
           <label class="field">Cap d'envoi / jour<input id="s-cap" type="number" min="1" max="100" value="${esc(s.autopilot_daily_cap)}"></label>
           <label class="field">Fenêtre d'envoi<div class="row"><input id="s-ws" type="number" min="0" max="23" value="${esc(s.autopilot_window_start)}" style="width:64px">h → <input id="s-we" type="number" min="1" max="24" value="${esc(s.autopilot_window_end)}" style="width:64px">h</div></label>
           <label class="field wide">Lien de RDV (Calendly, Google…) — variable {lien_rdv}<input id="s-booking" value="${esc(s.booking_url)}" placeholder="https://calendly.com/…"></label>
           <label class="chip wide" style="cursor:pointer"><input type="checkbox" id="s-weekdays" ${s.autopilot_weekdays_only !== '0' ? 'checked' : ''}> envoyer uniquement en jours ouvrés</label>
         </div>
+        <details id="s-servers" style="margin-top:8px">
+          <summary class="muted small" style="cursor:pointer">⚙️ Serveurs d'envoi (remplis automatiquement selon le fournisseur)</summary>
+          <div class="form-grid" style="margin-top:8px">
+            <label class="field">Serveur d'envoi (SMTP)<input id="s-smtph" value="${esc(s.smtp_host)}"></label>
+            <label class="field">Port SMTP<input id="s-smtpp" type="number" value="${esc(s.smtp_port)}"></label>
+            <label class="field">Serveur de réception (IMAP)<input id="s-imaph" value="${esc(s.imap_host)}"></label>
+            <label class="field">Port IMAP<input id="s-imapp" type="number" value="${esc(s.imap_port)}"></label>
+          </div>
+        </details>
         <div class="row" style="margin-top:10px">
           <button data-mailtest="test_smtp">🔌 Tester SMTP</button>
           <button data-mailtest="test_imap">🔌 Tester IMAP</button>
@@ -1892,7 +2010,27 @@ async function vReglages(view) {
       autopilot_daily_cap: $('#s-cap').value, autopilot_window_start: $('#s-ws').value,
       autopilot_window_end: $('#s-we').value, autopilot_weekdays_only: $('#s-weekdays').checked ? '1' : '0',
       booking_url: $('#s-booking').value,
+      smtp_host: $('#s-smtph').value, smtp_port: $('#s-smtpp').value,
+      imap_host: $('#s-imaph').value, imap_port: $('#s-imapp').value,
     } });
+  };
+
+  // Fournisseur email → préremplit les serveurs (Gmail par défaut).
+  const PROVIDERS = {
+    gmail: { smtp_host: 'smtp.gmail.com', smtp_port: '465', imap_host: 'imap.gmail.com', imap_port: '993' },
+    ovh: { smtp_host: 'ssl0.ovh.net', smtp_port: '465', imap_host: 'ssl0.ovh.net', imap_port: '993' },
+    ionos: { smtp_host: 'smtp.ionos.fr', smtp_port: '465', imap_host: 'imap.ionos.fr', imap_port: '993' },
+    infomaniak: { smtp_host: 'mail.infomaniak.com', smtp_port: '465', imap_host: 'mail.infomaniak.com', imap_port: '993' },
+    zoho: { smtp_host: 'smtp.zoho.eu', smtp_port: '465', imap_host: 'imap.zoho.eu', imap_port: '993' },
+  };
+  const detected = Object.entries(PROVIDERS).find(([, p]) => p.smtp_host === s.smtp_host);
+  $('#s-provider').value = detected ? detected[0] : 'custom';
+  $('#s-provider').onchange = (e) => {
+    const p = PROVIDERS[e.target.value];
+    if (!p) { $('#s-servers').open = true; return; } // "Autre" : saisie manuelle
+    $('#s-smtph').value = p.smtp_host; $('#s-smtpp').value = p.smtp_port;
+    $('#s-imaph').value = p.imap_host; $('#s-imapp').value = p.imap_port;
+    fx.toast(`⚙️ Serveurs ${e.target.options[e.target.selectedIndex].text} appliqués — pense à Enregistrer`);
   };
   $('#s-save').onclick = async () => {
     try {

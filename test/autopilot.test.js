@@ -296,6 +296,33 @@ test('Autopilote : le cap quotidien limite la planification', () => {
   setSetting('autopilot_daily_cap', '20');
 });
 
+test('Envoi direct (Mode Chasse) : envoie, logge, compte dans le cap', async () => {
+  const mock = await startMockSmtp();
+  setSetting('smtp_host', '127.0.0.1');
+  setSetting('smtp_port', String(mock.port));
+  setSetting('smtp_secure', '0');
+
+  const c = freshContact({ email: 'direct@testco.fr', last_name: 'Direct', stage: 'a_contacter' });
+  const before = Number(get(`SELECT COUNT(*) AS n FROM outbox WHERE status = 'sent' AND day = ?`, localDay()).n);
+  const r = await autopilot.sendOneOff({ contact_id: c.id, subject: 'Salut é', body: 'Corps du message' });
+  assert.ok(r.message_id.startsWith('<chasse-'));
+  assert.strictEqual(r.to, 'direct@testco.fr');
+  assert.ok(r.celebration.xp_gained >= 10);
+
+  const after = Number(get(`SELECT COUNT(*) AS n FROM outbox WHERE status = 'sent' AND day = ?`, localDay()).n);
+  assert.strictEqual(after, before + 1); // compté dans le cap quotidien
+  const contact = get('SELECT * FROM contacts WHERE id = ?', c.id);
+  assert.strictEqual(contact.stage, 'contacte'); // pipeline avancé
+  const act = get(`SELECT * FROM activities WHERE contact_id = ? AND type = 'message_envoye'`, c.id);
+  assert.match(act.note, /Email envoyé/);
+  assert.match(mock.state.messages[mock.state.messages.length - 1], /Corps du message/);
+
+  // sans email → refus clair
+  const noMail = freshContact({ email: '', last_name: 'SansMail2' });
+  await assert.rejects(() => autopilot.sendOneOff({ contact_id: noMail.id, subject: 'x', body: 'y' }), /pas d.email/);
+  mock.server.close();
+});
+
 test('Scan Gmail : agrège les destinataires du dossier Envoyés', async () => {
   const scenario = {
     uidnext: 43,

@@ -215,6 +215,7 @@ table.list td { padding: 9px 10px; border-bottom: 1px solid var(--border); }
 table.list tr.rowc { cursor: pointer; transition: background .12s; }
 table.list tr.rowc:hover { background: rgba(139, 92, 246, .07); }
 .t-name { font-weight: 700; }
+.cell-mini { font-size: 12px; padding: 4px 7px; border-radius: 7px; max-width: 170px; }
 .t-sub { font-size: 12px; color: var(--muted); }
 .presence { letter-spacing: 2px; }
 .table-scroll { overflow-x: auto; }
