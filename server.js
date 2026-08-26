@@ -7,6 +7,15 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 
+// Garde-fou version : node:sqlite exige Node ≥ 22.13 — message clair plutôt qu'une erreur cryptique.
+{
+  const [maj, min] = process.versions.node.split('.').map(Number);
+  if (maj < 22 || (maj === 22 && min < 13)) {
+    console.error(`\n❌ Ta version de Node.js (${process.version}) est trop ancienne pour La Chasse (il faut la 22.13 ou plus).\n→ Installe la dernière version LTS depuis https://nodejs.org puis relance.\n`);
+    process.exit(1);
+  }
+}
+
 // --- .env optionnel (PENNYLANE_API_KEY=..., etc.) chargé avant le reste
 (function loadEnv() {
   const p = path.join(__dirname, '.env');

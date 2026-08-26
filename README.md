@@ -12,7 +12,15 @@ Trois moteurs :
 
 ## 🚀 Démarrage (2 minutes)
 
-Prérequis : **Node.js ≥ 22.13** (aucun `npm install`, aucune dépendance).
+Prérequis : **Node.js ≥ 22.13** (aucun `npm install`, aucune dépendance) — installe la version **LTS** depuis [nodejs.org](https://nodejs.org/fr) si besoin.
+
+**Sans terminal (recommandé)** : télécharge le projet (GitHub → bouton vert **Code** → **Download ZIP** → décompresse), puis double-clique :
+- sur Mac : **`demarrer.command`** (si macOS bloque : clic droit → « Ouvrir », une seule fois)
+- sur Windows : **`demarrer.bat`**
+
+Le navigateur s'ouvre tout seul sur l'app. **Laisse la petite fenêtre noire ouverte** : c'est elle qui fait tourner l'Autopilote.
+
+**Avec terminal** :
 
 ```bash
 git clone <ce-repo>
