@@ -6,6 +6,7 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
+const os = require('node:os');
 
 // Garde-fou version : node:sqlite exige Node ≥ 22.13 — message clair plutôt qu'une erreur cryptique.
 {
@@ -46,6 +47,35 @@ campaigns.seedReferences();
 const PORT = Number(process.env.PORT || 1337);
 const HOST = process.env.HOST || '127.0.0.1';
 const PUBLIC_DIR = path.join(__dirname, 'public');
+
+// Mode RÉSEAU (iPad/téléphone sur le même Wi-Fi) : l'app devient visible par
+// tout le réseau local → on la verrouille derrière un code d'accès à 6 caractères.
+const NETWORK_MODE = !['127.0.0.1', 'localhost', '::1'].includes(HOST);
+let RESEAU_CODE = '';
+if (NETWORK_MODE) {
+  RESEAU_CODE = dbApi.getSetting('reseau_code');
+  if (!RESEAU_CODE) {
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // sans 0/O/1/I/L ambigus
+    RESEAU_CODE = Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+    dbApi.setSetting('reseau_code', RESEAU_CODE);
+  }
+}
+
+function loginPage(wrong) {
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>⚔️ La Chasse — accès</title>
+  <style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0a0d18;color:#e9edff;font:16px system-ui,sans-serif}
+  .box{background:#131830;border:1px solid #242c52;border-radius:16px;padding:32px 36px;text-align:center;max-width:340px}
+  input{font:inherit;font-size:26px;letter-spacing:8px;text-align:center;text-transform:uppercase;width:100%;padding:10px;border-radius:10px;border:1px solid #34406e;background:#0e1222;color:#e9edff;margin:14px 0}
+  button{font:inherit;font-weight:700;width:100%;padding:12px;border-radius:10px;border:0;background:linear-gradient(135deg,#7c3aed,#8b5cf6);color:#fff;cursor:pointer}
+  .err{color:#f87171;font-size:14px}</style></head><body>
+  <form class="box" method="POST" action="/acces">
+    <div style="font-size:44px">⚔️</div><h2 style="margin:6px 0">La Chasse</h2>
+    <p style="color:#93a0c9;font-size:14px">Entre le code affiché dans la fenêtre noire de ton ordinateur.</p>
+    ${wrong ? '<p class="err">❌ Mauvais code, réessaie.</p>' : ''}
+    <input name="code" maxlength="6" autofocus autocomplete="off" placeholder="••••••">
+    <button type="submit">Entrer</button>
+  </form></body></html>`;
+}
 
 // ---------------------------------------------------------------- utilitaires HTTP
 function json(res, status, data) {
@@ -591,6 +621,35 @@ const server = http.createServer(async (req, res) => {
   const u = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const query = Object.fromEntries(u.searchParams.entries());
 
+  // Verrou du mode réseau : tout passe par le code d'accès (cookie 30 jours).
+  if (NETWORK_MODE) {
+    const m = String(req.headers.cookie || '').match(/(?:^|;\s*)chasse_acces=([^;]+)/);
+    const authed = !!(m && m[1] === RESEAU_CODE);
+    if (!authed) {
+      if (req.method === 'POST' && u.pathname === '/acces') {
+        const chunks = [];
+        req.on('data', (c) => chunks.push(c));
+        req.on('end', () => {
+          const raw = Buffer.concat(chunks).toString('utf8');
+          let code = '';
+          try { code = decodeURIComponent((raw.match(/code=([^&]*)/) || [])[1] || '').trim().toUpperCase(); } catch { /* corps illisible */ }
+          if (code === RESEAU_CODE) {
+            res.writeHead(302, { 'Set-Cookie': `chasse_acces=${RESEAU_CODE}; Path=/; Max-Age=2592000; HttpOnly; SameSite=Lax`, Location: '/' });
+            res.end();
+          } else {
+            res.writeHead(401, { 'Content-Type': 'text/html; charset=utf-8' });
+            res.end(loginPage(true));
+          }
+        });
+        return;
+      }
+      if (u.pathname.startsWith('/api')) { json(res, 401, { error: "Accès verrouillé — ouvre la page d'accueil et saisis le code affiché sur l'ordinateur." }); return; }
+      res.writeHead(401, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(loginPage(false));
+      return;
+    }
+  }
+
   if (u.pathname.startsWith('/api')) {
     for (const r of routes) {
       if (r.method !== req.method) continue;
@@ -638,10 +697,21 @@ if (process.env.NODE_ENV !== 'test') {
 }
 
 server.listen(PORT, HOST, () => {
+  let reseau = '';
+  if (NETWORK_MODE) {
+    const ips = Object.values(os.networkInterfaces()).flat()
+      .filter((n) => n && n.family === 'IPv4' && !n.internal)
+      .map((n) => n.address);
+    reseau = `
+  📱 MODE RÉSEAU ACTIVÉ — depuis ton iPad/téléphone (même Wi-Fi) :
+${ips.map((ip) => `  ➜  http://${ip}:${PORT}`).join('\n') || `  ➜  http://IP-de-cet-ordinateur:${PORT}`}
+  🔑 CODE D'ACCÈS : ${RESEAU_CODE}
+`;
+  }
   console.log(`
   ⚔️  LA CHASSE — CRM de prospection gamifié (OTEA Production)
   ────────────────────────────────────────────────────────────
-  ➜  http://localhost:${PORT}
+  ➜  http://localhost:${PORT}${reseau}
   Base de données : ${dbApi.DB_PATH}
   Objectif : ${dbApi.getSetting('objectif_factures')} factures. Bonne chasse. 🎯
 `);

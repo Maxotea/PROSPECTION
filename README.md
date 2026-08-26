@@ -20,6 +20,8 @@ Prérequis : **Node.js ≥ 22.13** (aucun `npm install`, aucune dépendance) —
 
 Le navigateur s'ouvre tout seul sur l'app. **Laisse la petite fenêtre noire ouverte** : c'est elle qui fait tourner l'Autopilote.
 
+**📱 Depuis un iPad / iPhone (même Wi-Fi)** : lance **`demarrer-reseau.command`** (Mac) ou **`demarrer-reseau.bat`** (Windows) au lieu du lanceur normal. La fenêtre noire affiche l'adresse à ouvrir sur l'iPad (`http://IP-de-l'ordinateur:1337`) et un **code d'accès à 6 caractères** (demandé une fois par appareil — l'app reste verrouillée pour le reste du réseau). L'ordinateur doit rester allumé : c'est lui qui fait tourner l'app et l'Autopilote, l'iPad n'est qu'un écran. Astuce : sur l'iPad, Safari → Partager → « Sur l'écran d'accueil » pour avoir La Chasse comme une app. Pour y accéder **hors de chez toi** (4G, autre lieu), installe [Tailscale](https://tailscale.com) (gratuit) sur l'ordinateur et l'iPad : même adresse, où que tu sois, sans rien exposer sur internet.
+
 **Avec terminal** :
 
 ```bash
