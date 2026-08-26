@@ -113,7 +113,7 @@ async function celebrate(res) {
 }
 
 // ---------------------------------------------------------------- routeur
-const VIEWS = { qg: vQG, chasse: vChasse, autopilot: vAutopilot, pipeline: vPipeline, contacts: vContacts, inbox: vInbox, import: vImport, reglages: vReglages };
+const VIEWS = { qg: vQG, chasse: vChasse, autopilot: vAutopilot, campagnes: vCampagnes, pipeline: vPipeline, contacts: vContacts, inbox: vInbox, import: vImport, reglages: vReglages };
 
 async function render() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
@@ -195,6 +195,19 @@ async function vQG(view) {
               </div>
             </div>
             <a href="#/autopilot"><button class="${S.autopilot.awaiting ? 'gold' : ''}">${S.autopilot.awaiting ? '👀 Valider' : 'Ouvrir'}</button></a>
+          </div>
+        </div>
+        <div class="card">
+          <div class="spread">
+            <div>
+              <h2 style="margin-bottom:2px">📅 ${S.campaign ? esc(S.campaign.name) : 'Campagne de la semaine'}</h2>
+              <div class="muted small">
+                ${S.campaign
+                  ? `${{ a_venir: '📆 à venir', en_cours: '🔥 en cours', terminee: '🏁 terminée' }[S.campaign.status]} · 👥 ${S.campaign.stats.contacts} sourcés · 🤖 ${S.campaign.stats.enrolled} en séquence · 💬 ${S.campaign.stats.replies} réponse(s)${S.campaign.posted ? ' · 📣 posté' : ''}`
+                  : 'Une semaine = un secteur (grande distri, aéro, hôtels…). Lance ta première semaine thématique.'}
+              </div>
+            </div>
+            <a href="#/campagnes"><button>${S.campaign ? 'Ouvrir' : '📅 Lancer'}</button></a>
           </div>
         </div>
         <div class="card">
@@ -451,6 +464,225 @@ async function vChasse(view) {
   };
 }
 
+// ================================================================ 📅 CAMPAGNES HEBDO
+const CAMP_STATUS = { a_venir: '📆 à venir', en_cours: '🔥 EN COURS', terminee: '🏁 terminée' };
+let importCampaignId = 0; // présélection du select campagne dans l'import CSV
+
+async function vCampagnes(view) {
+  await refreshState();
+  const { campaigns: list } = await api('/campaigns');
+  const { presets } = await api('/campaign_presets');
+  const { references } = await api('/references');
+  const current = S.campaign;
+  const toVerify = references.filter((r) => !r.verified);
+
+  const nextMonday = (() => {
+    const t = today();
+    const [y, m, d] = t.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    const shift = (8 - dt.getDay()) % 7 || 7;
+    return addDaysStr(t, shift);
+  })();
+
+  const hero = current ? (() => {
+    const st = current.stats;
+    const check = (done, label, hint) => `<div class="quest ${done ? 'done' : ''}"><div class="q-emoji">${done ? '✅' : '⬜'}</div><div style="flex:1"><div class="q-label">${label}</div>${hint && !done ? `<div class="muted small">${hint}</div>` : ''}</div></div>`;
+    return `
+    <div class="card boss-card">
+      <div class="spread">
+        <div>
+          <div class="boss-title">${CAMP_STATUS[current.status]} — SEMAINE DU ${fmtDay(current.week_start)}</div>
+          <h1 style="margin:4px 0">${esc(current.name)}</h1>
+          <div class="muted">🎯 Persona : <b>${esc(current.persona)}</b></div>
+          <div class="row" style="margin-top:8px">${current.references.map((r) => `<span class="chip ${r.verified ? '' : 'due'}" title="${esc(r.detail)}">${r.verified ? '⭐' : '⚠️'} ${esc(r.name)}</span>`).join('')}</div>
+        </div>
+        <div style="text-align:right">
+          <div class="row" style="justify-content:flex-end">
+            <button id="camp-regen" title="Réécrire les emails, le post et le DM avec l'IA">✨ Régénérer le kit</button>
+            <button class="ghost" id="camp-del" title="Supprimer la campagne">🗑</button>
+          </div>
+        </div>
+      </div>
+      <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:14px;align-items:start">
+        <div>
+          <h3>✔️ La checklist de la semaine</h3>
+          ${check(st.contacts > 0, `1. Sourcer sur Sales Navigator + importer le CSV (${st.contacts} contact(s))`, 'Recette de recherche ci-dessous → export FullEnrich → Importer')}
+          ${check(st.contacts > 0 && st.avec_email >= st.contacts * 0.7, `2. Enrichir les emails via FullEnrich (${st.avec_email}/${st.contacts} avec email)`, 'Vue Imports → « Enrichir les contacts incomplets »')}
+          ${check(st.enrolled > 0, `3. Enrôler dans la séquence (${st.enrolled} en séquence)`, 'Bouton « 🤖 Enrôler toute la campagne » ci-dessous')}
+          ${check(!!current.posted, `4. Publier le post LinkedIn de la semaine`, 'Kit ci-contre → Copier → poster → coche « posté »')}
+          ${check(st.replies > 0, `5. Récolter les réponses (${st.replies} 💬 · ${st.rdv} RDV · ${st.devis} devis)`, "L'autopilote détecte les réponses et te crée les tâches")}
+          <div class="row" style="margin-top:12px">
+            <button class="primary" id="camp-import">📥 Importer le CSV de la campagne</button>
+            <button class="gold" id="camp-enroll">🤖 Enrôler toute la campagne</button>
+            <button class="ghost" id="camp-contacts">👥 Voir les contacts</button>
+          </div>
+        </div>
+        <div>
+          <h3>🧲 Recette Sales Navigator <button class="ghost" data-copy-text="camp-sn" style="padding:2px 8px">📋</button></h3>
+          <pre id="camp-sn" style="white-space:pre-wrap;background:var(--bg2);border-radius:9px;padding:10px 12px;font-size:12.5px;font-family:inherit;margin:6px 0">${esc(current.sn_recipe)}</pre>
+          <p class="muted small">Sales Nav → recherche avec ces filtres → export via l'extension FullEnrich → CSV → bouton « Importer » ci-contre.</p>
+        </div>
+      </div>
+    </div>
+    <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:14px;align-items:start">
+      <div class="card">
+        <div class="spread"><h3>📣 Post LinkedIn de la semaine</h3>
+          <div class="row">
+            <label class="chip" style="cursor:pointer"><input type="checkbox" id="camp-posted" ${current.posted ? 'checked' : ''}> posté ✓</label>
+            <button data-copy-text="camp-post">📋 Copier</button>
+          </div>
+        </div>
+        <textarea id="camp-post" rows="10">${esc(current.post_draft)}</textarea>
+        <div class="row" style="justify-content:flex-end;margin-top:6px"><button class="ghost" id="camp-save-post">💾 Enregistrer mes modifs</button></div>
+      </div>
+      <div class="grid">
+        <div class="card">
+          <div class="spread"><h3>💬 Script DM LinkedIn</h3><button data-copy-text="camp-dm">📋 Copier</button></div>
+          <textarea id="camp-dm" rows="4">${esc(current.dm_draft)}</textarea>
+          <p class="muted small">Pour les prospects sans email trouvé : DM après la connexion. {prenom} et {entreprise} à remplacer (ou passe par le Mode Chasse qui le fait tout seul).</p>
+        </div>
+        <div class="card">
+          <h3>📧 La séquence email de la campagne</h3>
+          <p class="muted small">3 emails (J0 → J+4 → J+10) citant tes références, envoyés par l'<a href="#/autopilot">Autopilote</a> ; ils s'arrêtent à la première réponse. Modifie-les depuis la vue Autopilote (✏️ sur la séquence) ou régénère le kit à l'IA.</p>
+          <div class="small muted">📤 ${st.sent} envoyé(s) · 💬 ${st.replies} réponse(s)</div>
+        </div>
+      </div>
+    </div>`;
+  })() : `
+    <div class="card" style="border-color:rgba(234,179,8,.4)">
+      <h2>📅 Lance ta première semaine thématique</h2>
+      <p class="muted">Le principe : chaque semaine, UN secteur, UN persona, TES références en avant — partout (emails, LinkedIn, post). Grande distribution avec le Galec, hôtellerie avec Pullman, collectivités avec Puteaux…</p>
+      <p class="muted small">Choisis un secteur ci-dessous 👇 et la campagne se crée avec sa recette Sales Nav, sa séquence email et son kit de diffusion.</p>
+    </div>`;
+
+  view.innerHTML = `
+    <div class="view-header spread">
+      <div><h1>📅 Campagnes de la semaine</h1><div class="sub">Une semaine = un secteur. On sature le secteur, on voit ${esc('OTEA')} partout, on récolte les calls.</div></div>
+    </div>
+    ${hero}
+
+    <div class="card" style="margin-top:14px">
+      <h2>🗓️ Planifier les prochaines semaines</h2>
+      <div class="row" style="margin:8px 0">
+        <select id="np-sector" style="min-width:260px">${presets.map((p) => `<option value="${p.code}">${p.emoji} ${esc(p.label)} — ${esc(p.persona)}</option>`).join('')}</select>
+        <label class="field">Semaine du<input id="np-week" type="date" value="${current ? nextMonday : today()}"></label>
+        <button class="primary" id="np-create" style="margin-top:14px">➕ Créer la campagne</button>
+      </div>
+      ${list.length ? `<div class="table-scroll"><table class="list">
+        <thead><tr><th>Semaine</th><th>Campagne</th><th>Statut</th><th>Contacts</th><th>Réponses</th><th></th></tr></thead>
+        <tbody>${list.map((c) => `<tr>
+          <td class="mono">${fmtDay(c.week_start)}</td>
+          <td class="t-name">${esc(c.name)}<div class="t-sub">${esc(c.persona)}</div></td>
+          <td>${CAMP_STATUS[c.status]}</td>
+          <td class="mono">${c.stats.contacts} (${c.stats.enrolled} 🤖)</td>
+          <td class="mono">${c.stats.replies} 💬 · ${c.stats.rdv} 📅</td>
+          <td class="row" style="justify-content:flex-end">${c.status !== 'terminee' ? '' : ''}<button class="ghost" data-camp-del="${c.id}">🗑</button></td>
+        </tr>`).join('')}</tbody>
+      </table></div>` : ''}
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <div class="spread"><h2>⭐ Tes références (les preuves qui vendent)</h2><button id="ref-new">➕ Ajouter</button></div>
+      ${toVerify.length ? `<p class="small" style="color:var(--gold2)">⚠️ ${toVerify.length} référence(s) issues de la dictée vocale à vérifier/corriger (orthographe, détail) — clique dessus.</p>` : ''}
+      <div class="badges-strip">
+        ${references.map((r) => `<button class="ghost" data-ref-edit="${r.id}" style="border:1px solid ${r.verified ? 'var(--border2)' : 'rgba(234,179,8,.5)'};border-radius:10px;padding:8px 12px;text-align:left;max-width:230px">
+          <div><b>${r.verified ? '⭐' : '⚠️'} ${esc(r.name)}</b><div class="muted small">${esc(r.detail.slice(0, 70))}</div></div>
+        </button>`).join('')}
+      </div>
+    </div>`;
+
+  // --- copier
+  $$('[data-copy-text]', view).forEach((b) => {
+    b.onclick = async () => {
+      const el = $(`#${b.dataset.copyText}`, view);
+      await copyText(el.value !== undefined ? el.value : el.textContent);
+      fx.toast('📋 Copié — va le coller !');
+      fx.play('pop');
+    };
+  });
+
+  // --- hero actions
+  if (current) {
+    $('#camp-import').onclick = () => { importCampaignId = current.id; location.hash = '#/import'; };
+    $('#camp-contacts').onclick = () => { cFilter.campaign = current.id; location.hash = '#/contacts'; };
+    $('#camp-enroll').onclick = async () => {
+      try {
+        const r = await api(`/campaigns/${current.id}/enroll`, { method: 'POST' });
+        fx.toast(`🤖 ${r.enrolled} contact(s) enrôlé(s)${r.skipped.length ? ` · ${r.skipped.length} ignoré(s) (sans email ou déjà en séquence)` : ''}`, '', 5000);
+        fx.play('quest');
+        vCampagnes(view);
+      } catch (e) { fx.error(e.message); }
+    };
+    $('#camp-posted').onchange = async (e) => {
+      await api(`/campaigns/${current.id}`, { method: 'PATCH', body: { posted: e.target.checked } });
+      if (e.target.checked) { fx.toast('📣 Post publié — la semaine est lancée !'); fx.confetti(60); }
+      vCampagnes(view);
+    };
+    $('#camp-save-post').onclick = async () => {
+      await api(`/campaigns/${current.id}`, { method: 'PATCH', body: { post_draft: $('#camp-post').value, dm_draft: $('#camp-dm').value } });
+      fx.toast('💾 Kit enregistré');
+    };
+    $('#camp-regen').onclick = async () => {
+      const btn = $('#camp-regen'); btn.disabled = true; btn.textContent = '✨ Rédaction…';
+      try {
+        await api(`/campaigns/${current.id}/regenerate`, { method: 'POST' });
+        fx.toast('✨ Kit réécrit par l’IA (emails + post + DM)');
+        vCampagnes(view);
+      } catch (e) { fx.error(e.message); btn.disabled = false; btn.textContent = '✨ Régénérer le kit'; }
+    };
+    $('#camp-del').onclick = async () => {
+      if (!confirm('Supprimer cette campagne (les contacts restent) ?')) return;
+      try { await api(`/campaigns/${current.id}`, { method: 'DELETE' }); vCampagnes(view); }
+      catch (e) { fx.error(e.message); }
+    };
+  }
+
+  // --- planning
+  $('#np-create').onclick = async () => {
+    try {
+      await api('/campaigns', { method: 'POST', body: { sector: $('#np-sector').value, week_start: $('#np-week').value } });
+      fx.toast('📅 Campagne créée avec sa séquence et son kit');
+      fx.play('quest');
+      vCampagnes(view);
+    } catch (e) { fx.error(e.message); }
+  };
+  $$('[data-camp-del]', view).forEach((b) => {
+    b.onclick = async () => {
+      if (!confirm('Supprimer cette campagne ?')) return;
+      try { await api(`/campaigns/${b.dataset.campDel}`, { method: 'DELETE' }); vCampagnes(view); }
+      catch (e) { fx.error(e.message); }
+    };
+  });
+
+  // --- références
+  const refModal = (r) => {
+    const m = modal(`
+      <h2>${r ? '✏️ Référence' : '➕ Nouvelle référence'}</h2>
+      ${r && !r.verified ? '<p class="small" style="color:var(--gold2)">⚠️ Nom issu de la dictée vocale — corrige l’orthographe puis coche « vérifiée ».</p>' : ''}
+      <div class="form-grid" style="margin-top:10px">
+        <label class="field wide">Nom (tel qu'il apparaîtra dans les emails)<input id="rf-name" value="${esc(r ? r.name : '')}"></label>
+        <label class="field wide">Ce qu'on a fait pour eux<input id="rf-detail" value="${esc(r ? r.detail : '')}"></label>
+        <label class="chip wide" style="cursor:pointer"><input type="checkbox" id="rf-verified" ${!r || r.verified ? 'checked' : ''}> vérifiée (orthographe OK)</label>
+      </div>
+      <div class="row" style="justify-content:space-between;margin-top:12px">
+        ${r ? '<button class="danger" id="rf-del">🗑 Supprimer</button>' : '<span></span>'}
+        <button class="primary" id="rf-save">💾 Enregistrer</button>
+      </div>`);
+    $('#rf-save', m).onclick = async () => {
+      const body = { name: $('#rf-name', m).value, detail: $('#rf-detail', m).value, verified: $('#rf-verified', m).checked };
+      try {
+        if (r) await api(`/references/${r.id}`, { method: 'PATCH', body });
+        else await api('/references', { method: 'POST', body });
+        m.remove(); vCampagnes(view);
+      } catch (e) { fx.error(e.message); }
+    };
+    const del = $('#rf-del', m);
+    if (del) del.onclick = async () => { await api(`/references/${r.id}`, { method: 'DELETE' }); m.remove(); vCampagnes(view); };
+  };
+  $('#ref-new').onclick = () => refModal(null);
+  $$('[data-ref-edit]', view).forEach((b) => { b.onclick = () => refModal(references.find((r) => String(r.id) === b.dataset.refEdit)); });
+}
+
 // ================================================================ PIPELINE (kanban)
 async function vPipeline(view) {
   const { contacts } = await api('/contacts?limit=500');
@@ -503,7 +735,7 @@ async function vPipeline(view) {
 }
 
 // ================================================================ CONTACTS
-const cFilter = { search: '', segment: '', stage: '', origin: '', former: false, enrichable: false };
+const cFilter = { search: '', segment: '', stage: '', origin: '', former: false, enrichable: false, campaign: 0 };
 const cSelected = new Set();
 
 async function vContacts(view) {
@@ -514,7 +746,9 @@ async function vContacts(view) {
   if (cFilter.origin) params.set('origin', cFilter.origin);
   if (cFilter.former) params.set('former', '1');
   if (cFilter.enrichable) params.set('enrichable', '1');
+  if (cFilter.campaign) params.set('campaign', String(cFilter.campaign));
   const { total, contacts } = await api('/contacts?' + params);
+  const { campaigns: campList } = await api('/campaigns');
 
   view.innerHTML = `
     <div class="view-header spread">
@@ -528,7 +762,8 @@ async function vContacts(view) {
       <input type="search" id="c-search" placeholder="🔍 Nom, boîte, email…" value="${esc(cFilter.search)}">
       <select id="c-seg"><option value="">Typologie : toutes</option>${Object.entries(S.segments).map(([k, s]) => `<option value="${k}" ${cFilter.segment === k ? 'selected' : ''}>${s.emoji} ${esc(s.label)}</option>`).join('')}</select>
       <select id="c-stage"><option value="">Étape : toutes</option>${S.stages.map((s) => `<option value="${s.code}" ${cFilter.stage === s.code ? 'selected' : ''}>${s.emoji} ${esc(s.label)}</option>`).join('')}</select>
-      <select id="c-origin"><option value="">Origine : toutes</option>${['pennylane', 'hubspot', 'csv', 'linkedin', 'manuel', 'demo'].map((o) => `<option ${cFilter.origin === o ? 'selected' : ''}>${o}</option>`).join('')}</select>
+      <select id="c-origin"><option value="">Origine : toutes</option>${['pennylane', 'hubspot', 'csv', 'linkedin', 'gmail', 'manuel', 'demo'].map((o) => `<option ${cFilter.origin === o ? 'selected' : ''}>${o}</option>`).join('')}</select>
+      ${campList.length ? `<select id="c-camp"><option value="0">Campagne : toutes</option>${campList.map((c) => `<option value="${c.id}" ${cFilter.campaign === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select>` : ''}
       <label class="chip" style="cursor:pointer"><input type="checkbox" id="c-former" ${cFilter.former ? 'checked' : ''}> 💰 anciens clients</label>
       <label class="chip" style="cursor:pointer"><input type="checkbox" id="c-enrich" ${cFilter.enrichable ? 'checked' : ''}> 🕳️ email/tél manquant</label>
     </div>
@@ -566,6 +801,8 @@ async function vContacts(view) {
   $('#c-seg').onchange = (e) => { cFilter.segment = e.target.value; vContacts(view); };
   $('#c-stage').onchange = (e) => { cFilter.stage = e.target.value; vContacts(view); };
   $('#c-origin').onchange = (e) => { cFilter.origin = e.target.value; vContacts(view); };
+  const campSel = $('#c-camp');
+  if (campSel) campSel.onchange = (e) => { cFilter.campaign = Number(e.target.value); vContacts(view); };
   $('#c-former').onchange = (e) => { cFilter.former = e.target.checked; vContacts(view); };
   $('#c-enrich').onchange = (e) => { cFilter.enrichable = e.target.checked; vContacts(view); };
   $('#c-all').onchange = (e) => {
@@ -1059,7 +1296,7 @@ async function vAutopilot(view) {
   const { items: queuedItems } = await api('/outbox?status=queued');
   const { items: recent } = await api('/outbox');
   const { enrollments } = await api('/enrollments');
-  const tpls = await getTemplates();
+  const tpls = (await api('/templates?all=1')).templates; // inclut les templates de campagne
 
   const notConfigured = !ap.configured ? `
     <div class="card" style="border-color:rgba(234,179,8,.5)">
@@ -1358,10 +1595,12 @@ function seqEditModal(seq, tpls, after) {
 
 // ================================================================ IMPORTS
 let csvData = null; // { headers, rows, auto_mapping }
+let importCampaigns = []; // campagnes pour rattacher un import CSV
 
 async function vImport(view) {
   const enrichables = await api('/contacts?enrichable=1&limit=1');
   const { jobs } = await api('/fullenrich/jobs');
+  importCampaigns = (await api('/campaigns')).campaigns.filter((c) => c.status !== 'terminee');
   const pendingJobs = jobs.filter((j) => j.status === 'pending');
 
   view.innerHTML = `
@@ -1509,6 +1748,7 @@ function renderCsvMap(view) {
       <div class="row" style="margin-top:10px">
         <label class="field">Typologie par défaut<select id="csv-seg">${Object.entries(S.segments).map(([k, s]) => `<option value="${k}" ${k === 'inconnu' ? 'selected' : ''}>${s.emoji} ${esc(s.label)}</option>`).join('')}</select></label>
         <label class="field">Origine<select id="csv-origin"><option>linkedin</option><option>csv</option></select></label>
+        ${importCampaigns.length ? `<label class="field">📅 Campagne<select id="csv-camp"><option value="0">— aucune —</option>${importCampaigns.map((c) => `<option value="${c.id}" ${importCampaignId === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>` : ''}
         <label class="chip" style="cursor:pointer;margin-top:14px"><input type="checkbox" id="csv-former"> 💰 anciens clients</label>
         <button class="primary big" id="csv-go" style="margin-top:8px">📥 Importer ${d.total} contacts</button>
       </div>
@@ -1530,11 +1770,13 @@ function renderCsvMap(view) {
     try {
       let created = 0, merged = 0, skipped = 0, celebration = null;
       for (let i = 0; i < rows.length; i += 500) {
+        const campSel = $('#csv-camp');
         const r = await api('/import/csv', { method: 'POST', body: {
           rows: rows.slice(i, i + 500),
           origin: $('#csv-origin').value,
           default_segment: $('#csv-seg').value,
           as_former: $('#csv-former').checked,
+          campaign_id: campSel ? Number(campSel.value) : 0,
         } });
         created += r.created; merged += r.merged; skipped += r.skipped;
         celebration = r.celebration || celebration;

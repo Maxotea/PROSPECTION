@@ -206,7 +206,45 @@ CREATE TABLE IF NOT EXISTS replies (
   created_at TEXT NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_replies_uid ON replies(imap_uid);
+
+-- ---------------- Campagnes hebdo thématiques ----------------
+CREATE TABLE IF NOT EXISTS campaigns (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  sector TEXT DEFAULT '',
+  emoji TEXT DEFAULT '📅',
+  persona TEXT DEFAULT '',
+  week_start TEXT NOT NULL,          -- lundi de la semaine (YYYY-MM-DD)
+  sequence_id INTEGER DEFAULT 0,
+  reference_ids TEXT DEFAULT '[]',
+  sn_recipe TEXT DEFAULT '',         -- recette de recherche Sales Navigator
+  angle TEXT DEFAULT '',
+  post_draft TEXT DEFAULT '',        -- post LinkedIn de la semaine
+  dm_draft TEXT DEFAULT '',          -- script DM LinkedIn
+  posted INTEGER DEFAULT 0,
+  notes TEXT DEFAULT '',
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_campaigns_week ON campaigns(week_start);
+
+CREATE TABLE IF NOT EXISTS refs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  code TEXT UNIQUE,
+  name TEXT NOT NULL,
+  detail TEXT DEFAULT '',
+  sectors TEXT DEFAULT '[]',
+  verified INTEGER DEFAULT 1,        -- 0 = ⚠️ orthographe / infos à vérifier
+  builtin INTEGER DEFAULT 0
+);
 `);
+
+// Migrations douces : colonnes ajoutées après coup sur des bases existantes.
+function ensureColumn(table, col, ddl) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((r) => r.name);
+  if (!cols.includes(col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+}
+ensureColumn('contacts', 'campaign_id', 'campaign_id INTEGER DEFAULT 0');
+ensureColumn('templates', 'campaign_id', 'campaign_id INTEGER DEFAULT 0');
 
 // ---------------------------------------------------------------- helpers
 function nowIso() { return new Date().toISOString(); }
@@ -299,7 +337,7 @@ const CONTACT_FIELDS = [
   'first_name', 'last_name', 'email', 'email_status', 'phone', 'company', 'job_title',
   'domain', 'linkedin_url', 'city', 'country', 'segment', 'origin', 'is_former_client',
   'stage', 'revenue_history', 'next_action', 'next_action_at', 'last_touch_at',
-  'pennylane_customer_id', 'hubspot_id', 'enrich_status', 'tags', 'notes', 'archived',
+  'pennylane_customer_id', 'hubspot_id', 'enrich_status', 'tags', 'notes', 'archived', 'campaign_id',
 ];
 
 function normEmail(v) { return String(v || '').trim().toLowerCase(); }
@@ -318,7 +356,7 @@ function cleanContactInput(data) {
     if (data[f] === undefined || data[f] === null) continue;
     let v = data[f];
     if (f === 'is_former_client' || f === 'archived') v = v ? 1 : 0;
-    else if (f === 'revenue_history') v = Number(v) || 0;
+    else if (f === 'revenue_history' || f === 'campaign_id') v = Number(v) || 0;
     else v = String(v).trim();
     if (f === 'email') v = normEmail(v);
     if (f === 'linkedin_url') v = normLinkedin(v);

@@ -2,10 +2,11 @@
 
 Un outil de prospection **local, zéro dépendance**, pensé pour un seul objectif : **déclencher 5 factures**.
 
-Deux moteurs :
+Trois moteurs :
 
-1. **🤖 L'Autopilote** — la machine qui prospecte à ta place : elle enrôle tes contacts (anciens clients Pennylane, HubSpot, ta boîte Gmail) dans des **séquences email**, envoie depuis **ton Gmail** (chaque relance reste dans le même fil), respecte un cap quotidien et des horaires ouvrés, **détecte les réponses dans ta boîte** et stoppe la séquence dès qu'on te répond — il ne te reste qu'à transformer la réponse en call.
-2. **🎮 Le CRM gamifié** — import Pennylane / LinkedIn / HubSpot, enrichissement FullEnrich, typologies de clients, Mode Chasse, devis Pennylane en 2 clics, XP, quêtes, streak, badges, boss final « 5 factures ».
+1. **📅 Les Campagnes hebdo** — la stratégie : une semaine = un secteur (grande distribution, aéronautique, agriculture, hôtellerie, agences de voyage…) et un persona cible. Chaque campagne se crée en 2 clics avec sa **recette Sales Navigator** prête à copier, sa **séquence email** citant tes vraies références (le Galec, La Poste, Pullman…), son **post LinkedIn** et son **script DM** — pour qu'on voie OTEA partout, partout, partout.
+2. **🤖 L'Autopilote** — la machine qui prospecte à ta place : elle enrôle tes contacts (anciens clients Pennylane, HubSpot, ta boîte Gmail) dans des **séquences email**, envoie depuis **ton Gmail** (chaque relance reste dans le même fil), respecte un cap quotidien et des horaires ouvrés, **détecte les réponses dans ta boîte** et stoppe la séquence dès qu'on te répond — il ne te reste qu'à transformer la réponse en call.
+3. **🎮 Le CRM gamifié** — import Pennylane / LinkedIn / HubSpot, enrichissement FullEnrich, typologies de clients, Mode Chasse, devis Pennylane en 2 clics, XP, quêtes, streak, badges, boss final « 5 factures ».
 
 ---
 
@@ -26,6 +27,21 @@ Pour essayer avec des données fictives : `npm run demo` (et `npm run reset` pou
 Toutes tes données (contacts, clés API, historique) restent **sur ta machine**, dans `data/prospection.db` (gitignoré). Le serveur n'écoute que sur `127.0.0.1`.
 
 ---
+
+## 📅 Les Campagnes hebdo — une semaine, un secteur, tes références partout
+
+Le rythme : **chaque lundi, un nouveau terrain de chasse.** Semaine 1 la grande distribution (responsables communication interne — tu as le Galec en référence), semaine 2 l'aéronautique, puis l'agriculture, les hôtels (Pullman !), les agences de voyage, les collectivités (Puteaux)…
+
+**Créer la semaine = 2 clics** (vue Campagnes → choisir le secteur → la date) et tu obtiens :
+
+- 🧲 **La recette Sales Navigator** : filtres exacts à reproduire (intitulés de poste, secteur, effectif, région + astuce de ciblage), à exporter ensuite via l'extension FullEnrich → CSV → bouton « Importer le CSV de la campagne » ;
+- 📧 **La séquence email dédiée** (J0 → J+4 → J+10) : rédigée pour le secteur, citant **tes références réelles** (« ce qu'on a fait pour le Galec »), envoyée par l'Autopilote, stoppée à la première réponse ;
+- 📣 **Le post LinkedIn de la semaine** (hook, références, CTA en DM) + **le script DM** pour les prospects sans email — c'est le « partout » : email + DM + contenu en même temps sur le même secteur ;
+- ✅ **La checklist de la semaine** avec stats en direct : sourcé → enrichi → enrôlé → posté → réponses/RDV/devis.
+
+**Tes références** vivent dans la vue Campagnes (⭐) : chacune est éditable, et celles issues de la dictée vocale sont marquées **⚠️ à vérifier** (Madiness, Thorigny, Jessica Bataille, RAJA, RAIFF…) — corrige l'orthographe une fois, tous les futurs kits l'utilisent. Le bouton **✨ Régénérer le kit** réécrit emails/post/DM avec l'IA (clé Claude requise) en ne citant QUE tes références réelles.
+
+10 secteurs pré-configurés : grande distribution, aéronautique, agriculture & agro, hôtellerie, agences de voyage & tourisme, collectivités & villes, influence & médias, immobilier & architecture, corporate & industrie, sport & événementiel.
 
 ## 🤖 L'Autopilote — la machine qui prospecte à ta place
 

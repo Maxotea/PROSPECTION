@@ -27,10 +27,12 @@ const fullenrich = require('./src/integrations/fullenrich');
 const hubspot = require('./src/integrations/hubspot');
 const claude = require('./src/integrations/claude');
 const autopilot = require('./src/autopilot');
+const campaigns = require('./src/campaigns');
 const { seedDemo } = require('./seed');
 
 playbooks.seedTemplates(dbApi);
 playbooks.seedSequences(dbApi);
+campaigns.seedReferences();
 
 const PORT = Number(process.env.PORT || 1337);
 const HOST = process.env.HOST || '127.0.0.1';
@@ -87,7 +89,7 @@ function route(method, pattern, handler) {
 const USER_ACTIONS = ['note', 'connexion_linkedin', 'message_envoye', 'relance', 'appel', 'reponse_envoyee', 'reponse_recue', 'rdv_pris', 'devis_envoye', 'devis_accepte', 'facture', 'disqualifie'];
 
 // ---- état global (dashboard)
-route('GET', '/api/state', async () => ({ ...game.fullState(), autopilot: autopilot.state() }));
+route('GET', '/api/state', async () => ({ ...game.fullState(), autopilot: autopilot.state(), campaign: campaigns.currentCampaign() }));
 
 // ---- contacts
 route('GET', '/api/contacts', async (req, params, query) => {
@@ -104,6 +106,7 @@ route('GET', '/api/contacts', async (req, params, query) => {
   if (query.origin) { where.push('origin = ?'); args.push(query.origin); }
   if (query.former === '1') where.push('is_former_client = 1');
   if (query.enrichable === '1') where.push(`(email = '' OR phone = '')`);
+  if (query.campaign) { where.push('campaign_id = ?'); args.push(Number(query.campaign)); }
   if (query.due === '1') { where.push(`stage NOT IN ('gagne','perdu') AND next_action_at != '' AND next_action_at <= ?`); args.push(localDay()); }
 
   const total = Number(get(`SELECT COUNT(*) AS n FROM contacts WHERE ${where.join(' AND ')}`, ...args).n);
@@ -160,7 +163,7 @@ route('POST', '/api/contacts/bulk', async (req) => {
 
 // ---- import CSV (les lignes arrivent déjà mappées par le front)
 route('POST', '/api/import/csv', async (req) => {
-  const { rows = [], origin = 'csv', default_segment = 'inconnu', as_former = false } = await readBody(req);
+  const { rows = [], origin = 'csv', default_segment = 'inconnu', as_former = false, campaign_id = 0 } = await readBody(req);
   let created = 0, merged = 0, skipped = 0;
   for (const r of rows) {
     if (!r.first_name && !r.last_name && !r.email && !r.company) { skipped++; continue; }
@@ -169,6 +172,7 @@ route('POST', '/api/import/csv', async (req) => {
       origin,
       segment: r.segment || default_segment,
       is_former_client: as_former ? 1 : (r.is_former_client ? 1 : 0),
+      campaign_id: Number(campaign_id) || 0,
     });
     if (isNew) created++; else merged++;
   }
@@ -222,8 +226,12 @@ route('POST', '/api/actions', async (req) => {
   return res;
 });
 
-// ---- templates
-route('GET', '/api/templates', async () => ({ templates: all('SELECT * FROM templates ORDER BY sort, id') }));
+// ---- templates (par défaut : sans les templates de campagne, générés à part)
+route('GET', '/api/templates', async (req, params, query) => ({
+  templates: query.all === '1'
+    ? all('SELECT * FROM templates ORDER BY sort, id')
+    : all('SELECT * FROM templates WHERE campaign_id = 0 ORDER BY sort, id'),
+}));
 route('POST', '/api/templates', async (req) => {
   const b = await readBody(req);
   const { lastId } = run('INSERT INTO templates (code, name, segment, channel, subject, body, builtin, sort) VALUES (?, ?, ?, ?, ?, ?, 0, ?)',
@@ -492,6 +500,64 @@ route('POST', '/api/mail/scan_import', async (req) => {
   const b = await readBody(req);
   return autopilot.importScanned(b.entries || []);
 });
+
+// ---- 📅 Campagnes hebdo thématiques
+route('GET', '/api/campaign_presets', async () => ({
+  presets: Object.entries(campaigns.PRESETS).map(([code, p]) => ({ code, emoji: p.emoji, label: p.label, persona: p.persona, angle: p.angle })),
+}));
+route('GET', '/api/campaigns', async () => ({ campaigns: campaigns.listCampaigns() }));
+route('POST', '/api/campaigns', async (req) => {
+  const b = await readBody(req);
+  return { campaign: campaigns.createCampaign(b) };
+});
+route('PATCH', '/api/campaigns/:id', async (req, params) => {
+  const b = await readBody(req);
+  const c = get('SELECT * FROM campaigns WHERE id = ?', params.id);
+  if (!c) throw httpError(404, 'Campagne introuvable');
+  const fields = ['name', 'persona', 'week_start', 'post_draft', 'dm_draft', 'sn_recipe', 'notes'];
+  const sets = fields.filter((f) => b[f] !== undefined);
+  if (b.week_start !== undefined) b.week_start = campaigns.mondayOf(b.week_start);
+  if (sets.length) run(`UPDATE campaigns SET ${sets.map((f) => `${f} = ?`).join(', ')} WHERE id = ?`, ...sets.map((f) => b[f]), params.id);
+  if (b.posted !== undefined) run('UPDATE campaigns SET posted = ? WHERE id = ?', b.posted ? 1 : 0, params.id);
+  return { ok: true };
+});
+route('DELETE', '/api/campaigns/:id', async (req, params) => {
+  const c = get('SELECT * FROM campaigns WHERE id = ?', params.id);
+  if (!c) return { ok: true };
+  const active = Number(get(`SELECT COUNT(*) AS n FROM enrollments WHERE sequence_id = ? AND status = 'active'`, c.sequence_id).n);
+  if (active > 0) throw httpError(400, `${active} contact(s) encore en séquence sur cette campagne — stoppe-les d'abord (vue Autopilote).`);
+  run('DELETE FROM templates WHERE campaign_id = ?', params.id);
+  if (c.sequence_id) run('DELETE FROM sequences WHERE id = ?', c.sequence_id);
+  run('UPDATE contacts SET campaign_id = 0 WHERE campaign_id = ?', params.id);
+  run('DELETE FROM campaigns WHERE id = ?', params.id);
+  return { ok: true };
+});
+route('POST', '/api/campaigns/:id/enroll', async (req, params) => campaigns.enrollAll(Number(params.id)));
+route('POST', '/api/campaigns/:id/regenerate', async (req, params) => campaigns.regenerateKit(Number(params.id)));
+
+// ---- références clients (preuves sociales des campagnes)
+route('GET', '/api/references', async () => ({
+  references: all('SELECT * FROM refs ORDER BY verified DESC, id').map((r) => ({ ...r, sectors: JSON.parse(r.sectors || '[]') })),
+}));
+route('POST', '/api/references', async (req) => {
+  const b = await readBody(req);
+  const { lastId } = run('INSERT INTO refs (code, name, detail, sectors, verified, builtin) VALUES (?, ?, ?, ?, ?, 0)',
+    `ref_${Date.now()}`, b.name || 'Référence', b.detail || '', JSON.stringify(b.sectors || []), b.verified === false ? 0 : 1);
+  return { id: lastId };
+});
+route('PATCH', '/api/references/:id', async (req, params) => {
+  const b = await readBody(req);
+  const r = get('SELECT * FROM refs WHERE id = ?', params.id);
+  if (!r) throw httpError(404, 'Référence introuvable');
+  run('UPDATE refs SET name = ?, detail = ?, sectors = ?, verified = ? WHERE id = ?',
+    b.name !== undefined ? b.name : r.name,
+    b.detail !== undefined ? b.detail : r.detail,
+    b.sectors !== undefined ? JSON.stringify(b.sectors) : r.sectors,
+    b.verified !== undefined ? (b.verified ? 1 : 0) : r.verified,
+    params.id);
+  return { ok: true };
+});
+route('DELETE', '/api/references/:id', async (req, params) => { run('DELETE FROM refs WHERE id = ?', params.id); return { ok: true }; });
 
 // ---- démo
 route('POST', '/api/demo', async () => seedDemo(false));
