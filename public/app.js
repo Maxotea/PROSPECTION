@@ -1851,8 +1851,9 @@ async function vReglages(view) {
           <button data-mailtest="test_imap">🔌 Tester IMAP</button>
           <button data-mailtest="send_test" class="gold">📤 M'envoyer un email de test</button>
         </div>
-        <p class="small" id="t-mail"></p>
-        <p class="muted small">💡 Enregistre les réglages avant de tester. Démarre avec un cap bas (10-15/jour) puis monte progressivement : c'est la meilleure protection de ta délivrabilité.</p>
+        <p class="small" id="t-mail" style="font-weight:700"></p>
+        <div id="mail-err" class="hidden" style="color:var(--red2);background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.4);border-radius:9px;padding:10px 12px;font-size:13px;margin-top:8px"></div>
+        <p class="muted small">💡 Les boutons de test enregistrent automatiquement tes réglages avant de tester. Démarre avec un cap bas (10-15/jour) puis monte progressivement : c'est la meilleure protection de ta délivrabilité.</p>
       </div>
       <div class="card">
         <h2>🔑 Clés API</h2>
@@ -1881,33 +1882,71 @@ async function vReglages(view) {
     </div>
     <div class="row" style="margin-top:16px"><button class="primary big" id="s-save">💾 Enregistrer les réglages</button><span id="s-status" class="muted"></span></div>`;
 
+  const saveReglages = async () => {
+    await api('/settings', { method: 'PUT', body: {
+      user_name: $('#s-user').value, company_name: $('#s-company').value, user_signature: $('#s-sig').value,
+      objectif_factures: $('#s-goal').value, seuil_grand_compte: $('#s-seuil').value,
+      pennylane_api_key: $('#s-pl').value, fullenrich_api_key: $('#s-fe').value,
+      hubspot_token: $('#s-hs').value, anthropic_api_key: $('#s-ai').value, ai_model: $('#s-model').value,
+      gmail_user: $('#s-gmail').value, gmail_app_password: $('#s-gmailpw').value,
+      autopilot_daily_cap: $('#s-cap').value, autopilot_window_start: $('#s-ws').value,
+      autopilot_window_end: $('#s-we').value, autopilot_weekdays_only: $('#s-weekdays').checked ? '1' : '0',
+      booking_url: $('#s-booking').value,
+    } });
+  };
   $('#s-save').onclick = async () => {
     try {
-      await api('/settings', { method: 'PUT', body: {
-        user_name: $('#s-user').value, company_name: $('#s-company').value, user_signature: $('#s-sig').value,
-        objectif_factures: $('#s-goal').value, seuil_grand_compte: $('#s-seuil').value,
-        pennylane_api_key: $('#s-pl').value, fullenrich_api_key: $('#s-fe').value,
-        hubspot_token: $('#s-hs').value, anthropic_api_key: $('#s-ai').value, ai_model: $('#s-model').value,
-        gmail_user: $('#s-gmail').value, gmail_app_password: $('#s-gmailpw').value,
-        autopilot_daily_cap: $('#s-cap').value, autopilot_window_start: $('#s-ws').value,
-        autopilot_window_end: $('#s-we').value, autopilot_weekdays_only: $('#s-weekdays').checked ? '1' : '0',
-        booking_url: $('#s-booking').value,
-      } });
+      await saveReglages();
       $('#s-status').textContent = '✅ Enregistré';
       fx.play('pop');
       await refreshState();
       setTimeout(() => { $('#s-status') && ($('#s-status').textContent = ''); }, 2500);
     } catch (e) { fx.error(e.message); }
   };
-  $$('[data-test]', view).forEach((b) => { b.onclick = () => testIntegration(b.dataset.test, $(`#t-${b.dataset.test}`)); });
+  // Les tests enregistrent d'abord les réglages : impossible de tester une clé non sauvée.
+  $$('[data-test]', view).forEach((b) => {
+    b.onclick = async () => {
+      try { await saveReglages(); } catch (e) { fx.error(e.message); return; }
+      testIntegration(b.dataset.test, $(`#t-${b.dataset.test}`));
+    };
+  });
+
+  // Traduit les erreurs SMTP/IMAP en causes concrètes.
+  const explainMailError = (msg) => {
+    if (/535|BadCredentials|Username and Password not accepted|AUTHENTICATIONFAILED|Invalid credentials/i.test(msg)) {
+      return `Google refuse l'identifiant. Dans l'ordre, vérifie :
+① L'« Adresse Gmail » saisie est EXACTEMENT le compte Google sur lequel tu as créé le mot de passe d'application (si tu l'as créé sur ton compte perso @gmail.com, mets cette adresse-là) ;
+② Re-crée un mot de passe d'application tout neuf sur myaccount.google.com/apppasswords et recolle-le ici ;
+③ Si cette boîte n'est pas hébergée chez Google (OVH, Outlook…), dis-le à Claude : d'autres serveurs d'envoi se configurent.`;
+    }
+    if (/application-specific password required/i.test(msg)) {
+      return `Ton compte exige un mot de passe d'application : active la « Validation en deux étapes » sur myaccount.google.com/security, puis crée le mot de passe sur myaccount.google.com/apppasswords.`;
+    }
+    if (/Gmail non configuré/i.test(msg)) {
+      return `Remplis l'adresse ET le mot de passe d'application ci-dessus, puis reclique.`;
+    }
+    if (/Réseau injoignable|ENOTFOUND|ECONNREFUSED|délai dépassé|ETIMEDOUT/i.test(msg)) {
+      return `Impossible de joindre les serveurs de Google : vérifie ta connexion internet. Sur un réseau d'entreprise/VPN, les ports d'envoi d'email sont parfois bloqués — réessaie depuis chez toi ou en partage de connexion.`;
+    }
+    return `Envoie ce message tel quel à Claude, il saura quoi corriger.`;
+  };
   $$('[data-mailtest]', view).forEach((b) => {
     b.onclick = async () => {
-      const el = $('#t-mail'); el.textContent = '⏳…'; b.disabled = true;
+      const el = $('#t-mail');
+      const errBox = $('#mail-err');
+      errBox.classList.add('hidden');
+      el.textContent = '⏳ Enregistrement + test en cours…';
+      b.disabled = true;
       try {
+        await saveReglages();
         const r = await api(`/mail/${b.dataset.mailtest}`, { method: 'POST' });
         el.textContent = '✅ ' + (r.message || 'OK');
         fx.play('pop');
-      } catch (e) { el.textContent = ''; fx.error(e.message); }
+      } catch (e) {
+        el.textContent = '❌ Échec du test';
+        errBox.innerHTML = `<b>Message technique :</b> ${esc(e.message)}<br><br><b>💡 Ce que ça veut dire :</b><br>${esc(explainMailError(e.message)).replace(/\n/g, '<br>')}`;
+        errBox.classList.remove('hidden');
+      }
       b.disabled = false;
     };
   });
