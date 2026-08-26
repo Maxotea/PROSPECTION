@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>⚔️ La Chasse — CRM OTEA</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <div id="app">
+    <nav id="sidebar">
+      <div class="logo">⚔️ <span>LA CHASSE</span></div>
+      <a href="#/qg" data-view="qg">🏰 <span>Quartier général</span></a>
+      <a href="#/chasse" data-view="chasse">🎯 <span>Mode Chasse</span></a>
+      <a href="#/pipeline" data-view="pipeline">📊 <span>Pipeline</span></a>
+      <a href="#/contacts" data-view="contacts">👥 <span>Contacts</span></a>
+      <a href="#/inbox" data-view="inbox">📥 <span>Réponses</span></a>
+      <a href="#/import" data-view="import">📦 <span>Imports</span></a>
+      <a href="#/reglages" data-view="reglages">⚙️ <span>Réglages</span></a>
+      <div class="sidebar-footer">
+        <div id="side-level"></div>
+        <button id="sound-toggle" class="ghost" title="Sons">🔊</button>
+      </div>
+    </nav>
+    <main id="view" aria-live="polite"></main>
+  </div>
+
+  <div id="drawer-backdrop" class="hidden"></div>
+  <aside id="drawer" class="hidden" aria-label="Fiche contact"></aside>
+  <div id="modal-root"></div>
+  <div id="toasts" aria-live="assertive"></div>
+  <canvas id="confetti"></canvas>
+
+  <script src="/game.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

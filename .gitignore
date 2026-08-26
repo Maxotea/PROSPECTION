@@ -1,0 +1,7 @@
+# Données locales (contacts, clés API) — ne JAMAIS committer
+data/
+.env
+
+node_modules/
+*.log
+.DS_Store
