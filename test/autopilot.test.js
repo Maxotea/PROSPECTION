@@ -323,6 +323,33 @@ test('Envoi direct (Mode Chasse) : envoie, logge, compte dans le cap', async () 
   mock.server.close();
 });
 
+test('Appels du jour : file téléphonique priorisée, appelés du jour exclus', () => {
+  setSetting('objectif_appels_jour', '3');
+  const p1 = freshContact({ phone: '06 01 01 01 01', email: 'p1@t.fr', last_name: 'Tel1', stage: 'en_discussion' });
+  const p2 = freshContact({ phone: '06 02 02 02 02', last_name: 'Tel2' });
+  const q = game.callQueue(20);
+  assert.ok(q.every((x) => x.phone), 'que des contacts avec téléphone');
+  assert.ok(q.findIndex((x) => x.id === p1.id) < q.findIndex((x) => x.id === p2.id), 'discussion chaude prioritaire');
+  game.logAction({ contact_id: p1.id, type: 'appel' });
+  assert.ok(!game.callQueue(20).find((x) => x.id === p1.id), 'déjà appelé aujourd’hui → sorti de la file');
+  const cs = game.callsState();
+  assert.strictEqual(cs.goal, 3);
+  assert.ok(cs.done >= 1);
+});
+
+test('Icebreaker : hints profil↔contact, {accroche} rendue, seed migré', () => {
+  setSetting('mon_profil', 'Hyrox, Toulouse, Galec');
+  const c = freshContact({ last_name: 'Ice', email: 'ice@t.fr', notes: 'a couru le Hyrox de Bordeaux', city: 'Toulouse' });
+  assert.deepStrictEqual(playbooks.icebreakerHints(c, dbApi.allSettings()), ['Hyrox', 'Toulouse']);
+
+  const tpl = get(`SELECT * FROM templates WHERE code = 'reactivation'`);
+  assert.match(tpl.body, /\{accroche\}/);
+  const avec = playbooks.renderTemplate(tpl, { ...c, first_name: 'Léa', icebreaker: 'On partage le Hyrox !' }, dbApi.allSettings());
+  assert.ok(avec.body.includes('On partage le Hyrox !\n\n'), 'icebreaker en 1re ligne');
+  const sans = playbooks.renderTemplate(tpl, { ...c, first_name: 'Léa', icebreaker: '' }, dbApi.allSettings());
+  assert.ok(!sans.body.includes('{accroche}') && !sans.body.includes('\n\n\n'), 'accroche vide → disparaît proprement');
+});
+
 test('Scan Gmail : agrège les destinataires du dossier Envoyés', async () => {
   const scenario = {
     uidnext: 43,

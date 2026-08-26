@@ -211,6 +211,15 @@ async function vQG(view) {
           </div>
         </div>
         <div class="card">
+          <div class="spread"><h2>📞 Appels du jour</h2><span class="chip ${S.calls.done >= S.calls.goal ? 'ok' : ''}">${S.calls.done}/${S.calls.goal}</span></div>
+          ${S.calls.list.length
+            ? S.calls.list.map((p) => `<div class="spread small" style="padding:4px 0;border-bottom:1px dashed var(--border)">
+                <span style="cursor:pointer" data-open-contact="${p.id}"><b>${esc(p.first_name)} ${esc(p.last_name)}</b> ${p.is_former_client ? '💰' : ''} <span class="muted">${esc(p.company || '')}</span></span>
+                <a href="tel:${esc(p.phone)}" class="mono">☎️ ${esc(p.phone)}</a>
+              </div>`).join('') + `<div class="row" style="margin-top:10px"><button class="gold" id="qg-calls">📞 Lancer la session d'appels</button></div>`
+            : `<p class="muted small">${S.calls.done >= S.calls.goal ? '🏆 Objectif du jour atteint !' : 'Personne à appeler — ajoute des numéros (enrichissement FullEnrich).'}</p>`}
+        </div>
+        <div class="card">
           <div class="level-badge">
             <div class="lvl-num">${S.level.level}</div>
             <div style="flex:1">
@@ -253,6 +262,9 @@ async function vQG(view) {
     try { const r = await api('/demo', { method: 'POST' }); fx.toast(esc(r.message)); await refreshState(); render(); }
     catch (e) { fx.error(e.message); }
   };
+  const qgCalls = $('#qg-calls');
+  if (qgCalls) qgCalls.onclick = () => { hunt = null; pendingHuntMode = 'calls'; location.hash = '#/chasse'; };
+  $$('[data-open-contact]', view).forEach((el) => { el.onclick = () => openContact(el.dataset.openContact); });
 }
 
 // Graphe barres XP (série unique — libellé direct sur le max, tooltips natifs, table sr-only).
@@ -296,33 +308,41 @@ function funnel(stages) {
 }
 
 // ================================================================ MODE CHASSE
-let hunt = null; // { queue, idx, xp, actions, combo, lastAt }
+let hunt = null; // { queue, idx, xp, actions, combo, lastAt, mode }
+let pendingHuntMode = null; // pour lancer une session directement depuis le QG
 
 async function vChasse(view) {
   if (!hunt) {
+    await refreshState();
     view.innerHTML = `
       <div class="view-header"><h1>⚔️ Mode Chasse</h1><div class="sub">L'app te sert les prospects prioritaires un par un, avec le bon message pré-rempli. Toi, tu dégaines.</div></div>
       <div class="card hunt-empty">
         <div class="big-emoji">🏹</div>
         <h2>Prêt à chasser ?</h2>
-        <p class="muted">File d'attente : anciens clients à réactiver, relances dues, nouveaux prospects — triés par priorité.</p>
+        <p class="muted">Prospection : anciens clients à réactiver, relances dues, nouveaux prospects. Appels : ${S.calls.goal} personnes à joindre aujourd'hui (${S.calls.done} déjà fait${S.calls.done > 1 ? 's' : ''}).</p>
         <div class="row" style="justify-content:center; margin-top:14px">
           <label class="field">Taille de session
             <select id="hunt-size"><option value="5">5 cibles</option><option value="10" selected>10 cibles</option><option value="15">15 cibles</option><option value="25">25 cibles</option></select>
           </label>
-          <button class="primary big" id="hunt-start" style="margin-top:14px">🎯 LANCER LA SESSION</button>
+          <button class="primary big" id="hunt-start" style="margin-top:14px">🎯 SESSION PROSPECTION</button>
+          <button class="gold big" id="hunt-start-calls" style="margin-top:14px">📞 SESSION D'APPELS (${Math.max(S.calls.goal - S.calls.done, 0)})</button>
         </div>
       </div>`;
-    $('#hunt-start').onclick = async () => {
+    const start = async (mode, limit) => {
       try {
-        const limit = $('#hunt-size').value;
-        const { queue } = await api(`/queue?limit=${limit}`);
-        if (!queue.length) { fx.toast('File vide : importe des contacts ou reviens quand des relances seront dues 🎉'); return; }
-        hunt = { queue, idx: 0, xp: 0, actions: 0, combo: 0, lastAt: 0 };
+        const { queue } = await api(`/queue?limit=${limit}${mode === 'calls' ? '&mode=calls' : ''}`);
+        if (!queue.length) {
+          fx.toast(mode === 'calls' ? 'Personne à appeler : ajoute des numéros (FullEnrich) ou reviens demain 📞' : 'File vide : importe des contacts ou reviens quand des relances seront dues 🎉');
+          return;
+        }
+        hunt = { queue, idx: 0, xp: 0, actions: 0, combo: 0, lastAt: 0, mode };
         fx.play('pop');
         vChasse(view);
       } catch (e) { fx.error(e.message); }
     };
+    $('#hunt-start').onclick = () => start('emails', $('#hunt-size').value);
+    $('#hunt-start-calls').onclick = () => start('calls', Math.max(S.calls.goal, 5));
+    if (pendingHuntMode) { const m = pendingHuntMode; pendingHuntMode = null; start(m, m === 'calls' ? Math.max(S.calls.goal, 5) : 10); }
     return;
   }
 
@@ -348,7 +368,7 @@ async function vChasse(view) {
   const tpls = await getTemplates();
   view.innerHTML = `
     <div class="hunt-top">
-      <div><b>Cible ${hunt.idx + 1}/${hunt.queue.length}</b> <span class="muted">· session +${hunt.xp} XP</span></div>
+      <div><b>${hunt.mode === 'calls' ? '📞 Appel' : '🎯 Cible'} ${hunt.idx + 1}/${hunt.queue.length}</b> <span class="muted">· session +${hunt.xp} XP</span></div>
       <div class="combo-meter">${hunt.combo >= 2 ? `🔥 COMBO x${hunt.combo}` : ''}</div>
       <button class="ghost" id="hunt-quit">✖ Quitter</button>
     </div>
@@ -363,10 +383,23 @@ async function vChasse(view) {
             <span class="chip">${stageLabel(c.stage)}</span>
             ${c.next_action ? `<span class="chip due">${esc(c.next_action)} · ${dueLabel(c.next_action_at)}</span>` : ''}
           </div>
+          ${hunt.mode === 'calls' && c.phone ? `<div style="font-size:28px;font-weight:900;margin-top:10px"><a href="tel:${esc(c.phone)}">☎️ ${esc(c.phone)}</a></div>` : ''}
         </div>
         <div style="text-align:right" class="small muted">Priorité<br><b style="font-size:22px;color:var(--gold2)">${c.score}</b></div>
       </div>
       ${c.notes ? `<div class="hunt-note">📝 ${esc(c.notes)}</div>` : ''}
+      ${c.icebreaker
+        ? `<div class="hunt-note" style="border-color:rgba(139,92,246,.5);background:rgba(139,92,246,.08)">💎 <b>Ton lien avec ${esc(c.first_name)} :</b> ${esc(c.icebreaker)} <span class="faint small">(injecté en 1re ligne du message via {accroche})</span></div>`
+        : (!c.is_former_client ? `
+        <div class="hunt-note">
+          <b>💎 Pas encore d'icebreaker</b> — trouve un lien avant de contacter : ancien employeur, ville, école, sport, destination…
+          ${(c.hints || []).length ? `<div class="row" style="margin:6px 0">${c.hints.map((h) => `<span class="chip ok">🔗 ${esc(h)}</span>`).join('')} <span class="faint small">← points communs détectés avec ton profil</span></div>` : ''}
+          <div class="row" style="margin-top:6px">
+            <input id="hunt-ice" placeholder="Ex : On a un point commun : le Hyrox / Vous êtes passé chez X…" style="flex:1">
+            <button id="hunt-ice-ai" title="Suggérer (IA + mon profil)">✨</button>
+            <button id="hunt-ice-save" class="primary">💾</button>
+          </div>
+        </div>` : '')}
       <div class="hunt-links">
         ${c.linkedin_url ? `<a href="${esc(c.linkedin_url)}" target="_blank" rel="noopener"><button>🔗 Ouvrir LinkedIn</button></a>` : ''}
         ${c.email ? `<a id="hunt-mailto" href="#"><button>✉️ Ouvrir un email</button></a>` : ''}
@@ -385,6 +418,14 @@ async function vChasse(view) {
         <textarea id="hunt-body" placeholder="Ton message…"></textarea>
       </div>
       <div class="hunt-actions">
+        ${hunt.mode === 'calls' ? `
+        <button class="primary" data-act="call">📞 Appelé <span class="kbd"></span></button>
+        <button data-act="replied">💬 A répondu <span class="kbd"></span></button>
+        <button class="gold" data-act="meeting">📅 RDV pris <span class="kbd"></span></button>
+        ${S.autopilot.configured && c.email ? `<button data-act="sendreal">📤 Envoyer l'email à la place <span class="kbd"></span></button>` : ''}
+        <button data-act="skip">⏭️ Plus tard <span class="kbd"></span></button>
+        <button class="danger" data-act="disqualify">🪦 Disqualifier <span class="kbd"></span></button>
+        ` : `
         ${S.autopilot.configured && c.email
           ? `<button class="primary" data-act="sendreal">📤 ENVOYER l'email <span class="kbd"></span></button>
              <button data-act="send" title="Si tu as envoyé le message toi-même (LinkedIn, autre boîte…)">✔️ Envoyé moi-même <span class="kbd"></span></button>`
@@ -395,6 +436,7 @@ async function vChasse(view) {
         <button class="gold" data-act="meeting">📅 RDV pris <span class="kbd"></span></button>
         <button data-act="skip">⏭️ Plus tard <span class="kbd"></span></button>
         <button class="danger" data-act="disqualify">🪦 Disqualifier <span class="kbd"></span></button>
+        `}
       </div>
       ${S.autopilot.configured && c.email ? '' : `<p class="muted small" style="margin-top:8px">ℹ️ ${c.email ? 'Branche ton email dans Réglages pour envoyer directement d’ici.' : 'Pas d’email sur cette fiche : passe par LinkedIn, ou enrichis-la via FullEnrich.'} Les boutons ci-dessus ne font que NOTER ce que tu as fait — ils n'envoient rien.</p>`}
     </div>`;
@@ -417,6 +459,31 @@ async function vChasse(view) {
   await renderTpl();
 
   $('#hunt-quit').onclick = () => { hunt = null; vChasse(view); };
+  const iceSave = $('#hunt-ice-save');
+  if (iceSave) iceSave.onclick = async () => {
+    const val = $('#hunt-ice').value.trim();
+    if (!val) { fx.error('Écris le lien trouvé (ou clique ✨ pour des suggestions).'); return; }
+    try {
+      await api(`/contacts/${c.id}`, { method: 'PATCH', body: { icebreaker: val } });
+      hunt.queue[hunt.idx].icebreaker = val;
+      fx.toast('💎 Icebreaker enregistré — injecté en 1re ligne du message');
+      fx.play('pop');
+      vChasse(view);
+    } catch (e) { fx.error(e.message); }
+  };
+  const iceAi = $('#hunt-ice-ai');
+  if (iceAi) iceAi.onclick = async () => {
+    iceAi.disabled = true; iceAi.textContent = '✨…';
+    try {
+      const d = await api('/ai/draft', { method: 'POST', body: { contact_id: c.id, purpose: 'icebreaker' } });
+      const lines = d.body.split('\n').map((s) => s.trim()).filter((s) => s.length > 8);
+      const m = modal(`<h2>💎 Suggestions d'icebreaker</h2>
+        <p class="muted small">${d.source === 'claude' ? 'Rédigées par l’IA à partir de sa fiche + ton profil (Réglages).' : 'Basées sur tes points communs — ajoute une clé IA dans Réglages pour du sur-mesure.'}</p>
+        <div class="grid" style="margin-top:10px">${lines.map((l) => `<button data-pick-ice style="justify-content:flex-start;text-align:left">${esc(l)}</button>`).join('') || '<p class="muted">Rien trouvé — remplis « Mon profil » dans Réglages.</p>'}</div>`);
+      $$('[data-pick-ice]', m).forEach((b) => { b.onclick = () => { $('#hunt-ice').value = b.textContent; m.remove(); }; });
+    } catch (e) { fx.error(e.message); }
+    iceAi.disabled = false; iceAi.textContent = '✨';
+  };
   $('#hunt-open-fiche').onclick = () => openContact(c.id);
   $('#hunt-copy').onclick = async () => { await copyText($('#hunt-body').value); fx.toast('📋 Message copié'); };
   $('#hunt-ai').onclick = async () => {
@@ -768,6 +835,7 @@ async function vContacts(view) {
   if (cFilter.origin) params.set('origin', cFilter.origin);
   if (cFilter.former) params.set('former', '1');
   if (cFilter.enrichable) params.set('enrichable', '1');
+  if (cFilter.sansIce) params.set('sans_icebreaker', '1');
   if (cFilter.campaign) params.set('campaign', String(cFilter.campaign));
   params.set('sort', cFilter.sort);
   params.set('dir', cFilter.dir);
@@ -790,6 +858,7 @@ async function vContacts(view) {
       ${campList.length ? `<select id="c-camp"><option value="0">Campagne : toutes</option>${campList.map((c) => `<option value="${c.id}" ${cFilter.campaign === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select>` : ''}
       <label class="chip" style="cursor:pointer"><input type="checkbox" id="c-former" ${cFilter.former ? 'checked' : ''}> 💰 anciens clients</label>
       <label class="chip" style="cursor:pointer"><input type="checkbox" id="c-enrich" ${cFilter.enrichable ? 'checked' : ''}> 🕳️ email/tél manquant</label>
+      <label class="chip" style="cursor:pointer"><input type="checkbox" id="c-noice" ${cFilter.sansIce ? 'checked' : ''}> 💎 sans icebreaker</label>
     </div>
     ${cSelected.size ? `<div class="toolbar card" style="padding:10px 14px">
       <b>${cSelected.size} sélectionné(s) :</b>
@@ -833,6 +902,7 @@ async function vContacts(view) {
   if (campSel) campSel.onchange = (e) => { cFilter.campaign = Number(e.target.value); vContacts(view); };
   $('#c-former').onchange = (e) => { cFilter.former = e.target.checked; vContacts(view); };
   $('#c-enrich').onchange = (e) => { cFilter.enrichable = e.target.checked; vContacts(view); };
+  $('#c-noice').onchange = (e) => { cFilter.sansIce = e.target.checked; vContacts(view); };
   $('#c-all').onchange = (e) => {
     contacts.forEach((c) => e.target.checked ? cSelected.add(c.id) : cSelected.delete(c.id));
     vContacts(view);
@@ -1015,6 +1085,10 @@ async function openContact(id) {
         <label class="field">Téléphone<input id="e-ph" value="${esc(c.phone)}"></label>
         <label class="field">Entreprise<input id="e-co" value="${esc(c.company)}"></label>
         <label class="field">Poste<input id="e-jt" value="${esc(c.job_title)}"></label>
+        <label class="field wide">💎 Icebreaker — ton lien avec la personne (1re ligne des messages via {accroche})
+          <div class="row"><input id="e-ice" value="${esc(c.icebreaker)}" placeholder="Ancien employeur commun, ville, sport, destination…" style="flex:1"><button id="e-ice-ai" title="Suggérer (IA + mon profil)">✨</button></div>
+          ${(data.hints || []).length ? `<span class="small" style="color:var(--green2)">🔗 Points communs détectés : ${data.hints.map(esc).join(', ')}</span>` : ''}
+        </label>
         <label class="field">Typologie<select id="e-seg">${Object.entries(S.segments).map(([k, s]) => `<option value="${k}" ${c.segment === k ? 'selected' : ''}>${s.emoji} ${esc(s.label)}</option>`).join('')}</select></label>
         <label class="field">Étape<select id="e-stage">${S.stages.map((s) => `<option value="${s.code}" ${c.stage === s.code ? 'selected' : ''}>${s.emoji} ${esc(s.label)}</option>`).join('')}</select></label>
         <label class="field">Prochaine action<input id="e-na" value="${esc(c.next_action)}"></label>
@@ -1100,6 +1174,7 @@ async function openContact(id) {
         first_name: $('#e-fn').value, last_name: $('#e-ln').value, email: $('#e-em').value, phone: $('#e-ph').value,
         company: $('#e-co').value, job_title: $('#e-jt').value, segment: $('#e-seg').value, stage: $('#e-stage').value,
         next_action: $('#e-na').value, next_action_at: $('#e-nad').value, notes: $('#e-no').value,
+        icebreaker: $('#e-ice').value,
       } });
       await celebrate(res.celebration);
       fx.toast('💾 Enregistré');
@@ -1108,6 +1183,17 @@ async function openContact(id) {
   };
   const enrichBtn = $('#d-enrich');
   if (enrichBtn) enrichBtn.onclick = () => launchEnrich([c.id]);
+  $('#e-ice-ai').onclick = async () => {
+    const btn = $('#e-ice-ai'); btn.disabled = true; btn.textContent = '✨…';
+    try {
+      const d = await api('/ai/draft', { method: 'POST', body: { contact_id: c.id, purpose: 'icebreaker' } });
+      const lines = d.body.split('\n').map((s) => s.trim()).filter((s) => s.length > 8);
+      const m = modal(`<h2>💎 Suggestions d'icebreaker</h2>
+        <div class="grid" style="margin-top:10px">${lines.map((l) => `<button data-pick-ice style="justify-content:flex-start;text-align:left">${esc(l)}</button>`).join('') || '<p class="muted">Rien trouvé — remplis « Mon profil » dans Réglages.</p>'}</div>`);
+      $$('[data-pick-ice]', m).forEach((b) => { b.onclick = () => { $('#e-ice').value = b.textContent; m.remove(); }; });
+    } catch (e) { fx.error(e.message); }
+    btn.disabled = false; btn.textContent = '✨';
+  };
   $('#d-hubspot').onclick = async () => {
     try { await api('/hubspot/push', { method: 'POST', body: { contact_ids: [c.id] } }); fx.toast('⬆️ Poussé vers HubSpot'); }
     catch (e) { fx.error(e.message); }
@@ -1921,8 +2007,12 @@ async function vReglages(view) {
           <div class="form-grid">
             <label class="field">Objectif factures (boss)<input id="s-goal" type="number" min="1" value="${esc(s.objectif_factures)}"></label>
             <label class="field">Seuil Grand Compte (€ CA)<input id="s-seuil" type="number" min="0" value="${esc(s.seuil_grand_compte)}"></label>
+            <label class="field">📞 Appels / jour (objectif)<input id="s-calls" type="number" min="1" max="50" value="${esc(s.objectif_appels_jour)}"></label>
+            <label class="field wide"><span>🧬 Mon profil — pour trouver des liens avec les prospects (sépare par des virgules : anciens employeurs/clients, écoles, villes, sports, destinations…)</span>
+              <textarea id="s-profil" rows="3" placeholder="Ex : Galec, La Poste, Pullman, Toulouse, Hyrox, crossfit, République Dominicaine, montagne…">${esc(s.mon_profil)}</textarea>
+            </label>
           </div>
-          <p class="muted small">Le boss tombe quand tu marques « facturé » ce nombre de deals. Les sons se coupent avec 🔊 en bas de la barre latérale.</p>
+          <p class="muted small">Le boss tombe quand tu marques « facturé » ce nombre de deals. « Mon profil » alimente les suggestions d'icebreakers 💎. Les sons se coupent avec 🔊 en bas de la barre latérale.</p>
         </div>
         <div class="card">
           <h2>🎮 Démo & données</h2>
@@ -2004,6 +2094,7 @@ async function vReglages(view) {
     await api('/settings', { method: 'PUT', body: {
       user_name: $('#s-user').value, company_name: $('#s-company').value, user_signature: $('#s-sig').value,
       objectif_factures: $('#s-goal').value, seuil_grand_compte: $('#s-seuil').value,
+      objectif_appels_jour: $('#s-calls').value, mon_profil: $('#s-profil').value,
       pennylane_api_key: $('#s-pl').value, fullenrich_api_key: $('#s-fe').value,
       hubspot_token: $('#s-hs').value, anthropic_api_key: $('#s-ai').value, ai_model: $('#s-model').value,
       gmail_user: $('#s-gmail').value, gmail_app_password: $('#s-gmailpw').value,

@@ -96,7 +96,7 @@ const TEMPLATE_SEED = [
     subject: 'On remet ça, {entreprise} ?',
     body: `Bonjour {prenom},
 
-Ça fait un moment depuis notre dernier projet ensemble — j'espère que tout roule chez {entreprise}.
+{accroche}Ça fait un moment depuis notre dernier projet ensemble — j'espère que tout roule chez {entreprise}.
 
 De notre côté on a pas mal évolué chez {ma_boite} : nouveaux formats vidéo courts, gestion complète des réseaux, et des résultats concrets chez nos clients.
 
@@ -123,7 +123,7 @@ Est-ce que le sujet "contenu vidéo" est dans vos priorités cette année ? Si o
     subject: 'Idée contenu vidéo pour {entreprise}',
     body: `Bonjour {prenom},
 
-Je me permets ce mail car je pense que {entreprise} a un vrai potentiel inexploité côté vidéo.
+{accroche}Je me permets ce mail car je pense que {entreprise} a un vrai potentiel inexploité côté vidéo.
 
 Concrètement, voilà ce qu'on produit chez {ma_boite} pour des comptes de votre taille :
 • Films de marque et marque employeur
@@ -161,7 +161,7 @@ Je vous laisse mes coordonnées — si un besoin vidéo ou contenu émerge d'ici
     subject: 'Vos réseaux + vos vidéos, gérés pour vous',
     body: `Bonjour {prenom},
 
-Je suis {moi}, de {ma_boite} ({ville} et alentours). On aide les commerces et PME à avoir une vraie présence en ligne sans y passer leurs soirées :
+{accroche}Je suis {moi}, de {ma_boite} ({ville} et alentours). On aide les commerces et PME à avoir une vraie présence en ligne sans y passer leurs soirées :
 
 • Pack réseaux sociaux : on filme, on monte, on publie — chaque mois
 • Vidéos pro pour votre vitrine, vos offres, vos coulisses
@@ -202,7 +202,7 @@ Belle continuation à {entreprise} !
     subject: 'Aftermovie & contenus pour vos événements',
     body: `Bonjour {prenom},
 
-Votre événement mérite mieux que des stories filmées au téléphone. 🎬
+{accroche}Votre événement mérite mieux que des stories filmées au téléphone. 🎬
 
 Chez {ma_boite}, on couvre des événements sportifs et grand public (type Hyrox, compétitions, salons) : aftermovie qui claque, réels le jour J, photos et interviews à chaud.
 
@@ -349,14 +349,33 @@ function seedSequences(dbApi) {
 function seedTemplates(dbApi) {
   const { get, run } = dbApi;
   for (const t of TEMPLATE_SEED) {
-    const existing = get('SELECT id FROM templates WHERE code = ?', t.code);
+    const existing = get('SELECT id, builtin, body FROM templates WHERE code = ?', t.code);
     if (!existing) {
       run(
         'INSERT INTO templates (code, name, segment, channel, subject, body, builtin, sort) VALUES (?, ?, ?, ?, ?, ?, 1, ?)',
         t.code, t.name, t.segment, t.channel, t.subject, t.body, t.sort
       );
+    } else if (existing.builtin && !existing.body.includes('{accroche}') && t.body.includes('{accroche}')
+      && existing.body === t.body.replace('{accroche}', '')) {
+      // Migration douce : le template n'a pas été modifié par l'utilisateur → on injecte {accroche}.
+      run('UPDATE templates SET body = ? WHERE id = ?', t.body, existing.id);
     }
   }
+}
+
+// Croise « mon profil » (mots-clés : anciens employeurs, écoles, villes, sports,
+// destinations…) avec les données du contact → pistes d'icebreaker.
+function icebreakerHints(contact, settings) {
+  const profil = String(settings.mon_profil || '').trim();
+  if (!profil || !contact) return [];
+  const norm = (s) => String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const hay = norm([contact.profile, contact.notes, contact.city, contact.company, contact.job_title].filter(Boolean).join(' '));
+  if (!hay) return [];
+  const found = [];
+  for (const k of profil.split(/[\n,;•·]+/).map((s) => s.trim()).filter((s) => s.length >= 3)) {
+    if (hay.includes(norm(k)) && !found.some((f) => norm(f) === norm(k))) found.push(k);
+  }
+  return found.slice(0, 6);
 }
 
 // Remplace les {variables} d'un template avec les infos du contact + réglages.
@@ -371,9 +390,12 @@ function renderTemplate(tpl, contact, settings) {
     ma_boite: settings.company_name || '',
     signature: settings.user_signature || settings.user_name || '',
     lien_rdv: settings.booking_url || '',
+    icebreaker: (contact && contact.icebreaker) || '',
+    // {accroche} = l'icebreaker en 1re ligne, suivi d'une ligne vide — disparaît proprement s'il est vide.
+    accroche: contact && contact.icebreaker ? `${contact.icebreaker}\n\n` : '',
   };
   const fill = (s) => String(s || '').replace(/\{(\w+)\}/g, (m, k) => (vars[k] !== undefined ? vars[k] : m));
   return { subject: fill(tpl.subject), body: fill(tpl.body), channel: tpl.channel, name: tpl.name, code: tpl.code };
 }
 
-module.exports = { SEGMENTS, STAGES, CADENCES, FIRST_TOUCH, TEMPLATE_SEED, SEQUENCE_SEED, seedTemplates, seedSequences, renderTemplate, suggestedTemplateCode, nextStepAfter };
+module.exports = { SEGMENTS, STAGES, CADENCES, FIRST_TOUCH, TEMPLATE_SEED, SEQUENCE_SEED, seedTemplates, seedSequences, renderTemplate, suggestedTemplateCode, nextStepAfter, icebreakerHints };

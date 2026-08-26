@@ -192,7 +192,7 @@ function buildKit(preset, persona, refs, settings) {
       subject: `${preset.label} × vidéo — ce qu'on a fait pour ${phare}`,
       body: `Bonjour {prenom},
 
-Je vous écris car cette semaine, chez ${boite}, on se concentre sur un seul secteur : ${preset.label.toLowerCase()}.
+{accroche}Je vous écris car cette semaine, chez ${boite}, on se concentre sur un seul secteur : ${preset.label.toLowerCase()}.
 
 ${preset.angle}
 

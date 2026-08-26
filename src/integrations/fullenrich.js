@@ -143,6 +143,8 @@ async function pollJob(job) {
     if (!contact) continue;
     const data = extractContactData(entry);
     const patch = { enrich_status: (data.email || data.phone) ? 'done' : 'not_found' };
+    // Profil brut conservé pour la recherche d'icebreakers (parcours, ville, entreprise…).
+    try { patch.profile = JSON.stringify(entry.contact || entry).slice(0, 8000); } catch { /* données non sérialisables */ }
     // On ne remplit que les trous — on n'écrase jamais une donnée existante.
     if (data.email && !contact.email) patch.email = data.email;
     if (data.email_status) patch.email_status = data.email_status;

@@ -14,12 +14,15 @@ const PURPOSES = {
   reponse_demande: 'une réponse à la demande entrante ci-dessous (chaleureuse, précise, qui pousse vers un appel de 15 min)',
   envoi_devis: "un email d'accompagnement de devis (rassurant, avec une échéance claire)",
   relance_devis: 'une relance de devis (lever les objections, proposer un appel)',
+  icebreaker: "3 propositions d'icebreaker : une phrase naturelle qui crée un lien personnel avec ce prospect (ancien employeur ou client commun, ville, école, sport, passion, destination). RÈGLE ABSOLUE : n'utilise QUE les informations fournies dans la fiche et le profil de l'utilisateur — n'invente RIEN. S'il n'y a aucun lien exploitable, dis-le et propose plutôt 3 questions à vérifier sur son profil LinkedIn. Format : une proposition par ligne, sans numérotation ni commentaire.",
 };
 
 function contactContext(contact) {
   if (!contact) return 'Pas de contact associé.';
   const seg = playbooks.SEGMENTS[contact.segment] || playbooks.SEGMENTS.inconnu;
   const lines = [
+    contact.icebreaker ? `Icebreaker déjà trouvé (à réutiliser en 1re ligne) : ${contact.icebreaker}` : '',
+    contact.profile ? `Profil enrichi (données FullEnrich) : ${String(contact.profile).slice(0, 1200)}` : '',
     `Nom : ${contact.first_name} ${contact.last_name}`.trim(),
     contact.company ? `Entreprise : ${contact.company}` : '',
     contact.job_title ? `Poste : ${contact.job_title}` : '',
@@ -39,6 +42,14 @@ async function draft({ contact = null, purpose = 'premier_contact', incoming_tex
   const key = getSetting('anthropic_api_key');
   const settings = allSettings();
 
+  if (!key && purpose === 'icebreaker') {
+    // Sans clé IA : on croise « mon profil » avec les données du contact + checklist manuelle.
+    const hints = playbooks.icebreakerHints(contact || {}, settings);
+    const lines = hints.length
+      ? [`Liens détectés avec ton profil : ${hints.join(', ')}.`, '', ...hints.map((h) => `On partage un point commun : ${h} — ça m'a donné envie de vous écrire.`)]
+      : ['Aucun lien automatique trouvé. Regarde son profil LinkedIn : parcours (ancien employeur commun ?), études, ville, posts récents, sports/passions — et note le lien ici.'];
+    return { subject: '', body: lines.join('\n'), source: 'hints' };
+  }
   if (!key) {
     // Fallback templates : on rend le template le plus adapté, déjà rempli.
     const code = purpose === 'reponse_demande' ? 'reponse_demande'
@@ -57,10 +68,11 @@ Adapte le ton à la typologie : Grand Compte = posé et expert ; PME = concret e
 Réponds UNIQUEMENT avec le message final, sans commentaire autour. Si c'est un email, commence par une ligne "OBJET: ..." puis une ligne vide puis le corps. Signature : "${settings.user_signature}".`;
 
   const userMsg = [
-    `Rédige ${PURPOSES[purpose] || PURPOSES.premier_contact}.`,
+    `Rédige ${PURPOSES[purpose] || PURPOSES.premier_contact}`,
     '',
     '--- FICHE PROSPECT ---',
     contactContext(contact),
+    purpose === 'icebreaker' && settings.mon_profil ? `\n--- MON PROFIL (pour trouver des points communs) ---\n${String(settings.mon_profil).slice(0, 1500)}` : '',
     incoming_text ? `\n--- MESSAGE REÇU À TRAITER ---\n${String(incoming_text).slice(0, 3000)}` : '',
     instructions ? `\n--- CONSIGNES SUPPLÉMENTAIRES ---\n${instructions}` : '',
   ].join('\n');

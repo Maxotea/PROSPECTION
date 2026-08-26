@@ -138,7 +138,13 @@ function questProgress(quest, day) {
 
 function todayQuests() {
   const day = localDay();
-  return questsForDay(day).map((q) => {
+  return questsForDay(day).map((base) => {
+    let q = { ...base };
+    if (q.code === 'q_appel_2') {
+      // La quête d'appels suit l'objectif quotidien réglable.
+      const goal = Math.max(1, Number(getSetting('objectif_appels_jour') || 5));
+      q = { ...q, target: goal, label: `Passer ${goal} appel${goal > 1 ? 's' : ''}`, bonus: 15 + goal * 5 };
+    }
     const progress = questProgress(q, day);
     const awarded = !!get('SELECT 1 AS x FROM quest_awards WHERE day = ? AND code = ?', day, q.code);
     return { ...q, progress, done: progress >= q.target, awarded };
@@ -316,6 +322,7 @@ function fullState() {
       const row = get('SELECT awarded_at FROM badges WHERE code = ?', b.code);
       return { ...b, won: !!row, awarded_at: row ? row.awarded_at : null };
     }),
+    calls: callsState(),
     segments: playbooks.SEGMENTS,
     stages: playbooks.STAGES,
     actions: Object.fromEntries(Object.entries(ACTIONS).map(([k, v]) => [k, { label: v.label, xp: v.xp, emoji: v.emoji }])),
@@ -358,8 +365,38 @@ function huntQueue(limit = 15) {
   });
 }
 
+// File d'appels du jour : contacts joignables par téléphone, priorisés
+// (discussions chaudes et devis d'abord), pas encore appelés aujourd'hui.
+function callQueue(limit = 10) {
+  const today = localDay();
+  const called = new Set(all(`SELECT DISTINCT contact_id FROM activities WHERE type = 'appel' AND day = ?`, today).map((r) => r.contact_id));
+  const rows = all(`SELECT * FROM contacts WHERE archived = 0 AND phone != '' AND stage NOT IN ('gagne','perdu')`);
+  const scored = rows
+    .filter((c) => !called.has(c.id))
+    .map((c) => ({ ...c, score: contactScore(c) + (['en_discussion', 'rdv', 'devis_envoye', 'negociation'].includes(c.stage) ? 15 : 0) }));
+  scored.sort((a, b) => b.score - a.score || String(a.last_touch_at).localeCompare(String(b.last_touch_at)));
+  const touchesStmt = `SELECT COUNT(*) AS n FROM activities WHERE contact_id = ? AND type IN (${TOUCH_TYPES.map(() => '?').join(',')})`;
+  return scored.slice(0, limit).map((c) => {
+    const touches = Number(get(touchesStmt, c.id, ...TOUCH_TYPES).n);
+    return { ...c, touches, suggested_template: playbooks.suggestedTemplateCode(c, touches) };
+  });
+}
+
+function callsState() {
+  const goal = Math.max(1, Number(getSetting('objectif_appels_jour') || 5));
+  const done = Number(get(`SELECT COUNT(*) AS n FROM activities WHERE type = 'appel' AND day = ?`, localDay()).n);
+  return {
+    goal, done,
+    list: callQueue(goal).map((c) => ({
+      id: c.id, first_name: c.first_name, last_name: c.last_name, company: c.company,
+      phone: c.phone, stage: c.stage, is_former_client: c.is_former_client, segment: c.segment,
+    })),
+  };
+}
+
 module.exports = {
   ACTIONS, BADGES, LEVELS, TOUCH_TYPES, EFFORT_TYPES,
   logAction, insertActivity, checkBadges, awardQuests,
   totalXp, levelForXp, computeStreak, todayQuests, bossState, weeklyXp, kpis, fullState, huntQueue, contactScore,
+  callQueue, callsState,
 };

@@ -116,6 +116,7 @@ route('GET', '/api/contacts', async (req, params, query) => {
   if (query.former === '1') where.push('is_former_client = 1');
   if (query.enrichable === '1') where.push(`(email = '' OR phone = '')`);
   if (query.campaign) { where.push('campaign_id = ?'); args.push(Number(query.campaign)); }
+  if (query.sans_icebreaker === '1') where.push(`icebreaker = '' AND is_former_client = 0`);
   if (query.due === '1') { where.push(`stage NOT IN ('gagne','perdu') AND next_action_at != '' AND next_action_at <= ?`); args.push(localDay()); }
 
   const total = Number(get(`SELECT COUNT(*) AS n FROM contacts WHERE ${where.join(' AND ')}`, ...args).n);
@@ -142,7 +143,11 @@ route('GET', '/api/contacts/:id', async (req, params) => {
   const activities = all('SELECT * FROM activities WHERE contact_id = ? ORDER BY id DESC LIMIT 100', params.id);
   const deals = all('SELECT * FROM deals WHERE contact_id = ? ORDER BY id DESC', params.id);
   const touches = Number(get(`SELECT COUNT(*) AS n FROM activities WHERE contact_id = ? AND type IN (${game.TOUCH_TYPES.map(() => '?').join(',')})`, params.id, ...game.TOUCH_TYPES).n);
-  return { contact, activities, deals, touches, suggested_template: playbooks.suggestedTemplateCode(contact, touches) };
+  return {
+    contact, activities, deals, touches,
+    suggested_template: playbooks.suggestedTemplateCode(contact, touches),
+    hints: playbooks.icebreakerHints(contact, dbApi.allSettings()),
+  };
 });
 
 route('PATCH', '/api/contacts/:id', async (req, params) => {
@@ -219,10 +224,12 @@ route('GET', '/api/export.csv', async (req, params, query, res) => {
   return null; // réponse déjà envoyée
 });
 
-// ---- file du Mode Chasse
+// ---- file du Mode Chasse (mode=calls → session d'appels)
 route('GET', '/api/queue', async (req, params, query) => {
-  const queue = game.huntQueue(Math.min(Number(query.limit) || 15, 50));
-  return { queue };
+  const limit = Math.min(Number(query.limit) || 15, 50);
+  const queue = query.mode === 'calls' ? game.callQueue(limit) : game.huntQueue(limit);
+  const settings = dbApi.allSettings();
+  return { queue: queue.map((c) => ({ ...c, hints: playbooks.icebreakerHints(c, settings) })) };
 });
 
 // ---- actions (cœur de la gamification)

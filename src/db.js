@@ -245,6 +245,8 @@ function ensureColumn(table, col, ddl) {
 }
 ensureColumn('contacts', 'campaign_id', 'campaign_id INTEGER DEFAULT 0');
 ensureColumn('templates', 'campaign_id', 'campaign_id INTEGER DEFAULT 0');
+ensureColumn('contacts', 'icebreaker', `icebreaker TEXT DEFAULT ''`);   // le lien trouvé avec la personne
+ensureColumn('contacts', 'profile', `profile TEXT DEFAULT ''`);         // données brutes FullEnrich (JSON)
 
 // ---------------------------------------------------------------- helpers
 function nowIso() { return new Date().toISOString(); }
@@ -276,6 +278,8 @@ const SETTINGS_DEFAULTS = {
   company_name: 'OTEA Production',
   user_signature: 'Maxime — OTEA Production',
   objectif_factures: '5',
+  objectif_appels_jour: '5',
+  mon_profil: '',
   seuil_grand_compte: '5000',
   sounds: '1',
   ai_model: 'claude-sonnet-5',
@@ -338,6 +342,7 @@ const CONTACT_FIELDS = [
   'domain', 'linkedin_url', 'city', 'country', 'segment', 'origin', 'is_former_client',
   'stage', 'revenue_history', 'next_action', 'next_action_at', 'last_touch_at',
   'pennylane_customer_id', 'hubspot_id', 'enrich_status', 'tags', 'notes', 'archived', 'campaign_id',
+  'icebreaker', 'profile',
 ];
 
 function normEmail(v) { return String(v || '').trim().toLowerCase(); }
