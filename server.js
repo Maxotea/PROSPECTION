@@ -38,6 +38,7 @@ const hubspot = require('./src/integrations/hubspot');
 const claude = require('./src/integrations/claude');
 const autopilot = require('./src/autopilot');
 const campaigns = require('./src/campaigns');
+const repertoire = require('./src/importers/repertoire');
 const { seedDemo } = require('./seed');
 
 playbooks.seedTemplates(dbApi);
@@ -551,6 +552,27 @@ route('POST', '/api/mail/scan', async (req) => {
 route('POST', '/api/mail/scan_import', async (req) => {
   const b = await readBody(req);
   return autopilot.importScanned(b.entries || []);
+});
+
+// ---- 🗂️ Répertoire chaud (historique d'appels + WhatsApp, lus en local)
+route('GET', '/api/repertoire/etat', async () => repertoire.etat());
+route('POST', '/api/repertoire/scan', async (req) => {
+  const b = await readBody(req);
+  const sources = Array.isArray(b.sources) && b.sources.length ? b.sources : ['appels', 'whatsapp'];
+  return repertoire.scan({ days: Number(b.days) || 1095, sources });
+});
+route('POST', '/api/repertoire/whatsapp_export', async (req) => {
+  const b = await readBody(req);
+  if (!String(b.text || '').trim()) throw httpError(400, 'Colle le contenu du fichier .txt exporté par WhatsApp.');
+  return repertoire.scanExportWhatsapp(String(b.text), { days: Number(b.days) || 3650 });
+});
+route('POST', '/api/repertoire/appels_csv', async (req) => {
+  const b = await readBody(req);
+  return repertoire.scanCsvAppels(Array.isArray(b.rows) ? b.rows : [], { days: Number(b.days) || 1095 });
+});
+route('POST', '/api/repertoire/import', async (req) => {
+  const b = await readBody(req);
+  return repertoire.importer(Array.isArray(b.entries) ? b.entries : []);
 });
 
 // ---- 📅 Campagnes hebdo thématiques

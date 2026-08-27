@@ -98,6 +98,42 @@ Le rythme : **chaque lundi, un nouveau terrain de chasse.** Semaine 1 la grande 
 
 ---
 
+## 🗂️ Le Répertoire chaud — tes appels et ton WhatsApp
+
+Le gisement le plus rentable n'est pas sur LinkedIn : ce sont les gens que tu as **déjà eus au téléphone ou sur WhatsApp** et que tu n'as jamais relancés. **Imports → Répertoire chaud** les retrouve.
+
+**Ce que ça lit, et où.** Tout se passe **en local sur ton Mac**, en lecture seule : rien n'est envoyé sur Internet, aucun message n'est recopié dans la base.
+
+| Source | Fichier lu | Comment l'activer |
+|---|---|---|
+| 📞 Appels | l'historique que ton Mac synchronise avec ton iPhone | iPhone → Réglages → Téléphone → **Appels sur d'autres appareils** → coche ton Mac |
+| 💬 WhatsApp | les discussions de l'app WhatsApp pour Mac | installe **WhatsApp pour Mac** et connecte-le à ton téléphone |
+
+**Si macOS bloque la lecture** (message « Accès complet au disque ») : Réglages Système → Confidentialité et sécurité → **Accès complet au disque** → active **Terminal**, puis relance la Chasse. Le message reste affiché à l'écran tant que ce n'est pas fait — il ne disparaît pas tout seul.
+
+**Plans B, sans rien installer :**
+- **WhatsApp** : sur ton téléphone, ouvre une discussion → tape le nom du contact en haut → **Exporter la discussion** → **Sans les médias** → envoie-toi le .txt → dépose-le dans la carte. Formats iPhone et Android, français et anglais, reconnus.
+- **Appels** : un CSV exporté depuis un Android (colonnes numéro / date / durée / type).
+
+**Comment la note sur 100 est calculée.** Elle répond à « est-ce que cette personne te connaît, et est-ce que ça sentait le travail ? » :
+
+- **récence** du dernier échange (jusqu'à 30 points) ;
+- **volume** d'appels et de messages (jusqu'à 25) ;
+- **réciprocité** — il t'a rappelé ou répondu (15) ;
+- **temps passé au téléphone** ensemble (jusqu'à 15) ;
+- **vocabulaire de métier** — tournage, montage, séminaire… (jusqu'à 20) ;
+- **preuve de négociation** — devis, budget, contrat, facture (jusqu'à 15). Ce bonus **ne se périme pas** : un « budget validé » d'il y a deux ans est un deal à relancer, pas un contact froid.
+
+🔥 chaud ≥ 60 · 🌤️ tiède ≥ 35 · ❄️ froid en dessous. Les nouveaux contacts à partir de 45 sont pré-cochés.
+
+**Ce qui est écarté d'office** : les numéros courts et les 08 surtaxés, les banques, colis, codes de vérification et messages automatiques, les groupes WhatsApp (un groupe n'est pas quelqu'un qu'on appelle), et les appels de moins de 8 secondes (une erreur de manip ne prouve rien).
+
+**Rien n'entre dans le CRM sans ton clic.** Tu vois la liste triée, tu décoches ton dentiste et ta belle-sœur, tu importes le reste. Un contact déjà présent est **retrouvé par son numéro** (même écrit autrement) et enrichi au lieu d'être dupliqué. La note de relation atterrit dans ses Notes — donc dans les suggestions d'accroche du Mode Chasse.
+
+> **Un mot sur le RGPD.** Ces personnes t'ont parlé : tu as une relation d'affaires ou un contact professionnel avéré, ce qui est la base légale de la prospection B2B en France. Ça ne vaut pas pour tes contacts privés — d'où l'étape de validation, qui est là exprès. Et toute relance doit rester une relance de pro à pro, avec un moyen de te dire stop.
+
+---
+
 ## 🎮 La boucle de jeu
 
 1. **🏰 Quartier général** — le boss (« 5 factures ») en barre de progression, tes 3 quêtes du jour, ta streak 🔥, tes KPI et ton XP de la semaine.
@@ -159,10 +195,10 @@ Les clés sont stockées en local (ou via un fichier `.env` : `PENNYLANE_API_KEY
 ## 🧱 Sous le capot
 
 - **Zéro dépendance** : Node ≥ 22.13, SQLite natif (`node:sqlite`), frontend vanilla, clients **SMTP et IMAP écrits maison** (`src/mail/`). `git clone` → `node server.js`, c'est tout.
-- `server.js` — serveur HTTP + API REST (`/api/*`) + boucle Autopilote (10 min) · `src/autopilot.js` — séquences, enrôlements, file d'envoi, détection des réponses · `src/db.js` — schéma + upsert/dédoublonnage · `src/gamification.js` — XP, niveaux, quêtes, streak, badges, boss · `src/playbooks.js` — segments, cadences, templates, séquences · `src/integrations/` — Pennylane, FullEnrich, HubSpot, Claude · `public/` — l'app.
+- `server.js` — serveur HTTP + API REST (`/api/*`) + boucle Autopilote (10 min) · `src/autopilot.js` — séquences, enrôlements, file d'envoi, détection des réponses · `src/db.js` — schéma + upsert/dédoublonnage · `src/gamification.js` — XP, niveaux, quêtes, streak, badges, boss · `src/playbooks.js` — segments, cadences, templates, séquences · `src/integrations/` — Pennylane, FullEnrich, HubSpot, Claude · `src/importers/` — répertoire chaud (appels macOS, WhatsApp, scoring des relations) · `public/` — l'app.
 - API Pennylane **v2** (`/api/external/v2` : `customers`, `customer_invoices`, `quotes`, `create_from_quote`) ; FullEnrich **v2** (`/api/v2/contact/enrich/bulk`, fallback v1 automatique) ; HubSpot **v3** ; Gmail en **SMTP/IMAP standard** (mot de passe d'application, aucun projet Google Cloud à créer).
 - Les réponses d'API inattendues remontent **verbatim** dans l'interface pour diagnostiquer vite.
-- **Tests** : `npm test` — 10 tests du moteur Autopilote contre des serveurs SMTP/IMAP factices (envoi, threading, réponses, bounces, cap, scan).
+- **Tests** : `npm test` — 36 tests. Moteur Autopilote contre des serveurs SMTP/IMAP factices (envoi, threading, réponses, bounces, cap, scan), campagnes hebdo, et répertoire chaud contre de fausses bases d'appels/WhatsApp et de vrais formats d'export.
 
 ## 🗺️ Pistes pour la suite
 

@@ -1791,11 +1791,37 @@ async function vImport(view) {
   view.innerHTML = `
     <div class="view-header"><h1>📦 Imports & enrichissement</h1><div class="sub">Remplis ton terrain de chasse : anciens clients Pennylane, listes LinkedIn/Sales Nav, HubSpot.</div></div>
     <div class="grid" style="grid-template-columns:1fr 1fr; align-items:start">
+      <div class="grid">
       <div class="card">
         <h2>🧲 CSV (LinkedIn / Sales Navigator / autre)</h2>
         <p class="muted small">Workflow conseillé : recherche <b>Sales Navigator</b> → export via l'extension <b>FullEnrich</b> (ou tout autre outil d'export) → CSV → ici. L'export de tes relations LinkedIn (Réglages LinkedIn → « Obtenir une copie de mes données » → Connections.csv) marche aussi. Les colonnes sont détectées automatiquement, les doublons fusionnés.</p>
         <input type="file" id="csv-file" accept=".csv,text/csv">
         <div id="csv-map"></div>
+      </div>
+      <div class="card">
+        <h2>🗂️ Répertoire chaud — tes appels & WhatsApp</h2>
+        <p class="muted small">Les gens que tu as déjà eus au téléphone ou sur WhatsApp te connaissent : ce sont tes leads les plus faciles. La Chasse lit l'historique <b>en local sur ce Mac</b>, note chaque relation, écarte le bruit (banques, colis, codes) et te propose une liste à valider. <b>Rien n'entre dans le CRM sans ton clic.</b></p>
+        <div class="row">
+          <select id="rep-days">
+            <option value="365">12 derniers mois</option>
+            <option value="1095" selected>3 dernières années</option>
+            <option value="1825">5 ans</option>
+          </select>
+          <button class="primary" id="rep-scan">🔍 Scanner appels & WhatsApp</button>
+          <span id="rep-etat" class="small muted"></span>
+        </div>
+        <div id="rep-warn"></div>
+        <div id="rep-results"></div>
+        <details style="margin-top:10px">
+          <summary class="small muted" style="cursor:pointer">WhatsApp n'est pas sur ce Mac ? Colle une conversation exportée</summary>
+          <p class="muted small" style="margin-top:8px">Sur ton téléphone : ouvre la discussion → tape le nom du contact en haut → <b>Exporter la discussion</b> → <b>Sans les médias</b> → envoie-toi le fichier .txt par mail, puis dépose-le ici.</p>
+          <div class="row">
+            <input type="file" id="rep-wa-file" accept=".txt,text/plain">
+          </div>
+          <textarea id="rep-wa-text" rows="4" placeholder="…ou colle directement le contenu du fichier .txt ici" style="width:100%;margin-top:6px"></textarea>
+          <button id="rep-wa-go" style="margin-top:6px">💬 Analyser cette conversation</button>
+        </details>
+      </div>
       </div>
       <div class="grid">
         <div class="card">
@@ -1892,6 +1918,103 @@ async function vImport(view) {
       };
     } catch (e) { fx.error(e.message); }
     btn.disabled = false; btn.textContent = '🔍 Scanner ma boîte';
+  };
+
+  // --- Répertoire chaud (appels + WhatsApp)
+  let repEntries = [];
+
+  const repTemp = (t) => (t === 'chaud' ? '<span class="chip due">🔥 chaud</span>' : t === 'tiede' ? '<span class="chip former">🌤️ tiède</span>' : '<span class="chip">❄️ froid</span>');
+
+  // Les erreurs d'accès macOS doivent RESTER à l'écran : c'est une consigne à suivre,
+  // pas une notification qui s'évapore au bout de 4 secondes.
+  const repAvertir = (avertissements) => {
+    const box = $('#rep-warn');
+    if (!avertissements || !avertissements.length) { box.innerHTML = ''; return; }
+    box.innerHTML = avertissements.map((a) => `
+      <div style="color:var(--gold2);background:rgba(234,179,8,.1);border:1px solid rgba(234,179,8,.4);border-radius:9px;padding:10px 12px;font-size:13px;margin-top:8px">
+        <b>${a.source === 'appels' ? '📞 Appels' : '💬 WhatsApp'}</b> — ${esc(a.message)}
+      </div>`).join('');
+  };
+
+  const repAfficher = (data, titre) => {
+    repEntries = data.entries || [];
+    repAvertir(data.avertissements);
+    const st = data.stats || {};
+    if (!repEntries.length) {
+      $('#rep-results').innerHTML = `<p class="muted small" style="margin-top:10px">Aucune relation exploitable trouvée sur cette période.${data.groupes_ignores ? ` (${data.groupes_ignores} groupe(s) WhatsApp ignoré(s) : un groupe n'est pas un contact à appeler.)` : ''}</p>`;
+      return;
+    }
+    $('#rep-results').innerHTML = `
+      <p style="margin-top:10px"><b>${st.total}</b> relation(s)${titre ? ' ' + titre : ''} — <b>${st.nouveaux}</b> pas encore dans le CRM, dont <b>${st.chauds}</b> 🔥 chaudes et <b>${st.avec_signaux}</b> avec du vocabulaire de travail.</p>
+      <div class="row small muted" style="gap:8px;margin-bottom:4px">
+        <button id="rep-all">Tout cocher</button><button id="rep-none">Tout décocher</button>
+        <span>Pré-cochés : les nouveaux contacts à partir de 45/100.</span>
+      </div>
+      <div style="max-height:320px;overflow-y:auto">
+        ${repEntries.slice(0, 300).map((e, i) => `
+          <label class="row small" style="padding:5px 4px;border-bottom:1px solid var(--border);cursor:pointer;align-items:flex-start;gap:8px">
+            <input type="checkbox" data-rep="${i}" ${!e.existing_id && e.score >= 45 ? 'checked' : ''}>
+            <span style="flex:1">
+              <b>${esc(e.name || e.phone_affiche || 'Inconnu')}</b>
+              <span class="muted">${e.name && e.phone_affiche ? ' · ' + esc(e.phone_affiche) : ''}</span>
+              ${repTemp(e.temperature)}
+              <span class="chip">${e.score}/100</span>
+              ${e.existing_id ? '<span class="chip ok">déjà dans le CRM</span>' : ''}
+              <br>
+              <span class="faint">${e.calls ? `📞 ${e.calls} appel(s)${e.duration_sec ? ' · ' + Math.round(e.duration_sec / 60) + ' min' : ''}` : ''}${e.calls && e.messages ? ' · ' : ''}${e.messages ? `💬 ${e.messages} message(s)` : ''}${e.last_at ? ' · dernier échange le ' + new Date(e.last_at).toLocaleDateString('fr-FR') : ''}</span>
+              ${(e.signaux || []).length ? `<br><span style="color:var(--green2)">🎯 ${esc(e.signaux.slice(0, 6).join(', '))}</span>` : ''}
+              ${e.excerpt ? `<br><span class="faint">« ${esc(e.excerpt)} »</span>` : ''}
+            </span>
+          </label>`).join('')}
+      </div>
+      ${repEntries.length > 300 ? `<p class="faint small">Seules les 300 meilleures relations sont affichées (sur ${repEntries.length}).</p>` : ''}
+      <button class="primary" id="rep-import" style="margin-top:8px">📥 Ajouter la sélection à mes prospects</button>`;
+
+    $('#rep-all').onclick = () => view.querySelectorAll('[data-rep]').forEach((cb) => { cb.checked = true; });
+    $('#rep-none').onclick = () => view.querySelectorAll('[data-rep]').forEach((cb) => { cb.checked = false; });
+    $('#rep-import').onclick = async () => {
+      const entries = [...view.querySelectorAll('[data-rep]:checked')].map((cb) => repEntries[Number(cb.dataset.rep)]);
+      if (!entries.length) { fx.error('Coche au moins une personne.'); return; }
+      const r = await api('/repertoire/import', { method: 'POST', body: { entries } });
+      fx.toast(`🗂️ Répertoire : ${r.created} créés, ${r.merged} fusionnés`);
+      fx.xp(Math.min(r.created, 50));
+      await refreshState();
+      vImport(view);
+    };
+  };
+
+  api('/repertoire/etat').then((etat) => {
+    const el = $('#rep-etat');
+    if (!el) return;
+    if (!etat.mac) { el.textContent = 'Lecture automatique réservée au Mac — utilise les plans B ci-dessous.'; return; }
+    const bouts = [];
+    bouts.push(etat.appels_disponible ? '📞 appels détectés' : '📞 aucun historique');
+    bouts.push(etat.whatsapp_disponible ? '💬 WhatsApp détecté' : '💬 WhatsApp absent');
+    el.textContent = bouts.join(' · ');
+  }).catch(() => {});
+
+  $('#rep-scan').onclick = async () => {
+    const btn = $('#rep-scan'); btn.disabled = true; btn.textContent = '🔍 Lecture en cours…';
+    try {
+      const data = await api('/repertoire/scan', { method: 'POST', body: { days: Number($('#rep-days').value) } });
+      repAfficher(data, '');
+    } catch (e) { fx.error(e.message); }
+    btn.disabled = false; btn.textContent = '🔍 Scanner appels & WhatsApp';
+  };
+
+  $('#rep-wa-file').onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    $('#rep-wa-text').value = await file.text();
+  };
+
+  $('#rep-wa-go').onclick = async () => {
+    const text = $('#rep-wa-text').value.trim();
+    if (!text) { fx.error('Dépose le fichier .txt exporté par WhatsApp, ou colle son contenu.'); return; }
+    try {
+      const data = await api('/repertoire/whatsapp_export', { method: 'POST', body: { text } });
+      repAfficher(data, 'dans cette conversation');
+    } catch (err) { fx.error(err.message); }
   };
 
   // --- FullEnrich
