@@ -36,6 +36,18 @@ Pour essayer avec des données fictives : `npm run demo` (et `npm run reset` pou
 
 Toutes tes données (contacts, clés API, historique) restent **sur ta machine**, dans `data/prospection.db` (gitignoré). Le serveur n'écoute que sur `127.0.0.1`.
 
+### 🔄 Mettre à jour sans perdre tes données
+
+Tes contacts, tes clés API et ton historique vivent dans le dossier **`data/`** — jamais dans le code. Donc pour passer à une nouvelle version :
+
+1. Ferme la fenêtre noire (ça arrête l'app).
+2. Télécharge le nouveau ZIP (GitHub → **Code** → **Download ZIP**) et décompresse-le. Tu as maintenant deux dossiers côte à côte.
+3. **Glisse le dossier `data` de l'ANCIEN dossier dans le NOUVEAU.** C'est l'étape qui préserve tout : contacts, réglages Gmail, XP, campagnes.
+4. Double-clique `demarrer.command` dans le **nouveau** dossier. Tu retrouves l'app exactement où tu l'avais laissée, avec les nouveautés en plus.
+5. Une fois que tout va bien, tu peux jeter l'ancien dossier.
+
+> Le blocage macOS (« Apple n'a pas pu confirmer… ») revient à chaque nouveau dossier : même manip que la première fois, **Réglages Système → Confidentialité et sécurité → « Ouvrir quand même »**.
+
 ---
 
 ## 📅 Les Campagnes hebdo — une semaine, un secteur, tes références partout
