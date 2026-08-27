@@ -1,5 +1,5 @@
 'use strict';
-// Couche base de données — SQLite natif de Node (node:sqlite), zéro dépendance.
+// Couche base de données : SQLite natif de Node (node:sqlite), zéro dépendance.
 // Le fichier de base vit dans ./data/prospection.db (gitignoré : données locales).
 
 const { DatabaseSync } = require('node:sqlite');
@@ -186,7 +186,7 @@ CREATE TABLE IF NOT EXISTS outbox (
   subject TEXT DEFAULT '',
   body TEXT DEFAULT '',
   status TEXT DEFAULT 'awaiting_review', -- awaiting_review | queued | sent | failed | cancelled
-  scheduled_at TEXT DEFAULT '',          -- ISO — heure d'envoi planifiée
+  scheduled_at TEXT DEFAULT '',          -- ISO, heure d'envoi planifiée
   sent_at TEXT DEFAULT '',
   message_id TEXT DEFAULT '',
   error TEXT DEFAULT '',
@@ -276,7 +276,7 @@ function run(sql, ...params) {
 const SETTINGS_DEFAULTS = {
   user_name: 'Maxime',
   company_name: 'OTEA Production',
-  user_signature: 'Maxime — OTEA Production',
+  user_signature: 'Maxime, OTEA Production',
   objectif_factures: '5',
   objectif_appels_jour: '5',
   mon_profil: '',

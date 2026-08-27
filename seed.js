@@ -14,7 +14,7 @@ const DEMO_CONTACTS = [
   { first_name: 'Marc', last_name: 'Vertano', company: 'Groupe Vertano', job_title: 'Directeur communication', email: 'm.vertano@vertano.example', segment: 'grand_compte', is_former_client: 1, revenue_history: 8200, city: 'Paris', stage: 'a_contacter', notes: 'Film corporate 2024. Parlait d’une série marque employeur.' },
   { first_name: 'Sofia', last_name: 'Reyes', company: 'Studio Yoga Flow', job_title: 'Fondatrice', email: 'sofia@yogaflow.example', segment: 'pme', is_former_client: 1, revenue_history: 950, city: 'Lyon', stage: 'contacte' },
   // Nouveaux prospects grands comptes
-  { first_name: 'Isabelle', last_name: 'Charvet', company: 'Neolia Santé', job_title: 'Responsable marketing', linkedin_url: 'https://www.linkedin.com/in/icharvet-demo', segment: 'grand_compte', city: 'Villeurbanne', stage: 'a_contacter', notes: 'Vu sur Sales Nav — groupe 400 salariés, recrute beaucoup (marque employeur ?)' },
+  { first_name: 'Isabelle', last_name: 'Charvet', company: 'Neolia Santé', job_title: 'Responsable marketing', linkedin_url: 'https://www.linkedin.com/in/icharvet-demo', segment: 'grand_compte', city: 'Villeurbanne', stage: 'a_contacter', notes: 'Vu sur Sales Nav : groupe 400 salariés, recrute beaucoup (marque employeur ?)' },
   { first_name: 'Thomas', last_name: 'Blanchard', company: 'Alpina Matériaux', job_title: 'DG', linkedin_url: 'https://www.linkedin.com/in/tblanchard-demo', segment: 'grand_compte', city: 'Grenoble', stage: 'contacte' },
   // PME
   { first_name: 'Julien', last_name: 'Perrin', company: 'Garage Perrin & Fils', job_title: 'Gérant', email: 'contact@garage-perrin.example', segment: 'pme', city: 'Bron', stage: 'a_contacter' },
@@ -63,7 +63,7 @@ function seedDemo(wipe = false) {
   const now = nowIso();
   run(`INSERT INTO deals (contact_id, title, amount, status, created_at, updated_at) VALUES (?, 'Aftermovie + pack réels', 2400, 'devis_envoye', ?, ?)`, ids['CrossTraining Days'], now, now);
   run(`INSERT INTO deals (contact_id, title, amount, status, invoiced_at, created_at, updated_at) VALUES (?, 'Pack vidéo vitrine', 950, 'facture', ?, ?, ?)`, ids['Studio Yoga Flow'], now, now, now);
-  past(1, 'Studio Yoga Flow', 'facture', 'Pack vidéo vitrine — 950 €');
+  past(1, 'Studio Yoga Flow', 'facture', 'Pack vidéo vitrine : 950 €');
 
   // Prochaines actions pour remplir la file du Mode Chasse dès aujourd'hui.
   const due = (company, action, offset = 0) => dbApi.updateContact(ids[company], { next_action: action, next_action_at: addDays(today, offset) });

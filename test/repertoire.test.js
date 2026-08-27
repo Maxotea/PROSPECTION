@@ -1,7 +1,7 @@
 'use strict';
 // Tests du répertoire chaud : on fabrique de fausses bases SQLite au format
 // macOS / WhatsApp et de vrais exports .txt, puis on vérifie que le moteur
-// retrouve les bonnes personnes — et surtout qu'il écarte le bruit.
+// retrouve les bonnes personnes : et surtout qu'il écarte le bruit.
 
 const test = require('node:test');
 const assert = require('node:assert');
@@ -205,7 +205,7 @@ test('parse un export iOS français (avec marques invisibles)', () => {
 
 test('dans une discussion de groupe, mes messages ne contaminent personne', () => {
   // Piège : si on recolle mes messages à chaque participant, celui qui n'a jamais
-  // parlé d'argent hérite du « devis » écrit à quelqu'un d'autre — et remonte à tort.
+  // parlé d'argent hérite du « devis » écrit à quelqu'un d'autre : et remonte à tort.
   const texte = [
     '[03/12/2024 14:32:11] Claire Arnaud : On voudrait une vidéo pour le séminaire',
     '[03/12/2024 14:35:02] Maxime : Je te prépare un devis tout de suite',

@@ -1,7 +1,7 @@
 {
   "name": "la-chasse",
   "version": "1.0.0",
-  "description": "CRM de prospection gamifié d'OTEA Production — anciens clients, nouveaux prospects, devis Pennylane, objectif : 5 factures.",
+  "description": "CRM de prospection gamifié d'OTEA Production : anciens clients, nouveaux prospects, devis Pennylane, objectif : 5 factures.",
   "private": true,
   "engines": {
     "node": ">=22.13"

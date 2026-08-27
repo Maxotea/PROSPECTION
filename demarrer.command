@@ -1,5 +1,5 @@
 #!/bin/bash
-# ⚔️ La Chasse — démarrage en double-clic (macOS).
+# ⚔️ La Chasse : démarrage en double-clic (macOS).
 # Premier lancement bloqué par Apple ? C'est normal (fichier téléchargé d'internet) :
 #   Réglages Système → Confidentialité et sécurité → tout en bas → « Ouvrir quand même »,
 #   puis re-double-clique. Une seule fois.
@@ -19,7 +19,7 @@ MAJOR=$(node -p "process.versions.node.split('.')[0]")
 MINOR=$(node -p "process.versions.node.split('.')[1]")
 if [ "$MAJOR" -lt 22 ] || { [ "$MAJOR" -eq 22 ] && [ "$MINOR" -lt 13 ]; }; then
   echo ""
-  echo "❌ Ta version de Node.js ($(node -v)) est trop ancienne — il faut la 22.13 ou plus."
+  echo "❌ Ta version de Node.js ($(node -v)) est trop ancienne : il faut la 22.13 ou plus."
   echo "→ Installe la dernière version LTS depuis nodejs.org puis relance ce fichier."
   open "https://nodejs.org/fr"
   read -r -p "Appuie sur Entrée pour fermer… "

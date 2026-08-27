@@ -1,5 +1,5 @@
 'use strict';
-// 📞 APPELS — qui as-tu eu au téléphone, et jamais relancé ?
+// 📞 APPELS : qui as-tu eu au téléphone, et jamais relancé ?
 //
 // Source principale : l'historique d'appels que ton Mac synchronise avec ton iPhone
 // (Réglages iPhone → Téléphone → Appels sur d'autres appareils). Il vit dans un
@@ -88,7 +88,7 @@ function lireBase({ days = 1095 } = {}) {
       name: bl.choisirColonne(dispo, ['ZNAME']),
     };
     if (!col.address || !col.date) {
-      throw new Error("Colonnes d'appels introuvables — version de macOS non reconnue. Utilise l'import CSV.");
+      throw new Error("Colonnes d'appels introuvables : version de macOS non reconnue. Utilise l'import CSV.");
     }
     const champ = (nom, alias) => (nom && /^[A-Z_0-9]+$/i.test(nom) ? `${nom} AS ${alias}` : `NULL AS ${alias}`);
     const sql =

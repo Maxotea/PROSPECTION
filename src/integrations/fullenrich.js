@@ -13,7 +13,7 @@ const { apiFetch } = require('./util');
 function base() { return (getSetting('fullenrich_base') || 'https://app.fullenrich.com/api/v2').replace(/\/$/, ''); }
 function headers() {
   const key = getSetting('fullenrich_api_key');
-  if (!key) throw new Error('Clé API FullEnrich manquante — renseigne-la dans Réglages.');
+  if (!key) throw new Error('Clé API FullEnrich manquante : renseigne-la dans Réglages.');
   return { Authorization: `Bearer ${key}` };
 }
 
@@ -145,7 +145,7 @@ async function pollJob(job) {
     const patch = { enrich_status: (data.email || data.phone) ? 'done' : 'not_found' };
     // Profil brut conservé pour la recherche d'icebreakers (parcours, ville, entreprise…).
     try { patch.profile = JSON.stringify(entry.contact || entry).slice(0, 8000); } catch { /* données non sérialisables */ }
-    // On ne remplit que les trous — on n'écrase jamais une donnée existante.
+    // On ne remplit que les trous : on n'écrase jamais une donnée existante.
     if (data.email && !contact.email) patch.email = data.email;
     if (data.email_status) patch.email_status = data.email_status;
     if (data.phone && !contact.phone) patch.phone = data.phone;

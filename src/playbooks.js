@@ -96,7 +96,7 @@ const TEMPLATE_SEED = [
     subject: 'On remet ça, {entreprise} ?',
     body: `Bonjour {prenom},
 
-{accroche}Ça fait un moment depuis notre dernier projet ensemble — j'espère que tout roule chez {entreprise}.
+{accroche}Ça fait un moment depuis notre dernier projet ensemble, j'espère que tout roule chez {entreprise}.
 
 De notre côté on a pas mal évolué chez {ma_boite} : nouveaux formats vidéo courts, gestion complète des réseaux, et des résultats concrets chez nos clients.
 
@@ -105,21 +105,21 @@ Est-ce qu'il y a des sujets contenu / vidéo dans vos cartons pour les prochains
 {signature}`,
   },
   {
-    code: 'gc_first', name: '🐘 Grand compte — 1er contact (LinkedIn)', segment: 'grand_compte', channel: 'linkedin', sort: 10,
+    code: 'gc_first', name: '🐘 Grand compte · 1er contact (LinkedIn)', segment: 'grand_compte', channel: 'linkedin', sort: 10,
     subject: '',
     body: `Bonjour {prenom}, je suis tombé sur ce que fait {entreprise} et j'aimerais vous connecter. Chez {ma_boite}, on produit des vidéos et du contenu pour des marques qui veulent exister vraiment en ligne. Au plaisir d'échanger !`,
   },
   {
-    code: 'gc_message_1', name: '🐘 Grand compte — message valeur', segment: 'grand_compte', channel: 'linkedin', sort: 11,
+    code: 'gc_message_1', name: '🐘 Grand compte · message valeur', segment: 'grand_compte', channel: 'linkedin', sort: 11,
     subject: '',
     body: `Merci pour la connexion {prenom} !
 
-Je vais droit au but : chez {ma_boite}, on accompagne des entreprises comme {entreprise} sur leur image vidéo — marque employeur, films corporate, contenus réseaux qui performent vraiment.
+Je vais droit au but : chez {ma_boite}, on accompagne des entreprises comme {entreprise} sur leur image vidéo : marque employeur, films corporate, contenus réseaux qui performent vraiment.
 
 Est-ce que le sujet "contenu vidéo" est dans vos priorités cette année ? Si oui, je vous montre en 15 min ce qu'on a fait pour des structures comparables.`,
   },
   {
-    code: 'gc_email_1', name: '🐘 Grand compte — email étude de cas', segment: 'grand_compte', channel: 'email', sort: 12,
+    code: 'gc_email_1', name: '🐘 Grand compte · email étude de cas', segment: 'grand_compte', channel: 'email', sort: 12,
     subject: 'Idée contenu vidéo pour {entreprise}',
     body: `Bonjour {prenom},
 
@@ -135,35 +135,35 @@ Si vous avez 15 minutes cette semaine ou la suivante, je vous montre 2-3 référ
 {signature}`,
   },
   {
-    code: 'gc_relance_1', name: '🐘 Grand compte — relance douce', segment: 'grand_compte', channel: 'email', sort: 13,
+    code: 'gc_relance_1', name: '🐘 Grand compte · relance douce', segment: 'grand_compte', channel: 'email', sort: 13,
     subject: 'Re: Idée contenu vidéo pour {entreprise}',
     body: `Bonjour {prenom},
 
-Je me doute que les journées sont chargées — je fais juste remonter mon message au cas où il soit passé sous les radars.
+Je me doute que les journées sont chargées, je fais juste remonter mon message au cas où il soit passé sous les radars.
 
 Une question simple : qui gère les projets vidéo chez {entreprise} ? Si ce n'est pas vous, un nom me suffit et je ne vous embête plus. 🙂
 
 {signature}`,
   },
   {
-    code: 'gc_relance_2', name: '🐘 Grand compte — relance long terme', segment: 'grand_compte', channel: 'email', sort: 14,
+    code: 'gc_relance_2', name: '🐘 Grand compte · relance long terme', segment: 'grand_compte', channel: 'email', sort: 14,
     subject: 'On garde le contact ?',
     body: `Bonjour {prenom},
 
 Dernier message de ma part : je comprends que ce n'est peut-être pas le bon moment pour {entreprise}.
 
-Je vous laisse mes coordonnées — si un besoin vidéo ou contenu émerge d'ici quelques mois, je serai ravi d'en parler. D'ici là, je vous souhaite le meilleur !
+Je vous laisse mes coordonnées : si un besoin vidéo ou contenu émerge d'ici quelques mois, je serai ravi d'en parler. D'ici là, je vous souhaite le meilleur !
 
 {signature}`,
   },
   {
-    code: 'pme_first', name: '🏪 PME — 1er contact (offre packagée)', segment: 'pme', channel: 'email', sort: 20,
+    code: 'pme_first', name: '🏪 PME · 1er contact (offre packagée)', segment: 'pme', channel: 'email', sort: 20,
     subject: 'Vos réseaux + vos vidéos, gérés pour vous',
     body: `Bonjour {prenom},
 
 {accroche}Je suis {moi}, de {ma_boite} ({ville} et alentours). On aide les commerces et PME à avoir une vraie présence en ligne sans y passer leurs soirées :
 
-• Pack réseaux sociaux : on filme, on monte, on publie — chaque mois
+• Pack réseaux sociaux : on filme, on monte, on publie, chaque mois
 • Vidéos pro pour votre vitrine, vos offres, vos coulisses
 • Résultats concrets : plus de visibilité locale, plus de demandes
 
@@ -172,11 +172,11 @@ Nos clients actuels sont des commerces comme le vôtre. Est-ce que je peux vous 
 {signature}`,
   },
   {
-    code: 'pme_relance_1', name: '🏪 PME — relance offre', segment: 'pme', channel: 'email', sort: 21,
+    code: 'pme_relance_1', name: '🏪 PME · relance offre', segment: 'pme', channel: 'email', sort: 21,
     subject: 'Re: Vos réseaux + vos vidéos',
     body: `Bonjour {prenom},
 
-Petit rappel de mon message — je sais que quand on gère une boîte, ces sujets passent vite en bas de la pile.
+Petit rappel de mon message : je sais que quand on gère une boîte, ces sujets passent vite en bas de la pile.
 
 Pour situer : nos accompagnements démarrent à quelques centaines d'euros par mois, tout compris (tournage, montage, publication). C'est souvent moins cher qu'on l'imagine.
 
@@ -185,11 +185,11 @@ Un créneau de 15 min cette semaine pour voir si ça colle ?
 {signature}`,
   },
   {
-    code: 'pme_relance_2', name: '🏪 PME — dernière relance', segment: 'pme', channel: 'email', sort: 22,
+    code: 'pme_relance_2', name: '🏪 PME · dernière relance', segment: 'pme', channel: 'email', sort: 22,
     subject: 'Je ferme le dossier {entreprise} ?',
     body: `Bonjour {prenom},
 
-Sans retour de votre part, je vais fermer le dossier — aucun souci, je ne veux pas insister lourdement.
+Sans retour de votre part, je vais fermer le dossier. Aucun souci, je ne veux pas insister lourdement.
 
 Si le sujet vous intéresse mais que le timing est mauvais, dites-le-moi simplement et je reviens vers vous au bon moment.
 
@@ -198,7 +198,7 @@ Belle continuation à {entreprise} !
 {signature}`,
   },
   {
-    code: 'b2c_first', name: '🏃 B2C/Event — 1er contact', segment: 'b2c_event', channel: 'linkedin', sort: 30,
+    code: 'b2c_first', name: '🏃 B2C/Event · 1er contact', segment: 'b2c_event', channel: 'linkedin', sort: 30,
     subject: 'Aftermovie & contenus pour vos événements',
     body: `Bonjour {prenom},
 
@@ -213,18 +213,18 @@ Vous avez des dates à venir ? Je vous envoie nos références événementiel et
 {signature}`,
   },
   {
-    code: 'b2c_relance_1', name: '🏃 B2C/Event — relance DM', segment: 'b2c_event', channel: 'linkedin', sort: 31,
+    code: 'b2c_relance_1', name: '🏃 B2C/Event · relance DM', segment: 'b2c_event', channel: 'linkedin', sort: 31,
     subject: '',
-    body: `Re {prenom} ! Je relance vite fait — les plannings de prod se remplissent tôt pour la saison. Si vous voulez une couverture vidéo pour votre prochain événement, c'est le bon moment pour caler une date. Je vous envoie les références ?`,
+    body: `Re {prenom} ! Je relance vite fait : les plannings de prod se remplissent tôt pour la saison. Si vous voulez une couverture vidéo pour votre prochain événement, c'est le bon moment pour caler une date. Je vous envoie les références ?`,
   },
   {
-    code: 'b2c_relance_2', name: '🏃 B2C/Event — dernière relance', segment: 'b2c_event', channel: 'email', sort: 32,
+    code: 'b2c_relance_2', name: '🏃 B2C/Event · dernière relance', segment: 'b2c_event', channel: 'email', sort: 32,
     subject: 'Dernière ligne droite pour caler la vidéo',
     body: `Bonjour {prenom},
 
 Dernier message à ce sujet : si vous voulez qu'on couvre votre prochain événement, il me faut une réponse cette semaine pour bloquer l'équipe.
 
-Sinon aucun souci — gardez mon contact pour une prochaine édition. 💪
+Sinon aucun souci, gardez mon contact pour une prochaine édition. 💪
 
 {signature}`,
   },
@@ -245,10 +245,10 @@ Dites-moi ce qui vous arrange (ou proposez un autre créneau), et je vous envoie
   },
   {
     code: 'envoi_devis', name: '📄 Envoi du devis', segment: '', channel: 'email', sort: 41,
-    subject: 'Votre devis — {entreprise} × {ma_boite}',
+    subject: 'Votre devis : {entreprise} × {ma_boite}',
     body: `Bonjour {prenom},
 
-Comme convenu, voici le devis pour votre projet — vous le trouverez en pièce jointe / via le lien.
+Comme convenu, voici le devis pour votre projet, vous le trouverez en pièce jointe / via le lien.
 
 Deux points importants :
 • Le devis est valable 30 jours
@@ -260,7 +260,7 @@ Je reste disponible pour toute question ou ajustement. On peut aussi se faire un
   },
   {
     code: 'relance_devis', name: '📄 Relance devis', segment: '', channel: 'email', sort: 42,
-    subject: 'Re: Votre devis — {entreprise}',
+    subject: 'Re: Votre devis pour {entreprise}',
     body: `Bonjour {prenom},
 
 Avez-vous eu le temps de regarder le devis ?
@@ -283,7 +283,7 @@ Bonne nouvelle : votre besoin correspond tout à fait à ce qu'on fait. Pour vou
 • Les délais souhaités
 • Une fourchette de budget si vous en avez une
 
-Le plus efficace reste un appel de 15 minutes — je vous propose un créneau dès demain si vous voulez.
+Le plus efficace reste un appel de 15 minutes, je vous propose un créneau dès demain si vous voulez.
 
 {signature}`,
   },
@@ -291,7 +291,7 @@ Le plus efficace reste un appel de 15 minutes — je vous propose un créneau d�
 
 // ---------------------------------------------------------------- séquences seedées (Autopilote)
 // Chaque étape : delay_days = jours APRÈS l'étape précédente (0 = envoi immédiat à l'enrôlement).
-// Toutes les étapes partent en EMAIL (l'Autopilote n'envoie que des emails) —
+// Toutes les étapes partent en EMAIL (l'Autopilote n'envoie que des emails) :
 // les relances restent dans le même fil Gmail que le premier message.
 const SEQUENCE_SEED = [
   {
@@ -391,7 +391,7 @@ function renderTemplate(tpl, contact, settings) {
     signature: settings.user_signature || settings.user_name || '',
     lien_rdv: settings.booking_url || '',
     icebreaker: (contact && contact.icebreaker) || '',
-    // {accroche} = l'icebreaker en 1re ligne, suivi d'une ligne vide — disparaît proprement s'il est vide.
+    // {accroche} = l'icebreaker en 1re ligne, suivi d'une ligne vide, disparaît proprement s'il est vide.
     accroche: contact && contact.icebreaker ? `${contact.icebreaker}\n\n` : '',
   };
   const fill = (s) => String(s || '').replace(/\{(\w+)\}/g, (m, k) => (vars[k] !== undefined ? vars[k] : m));

@@ -1,5 +1,5 @@
 'use strict';
-// ⚔️ LA CHASSE — CRM de prospection gamifié d'OTEA Production.
+// ⚔️ LA CHASSE : CRM de prospection gamifié d'OTEA Production.
 // Serveur zéro dépendance (Node ≥ 22.13) : node server.js puis http://localhost:1337
 // Les clés API restent en local (data/prospection.db) : le serveur n'écoute que sur 127.0.0.1.
 
@@ -8,7 +8,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 
-// Garde-fou version : node:sqlite exige Node ≥ 22.13 — message clair plutôt qu'une erreur cryptique.
+// Garde-fou version : node:sqlite exige Node ≥ 22.13 : message clair plutôt qu'une erreur cryptique.
 {
   const [maj, min] = process.versions.node.split('.').map(Number);
   if (maj < 22 || (maj === 22 && min < 13)) {
@@ -40,10 +40,18 @@ const autopilot = require('./src/autopilot');
 const campaigns = require('./src/campaigns');
 const repertoire = require('./src/importers/repertoire');
 const { seedDemo } = require('./seed');
+const migrationTirets = require('./src/migrations/tirets');
 
 playbooks.seedTemplates(dbApi);
 playbooks.seedSequences(dbApi);
 campaigns.seedReferences();
+
+// Reprise unique des textes enregistrés avant l'interdiction du tiret cadratin.
+const bilanTirets = migrationTirets.migrer(dbApi, playbooks);
+if (!bilanTirets.deja_fait) {
+  const total = Object.values(bilanTirets).reduce((a, b) => a + b, 0);
+  if (total) console.log(`✍️  Tirets cadratins retirés des textes enregistrés (${JSON.stringify(bilanTirets)})`);
+}
 
 const PORT = Number(process.env.PORT || 1337);
 const HOST = process.env.HOST || '127.0.0.1';
@@ -63,7 +71,7 @@ if (NETWORK_MODE) {
 }
 
 function loginPage(wrong) {
-  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>⚔️ La Chasse — accès</title>
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>⚔️ La Chasse : accès</title>
   <style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0a0d18;color:#e9edff;font:16px system-ui,sans-serif}
   .box{background:#131830;border:1px solid #242c52;border-radius:16px;padding:32px 36px;text-align:center;max-width:340px}
   input{font:inherit;font-size:26px;letter-spacing:8px;text-align:center;text-transform:uppercase;width:100%;padding:10px;border-radius:10px;border:1px solid #34406e;background:#0e1222;color:#e9edff;margin:14px 0}
@@ -318,7 +326,7 @@ route('POST', '/api/deals', async (req) => {
     b.contact_id, b.title || 'Devis', Number(b.amount) || 0, b.status || 'brouillon', now, now);
   let celebration = null;
   if ((b.status || 'brouillon') === 'devis_envoye') {
-    celebration = game.logAction({ contact_id: b.contact_id, deal_id: lastId, type: 'devis_envoye', note: `${b.title || 'Devis'} — ${Number(b.amount) || 0} €` });
+    celebration = game.logAction({ contact_id: b.contact_id, deal_id: lastId, type: 'devis_envoye', note: `${b.title || 'Devis'} : ${Number(b.amount) || 0} €` });
   }
   return { deal: get('SELECT * FROM deals WHERE id = ?', lastId), celebration };
 });
@@ -335,7 +343,7 @@ route('PATCH', '/api/deals/:id', async (req, params) => {
       b.status, nowIso(), b.status, nowIso(), params.id);
     if (b.status === 'devis_envoye') celebration = game.logAction({ contact_id: deal.contact_id, deal_id: deal.id, type: 'devis_envoye', note: deal.title });
     if (b.status === 'accepte') celebration = game.logAction({ contact_id: deal.contact_id, deal_id: deal.id, type: 'devis_accepte', note: deal.title });
-    if (b.status === 'facture') celebration = game.logAction({ contact_id: deal.contact_id, deal_id: deal.id, type: 'facture', note: `${deal.title} — ${deal.amount} €` });
+    if (b.status === 'facture') celebration = game.logAction({ contact_id: deal.contact_id, deal_id: deal.id, type: 'facture', note: `${deal.title} : ${deal.amount} €` });
   }
   return { deal: get('SELECT * FROM deals WHERE id = ?', params.id), celebration };
 });
@@ -471,7 +479,7 @@ route('PATCH', '/api/sequences/:id', async (req, params) => {
 });
 route('DELETE', '/api/sequences/:id', async (req, params) => {
   const n = Number(get(`SELECT COUNT(*) AS n FROM enrollments WHERE sequence_id = ? AND status = 'active'`, params.id).n);
-  if (n > 0) throw httpError(400, `${n} contact(s) encore actifs dans cette séquence — stoppe-les d'abord.`);
+  if (n > 0) throw httpError(400, `${n} contact(s) encore actifs dans cette séquence : stoppe-les d'abord.`);
   run('DELETE FROM sequences WHERE id = ? AND builtin = 0', params.id);
   return { ok: true };
 });
@@ -599,7 +607,7 @@ route('DELETE', '/api/campaigns/:id', async (req, params) => {
   const c = get('SELECT * FROM campaigns WHERE id = ?', params.id);
   if (!c) return { ok: true };
   const active = Number(get(`SELECT COUNT(*) AS n FROM enrollments WHERE sequence_id = ? AND status = 'active'`, c.sequence_id).n);
-  if (active > 0) throw httpError(400, `${active} contact(s) encore en séquence sur cette campagne — stoppe-les d'abord (vue Autopilote).`);
+  if (active > 0) throw httpError(400, `${active} contact(s) encore en séquence sur cette campagne : stoppe-les d'abord (vue Autopilote).`);
   run('DELETE FROM templates WHERE campaign_id = ?', params.id);
   if (c.sequence_id) run('DELETE FROM sequences WHERE id = ?', c.sequence_id);
   run('UPDATE contacts SET campaign_id = 0 WHERE campaign_id = ?', params.id);
@@ -665,7 +673,7 @@ const server = http.createServer(async (req, res) => {
         });
         return;
       }
-      if (u.pathname.startsWith('/api')) { json(res, 401, { error: "Accès verrouillé — ouvre la page d'accueil et saisis le code affiché sur l'ordinateur." }); return; }
+      if (u.pathname.startsWith('/api')) { json(res, 401, { error: "Accès verrouillé : ouvre la page d'accueil et saisis le code affiché sur l'ordinateur." }); return; }
       res.writeHead(401, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(loginPage(false));
       return;
@@ -725,13 +733,13 @@ server.listen(PORT, HOST, () => {
       .filter((n) => n && n.family === 'IPv4' && !n.internal)
       .map((n) => n.address);
     reseau = `
-  📱 MODE RÉSEAU ACTIVÉ — depuis ton iPad/téléphone (même Wi-Fi) :
+  📱 MODE RÉSEAU ACTIVÉ : depuis ton iPad/téléphone (même Wi-Fi) :
 ${ips.map((ip) => `  ➜  http://${ip}:${PORT}`).join('\n') || `  ➜  http://IP-de-cet-ordinateur:${PORT}`}
   🔑 CODE D'ACCÈS : ${RESEAU_CODE}
 `;
   }
   console.log(`
-  ⚔️  LA CHASSE — CRM de prospection gamifié (OTEA Production)
+  ⚔️  LA CHASSE : CRM de prospection gamifié (OTEA Production)
   ────────────────────────────────────────────────────────────
   ➜  http://localhost:${PORT}${reseau}
   Base de données : ${dbApi.DB_PATH}

@@ -1,6 +1,6 @@
 'use strict';
 // Couche "jeu" : toasts XP, confettis canvas, sons WebAudio, modales de célébration.
-// Aucune dépendance — tout est synthétisé ici.
+// Aucune dépendance : tout est synthétisé ici.
 
 const fx = (() => {
   // ------------------------------------------------ sons (synthé WebAudio)
@@ -116,7 +116,7 @@ const fx = (() => {
       confetti(50);
     },
     badge(b) {
-      celebrationModal({ emoji: b.emoji, title: `Badge débloqué !`, sub: `<b>${b.name}</b> — ${b.desc} (+${b.xp} XP)` });
+      celebrationModal({ emoji: b.emoji, title: `Badge débloqué !`, sub: `<b>${b.name}</b> : ${b.desc} (+${b.xp} XP)` });
       play('badge');
       confetti(90);
     },
@@ -138,7 +138,7 @@ const fx = (() => {
       celebrationModal({
         emoji: '🏆',
         title: 'BOSS VAINCU !',
-        sub: `<b>${boss.count} factures déclenchées</b> — ${Math.round(boss.revenue).toLocaleString('fr-FR')} € facturés. GG. On monte l'objectif ?`,
+        sub: `<b>${boss.count} factures déclenchées</b> : ${Math.round(boss.revenue).toLocaleString('fr-FR')} € facturés. GG. On monte l'objectif ?`,
         btn: 'LÉGENDAIRE',
       });
       play('boss');

@@ -1,5 +1,5 @@
 'use strict';
-// 💾 BASES LOCALES — lecture des historiques stockés sur le Mac de Maxime.
+// 💾 BASES LOCALES : lecture des historiques stockés sur le Mac de Maxime.
 // Rien ne sort de la machine : on ouvre les fichiers en LECTURE SEULE, on agrège,
 // on jette le reste. Aucun message n'est recopié dans la base de la Chasse
 // (seul un court extrait sert d'accroche, et seulement si tu importes le contact).

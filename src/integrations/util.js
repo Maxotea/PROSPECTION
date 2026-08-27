@@ -24,7 +24,7 @@ async function apiFetch(url, { method = 'GET', headers = {}, body = null, timeou
 
   if (!res.ok) {
     const detail = json ? JSON.stringify(json).slice(0, 600) : text.slice(0, 600);
-    const err = new Error(`HTTP ${res.status} sur ${method} ${url} — ${detail || 'sans détail'}`);
+    const err = new Error(`HTTP ${res.status} sur ${method} ${url} : ${detail || 'sans détail'}`);
     err.status = res.status;
     err.body = json || text;
     throw err;

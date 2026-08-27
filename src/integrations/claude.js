@@ -1,7 +1,7 @@
 'use strict';
 // Rédaction assistée par Claude (API Anthropic) : premiers contacts personnalisés,
 // relances, et réponses aux demandes entrantes. Sans clé API, le serveur retombe
-// automatiquement sur les templates — l'app reste 100 % utilisable.
+// automatiquement sur les templates : l'app reste 100 % utilisable.
 
 const dbApi = require('../db');
 const { all, getSetting, allSettings } = dbApi;
@@ -14,7 +14,7 @@ const PURPOSES = {
   reponse_demande: 'une réponse à la demande entrante ci-dessous (chaleureuse, précise, qui pousse vers un appel de 15 min)',
   envoi_devis: "un email d'accompagnement de devis (rassurant, avec une échéance claire)",
   relance_devis: 'une relance de devis (lever les objections, proposer un appel)',
-  icebreaker: "3 propositions d'icebreaker : une phrase naturelle qui crée un lien personnel avec ce prospect (ancien employeur ou client commun, ville, école, sport, passion, destination). RÈGLE ABSOLUE : n'utilise QUE les informations fournies dans la fiche et le profil de l'utilisateur — n'invente RIEN. S'il n'y a aucun lien exploitable, dis-le et propose plutôt 3 questions à vérifier sur son profil LinkedIn. Format : une proposition par ligne, sans numérotation ni commentaire.",
+  icebreaker: "3 propositions d'icebreaker : une phrase naturelle qui crée un lien personnel avec ce prospect (ancien employeur ou client commun, ville, école, sport, passion, destination). RÈGLE ABSOLUE : n'utilise QUE les informations fournies dans la fiche et le profil de l'utilisateur, et n'invente RIEN. S'il n'y a aucun lien exploitable, dis-le et propose plutôt 3 questions à vérifier sur son profil LinkedIn. Format : une proposition par ligne, sans numérotation ni commentaire.",
 };
 
 function contactContext(contact) {
@@ -28,7 +28,7 @@ function contactContext(contact) {
     contact.job_title ? `Poste : ${contact.job_title}` : '',
     contact.city ? `Ville : ${contact.city}` : '',
     `Typologie : ${seg.label} (${seg.desc})`,
-    contact.is_former_client ? `⚠️ ANCIEN CLIENT (CA historique : ${Math.round(contact.revenue_history || 0)} €) — ton de retrouvailles, pas de présentation from scratch.` : 'Nouveau prospect.',
+    contact.is_former_client ? `⚠️ ANCIEN CLIENT (CA historique : ${Math.round(contact.revenue_history || 0)} €) : ton de retrouvailles, pas de présentation from scratch.` : 'Nouveau prospect.',
     contact.notes ? `Notes : ${String(contact.notes).slice(0, 400)}` : '',
   ];
   const acts = all('SELECT type, note, created_at FROM activities WHERE contact_id = ? ORDER BY id DESC LIMIT 5', contact.id);
@@ -46,8 +46,8 @@ async function draft({ contact = null, purpose = 'premier_contact', incoming_tex
     // Sans clé IA : on croise « mon profil » avec les données du contact + checklist manuelle.
     const hints = playbooks.icebreakerHints(contact || {}, settings);
     const lines = hints.length
-      ? [`Liens détectés avec ton profil : ${hints.join(', ')}.`, '', ...hints.map((h) => `On partage un point commun : ${h} — ça m'a donné envie de vous écrire.`)]
-      : ['Aucun lien automatique trouvé. Regarde son profil LinkedIn : parcours (ancien employeur commun ?), études, ville, posts récents, sports/passions — et note le lien ici.'];
+      ? [`Liens détectés avec ton profil : ${hints.join(', ')}.`, '', ...hints.map((h) => `On partage un point commun : ${h}, ça m'a donné envie de vous écrire.`)]
+      : ['Aucun lien automatique trouvé. Regarde son profil LinkedIn : parcours (ancien employeur commun ?), études, ville, posts récents, sports/passions, puis note le lien ici.'];
     return { subject: '', body: lines.join('\n'), source: 'hints' };
   }
   if (!key) {

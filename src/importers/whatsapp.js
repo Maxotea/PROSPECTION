@@ -1,5 +1,5 @@
 'use strict';
-// 💬 WHATSAPP — les conversations pro noyées dans les conversations perso.
+// 💬 WHATSAPP : les conversations pro noyées dans les conversations perso.
 //
 // Deux façons de lire :
 //  1. L'app WhatsApp installée sur le Mac range ses discussions dans un fichier
@@ -66,7 +66,7 @@ function lireBase({ days = 1095 } = {}) {
       last: bl.choisirColonne(dispoS, ['ZLASTMESSAGEDATE']),
       compteur: bl.choisirColonne(dispoS, ['ZMESSAGECOUNTER']),
     };
-    if (!colS.pk || !colS.jid) throw new Error("Format WhatsApp non reconnu — utilise l'export .txt d'une conversation.");
+    if (!colS.pk || !colS.jid) throw new Error("Format WhatsApp non reconnu : utilise l'export .txt d'une conversation.");
 
     const champ = (nom, alias) => (nom && /^[A-Z_0-9]+$/i.test(nom) ? `${nom} AS ${alias}` : `NULL AS ${alias}`);
     const sessions = conn.db.prepare(

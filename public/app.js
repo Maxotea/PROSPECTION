@@ -1,5 +1,5 @@
 'use strict';
-/* ⚔️ La Chasse — SPA vanilla (aucune dépendance, aucun build).
+/* ⚔️ La Chasse : SPA vanilla (aucune dépendance, aucun build).
    Vues : QG, Mode Chasse, Pipeline, Contacts, Réponses, Imports, Réglages. */
 
 // ---------------------------------------------------------------- helpers
@@ -142,9 +142,9 @@ async function vQG(view) {
       <h2>👋 Bienvenue dans la Chasse</h2>
       <p class="muted">3 étapes pour lancer la machine :</p>
       <ol>
-        <li><b>📦 Importe tes anciens clients</b> — bouton Pennylane dans <a href="#/import">Imports</a> (ou un CSV) : ce sont tes prospects les plus chauds.</li>
-        <li><b>🧲 Ajoute tes cibles LinkedIn</b> — export Sales Navigator via FullEnrich → CSV → <a href="#/import">Imports</a>.</li>
-        <li><b>⚔️ Lance le <a href="#/chasse">Mode Chasse</a></b> — l'app te sert les bons prospects avec le bon message.</li>
+        <li><b>📦 Importe tes anciens clients</b> : bouton Pennylane dans <a href="#/import">Imports</a> (ou un CSV) : ce sont tes prospects les plus chauds.</li>
+        <li><b>🧲 Ajoute tes cibles LinkedIn</b> : export Sales Navigator via FullEnrich → CSV → <a href="#/import">Imports</a>.</li>
+        <li><b>⚔️ Lance le <a href="#/chasse">Mode Chasse</a></b> : l'app te sert les bons prospects avec le bon message.</li>
       </ol>
       <div class="row"><button class="gold" id="btn-demo">🎮 Ou charge la démo pour essayer</button></div>
     </div>` : '';
@@ -160,7 +160,7 @@ async function vQG(view) {
         <div class="card boss-card">
           <div class="spread">
             <div>
-              <div class="boss-title">🎯 OBJECTIF — DÉCLENCHER ${boss.goal} FACTURES</div>
+              <div class="boss-title">🎯 OBJECTIF : DÉCLENCHER ${boss.goal} FACTURES</div>
               <div class="boss-count">${boss.count}<small> / ${boss.goal} factures</small></div>
             </div>
             <div style="text-align:right">
@@ -169,7 +169,7 @@ async function vQG(view) {
             </div>
           </div>
           <div class="boss-segments">${segments}</div>
-          ${boss.done ? '<div class="boss-done">🏆 BOSS VAINCU — objectif atteint ! Monte l’objectif dans Réglages.</div>' : `<div class="muted small">Chaque deal marqué « facturé » remplit un segment. Le boss tombe à ${boss.goal}.</div>`}
+          ${boss.done ? '<div class="boss-done">🏆 BOSS VAINCU : objectif atteint ! Monte l’objectif dans Réglages.</div>' : `<div class="muted small">Chaque deal marqué « facturé » remplit un segment. Le boss tombe à ${boss.goal}.</div>`}
         </div>
         <div class="kpis">
           <div class="kpi"><div class="n">${k.a_contacter}</div><div class="l">🎯 à contacter</div></div>
@@ -179,7 +179,7 @@ async function vQG(view) {
           <div class="kpi"><div class="n">${k.reponses_semaine}</div><div class="l">📈 réponses / 7 j</div></div>
         </div>
         <div class="card">
-          <h2>⚡ XP — 7 derniers jours</h2>
+          <h2>⚡ XP : 7 derniers jours</h2>
           <div class="chart-wrap">${weeklyChart(S.weekly_xp)}</div>
         </div>
       </div>
@@ -217,7 +217,7 @@ async function vQG(view) {
                 <span style="cursor:pointer" data-open-contact="${p.id}"><b>${esc(p.first_name)} ${esc(p.last_name)}</b> ${p.is_former_client ? '💰' : ''} <span class="muted">${esc(p.company || '')}</span></span>
                 <a href="tel:${esc(p.phone)}" class="mono">☎️ ${esc(p.phone)}</a>
               </div>`).join('') + `<div class="row" style="margin-top:10px"><button class="gold" id="qg-calls">📞 Lancer la session d'appels</button></div>`
-            : `<p class="muted small">${S.calls.done >= S.calls.goal ? '🏆 Objectif du jour atteint !' : 'Personne à appeler — ajoute des numéros (enrichissement FullEnrich).'}</p>`}
+            : `<p class="muted small">${S.calls.done >= S.calls.goal ? '🏆 Objectif du jour atteint !' : 'Personne à appeler : ajoute des numéros (enrichissement FullEnrich).'}</p>`}
         </div>
         <div class="card">
           <div class="level-badge">
@@ -267,7 +267,7 @@ async function vQG(view) {
   $$('[data-open-contact]', view).forEach((el) => { el.onclick = () => openContact(el.dataset.openContact); });
 }
 
-// Graphe barres XP (série unique — libellé direct sur le max, tooltips natifs, table sr-only).
+// Graphe barres XP (série unique : libellé direct sur le max, tooltips natifs, table sr-only).
 function weeklyChart(days) {
   const W = 560, H = 170, padL = 34, padB = 24, padT = 16;
   const max = Math.max(...days.map((d) => d.xp), 10);
@@ -286,7 +286,7 @@ function weeklyChart(days) {
     const [yy, m, dd] = d.day.split('-').map(Number);
     const dow = names[new Date(yy, m - 1, dd).getDay()];
     const isMax = d.xp === max && d.xp > 0;
-    return `<g><path class="bar-rect" d="M${x},${y + h} L${x},${y + r} Q${x},${y} ${x + r},${y} L${x + w - r},${y} Q${x + w},${y} ${x + w},${y + r} L${x + w},${y + h} Z"><title>${dow} ${fmtDay(d.day)} — ${d.xp} XP</title></path>
+    return `<g><path class="bar-rect" d="M${x},${y + h} L${x},${y + r} Q${x},${y} ${x + r},${y} L${x + w - r},${y} Q${x + w},${y} ${x + w},${y + r} L${x + w},${y + h} Z"><title>${dow} ${fmtDay(d.day)} : ${d.xp} XP</title></path>
       ${isMax ? `<text class="bar-label" x="${x + w / 2}" y="${y - 5}" text-anchor="middle">${d.xp}</text>` : ''}
       <text x="${x + w / 2}" y="${H - 7}" text-anchor="middle">${dow}</text></g>`;
   }).join('');
@@ -392,7 +392,7 @@ async function vChasse(view) {
         ? `<div class="hunt-note" style="border-color:rgba(139,92,246,.5);background:rgba(139,92,246,.08)">💎 <b>Ton lien avec ${esc(c.first_name)} :</b> ${esc(c.icebreaker)} <span class="faint small">(injecté en 1re ligne du message via {accroche})</span></div>`
         : (!c.is_former_client ? `
         <div class="hunt-note">
-          <b>💎 Pas encore d'icebreaker</b> — trouve un lien avant de contacter : ancien employeur, ville, école, sport, destination…
+          <b>💎 Pas encore d'icebreaker</b> : trouve un lien avant de contacter : ancien employeur, ville, école, sport, destination…
           ${(c.hints || []).length ? `<div class="row" style="margin:6px 0">${c.hints.map((h) => `<span class="chip ok">🔗 ${esc(h)}</span>`).join('')} <span class="faint small">← points communs détectés avec ton profil</span></div>` : ''}
           <div class="row" style="margin-top:6px">
             <input id="hunt-ice" placeholder="Ex : On a un point commun : le Hyrox / Vous êtes passé chez X…" style="flex:1">
@@ -438,7 +438,7 @@ async function vChasse(view) {
         <button class="danger" data-act="disqualify">🪦 Disqualifier <span class="kbd"></span></button>
         `}
       </div>
-      ${S.autopilot.configured && c.email ? '' : `<p class="muted small" style="margin-top:8px">ℹ️ ${c.email ? 'Branche ton email dans Réglages pour envoyer directement d’ici.' : 'Pas d’email sur cette fiche : passe par LinkedIn, ou enrichis-la via FullEnrich.'} Les boutons ci-dessus ne font que NOTER ce que tu as fait — ils n'envoient rien.</p>`}
+      ${S.autopilot.configured && c.email ? '' : `<p class="muted small" style="margin-top:8px">ℹ️ ${c.email ? 'Branche ton email dans Réglages pour envoyer directement d’ici.' : 'Pas d’email sur cette fiche : passe par LinkedIn, ou enrichis-la via FullEnrich.'} Les boutons ci-dessus ne font que NOTER ce que tu as fait : ils n'envoient rien.</p>`}
     </div>`;
 
   const renderTpl = async () => {
@@ -466,7 +466,7 @@ async function vChasse(view) {
     try {
       await api(`/contacts/${c.id}`, { method: 'PATCH', body: { icebreaker: val } });
       hunt.queue[hunt.idx].icebreaker = val;
-      fx.toast('💎 Icebreaker enregistré — injecté en 1re ligne du message');
+      fx.toast('💎 Icebreaker enregistré : injecté en 1re ligne du message');
       fx.play('pop');
       vChasse(view);
     } catch (e) { fx.error(e.message); }
@@ -478,8 +478,8 @@ async function vChasse(view) {
       const d = await api('/ai/draft', { method: 'POST', body: { contact_id: c.id, purpose: 'icebreaker' } });
       const lines = d.body.split('\n').map((s) => s.trim()).filter((s) => s.length > 8);
       const m = modal(`<h2>💎 Suggestions d'icebreaker</h2>
-        <p class="muted small">${d.source === 'claude' ? 'Rédigées par l’IA à partir de sa fiche + ton profil (Réglages).' : 'Basées sur tes points communs — ajoute une clé IA dans Réglages pour du sur-mesure.'}</p>
-        <div class="grid" style="margin-top:10px">${lines.map((l) => `<button data-pick-ice style="justify-content:flex-start;text-align:left">${esc(l)}</button>`).join('') || '<p class="muted">Rien trouvé — remplis « Mon profil » dans Réglages.</p>'}</div>`);
+        <p class="muted small">${d.source === 'claude' ? 'Rédigées par l’IA à partir de sa fiche + ton profil (Réglages).' : 'Basées sur tes points communs : ajoute une clé IA dans Réglages pour du sur-mesure.'}</p>
+        <div class="grid" style="margin-top:10px">${lines.map((l) => `<button data-pick-ice style="justify-content:flex-start;text-align:left">${esc(l)}</button>`).join('') || '<p class="muted">Rien trouvé : remplis « Mon profil » dans Réglages.</p>'}</div>`);
       $$('[data-pick-ice]', m).forEach((b) => { b.onclick = () => { $('#hunt-ice').value = b.textContent; m.remove(); }; });
     } catch (e) { fx.error(e.message); }
     iceAi.disabled = false; iceAi.textContent = '✨';
@@ -580,7 +580,7 @@ async function vCampagnes(view) {
     <div class="card boss-card">
       <div class="spread">
         <div>
-          <div class="boss-title">${CAMP_STATUS[current.status]} — SEMAINE DU ${fmtDay(current.week_start)}</div>
+          <div class="boss-title">${CAMP_STATUS[current.status]} · SEMAINE DU ${fmtDay(current.week_start)}</div>
           <h1 style="margin:4px 0">${esc(current.name)}</h1>
           <div class="muted">🎯 Persona : <b>${esc(current.persona)}</b></div>
           <div class="row" style="margin-top:8px">${current.references.map((r) => `<span class="chip ${r.verified ? '' : 'due'}" title="${esc(r.detail)}">${r.verified ? '⭐' : '⚠️'} ${esc(r.name)}</span>`).join('')}</div>
@@ -640,7 +640,7 @@ async function vCampagnes(view) {
   })() : `
     <div class="card" style="border-color:rgba(234,179,8,.4)">
       <h2>📅 Lance ta première semaine thématique</h2>
-      <p class="muted">Le principe : chaque semaine, UN secteur, UN persona, TES références en avant — partout (emails, LinkedIn, post). Grande distribution avec le Galec, hôtellerie avec Pullman, collectivités avec Puteaux…</p>
+      <p class="muted">Le principe : chaque semaine, UN secteur, UN persona, TES références en avant : partout (emails, LinkedIn, post). Grande distribution avec le Galec, hôtellerie avec Pullman, collectivités avec Puteaux…</p>
       <p class="muted small">Choisis un secteur ci-dessous 👇 et la campagne se crée avec sa recette Sales Nav, sa séquence email et son kit de diffusion.</p>
     </div>`;
 
@@ -653,7 +653,7 @@ async function vCampagnes(view) {
     <div class="card" style="margin-top:14px">
       <h2>🗓️ Planifier les prochaines semaines</h2>
       <div class="row" style="margin:8px 0">
-        <select id="np-sector" style="min-width:260px">${presets.map((p) => `<option value="${p.code}">${p.emoji} ${esc(p.label)} — ${esc(p.persona)}</option>`).join('')}</select>
+        <select id="np-sector" style="min-width:260px">${presets.map((p) => `<option value="${p.code}">${p.emoji} ${esc(p.label)} · ${esc(p.persona)}</option>`).join('')}</select>
         <label class="field">Semaine du<input id="np-week" type="date" value="${current ? nextMonday : today()}"></label>
         <button class="primary" id="np-create" style="margin-top:14px">➕ Créer la campagne</button>
       </div>
@@ -672,7 +672,7 @@ async function vCampagnes(view) {
 
     <div class="card" style="margin-top:14px">
       <div class="spread"><h2>⭐ Tes références (les preuves qui vendent)</h2><button id="ref-new">➕ Ajouter</button></div>
-      ${toVerify.length ? `<p class="small" style="color:var(--gold2)">⚠️ ${toVerify.length} référence(s) issues de la dictée vocale à vérifier/corriger (orthographe, détail) — clique dessus.</p>` : ''}
+      ${toVerify.length ? `<p class="small" style="color:var(--gold2)">⚠️ ${toVerify.length} référence(s) issues de la dictée vocale à vérifier/corriger (orthographe, détail) : clique dessus.</p>` : ''}
       <div class="badges-strip">
         ${references.map((r) => `<button class="ghost" data-ref-edit="${r.id}" style="border:1px solid ${r.verified ? 'var(--border2)' : 'rgba(234,179,8,.5)'};border-radius:10px;padding:8px 12px;text-align:left;max-width:230px">
           <div><b>${r.verified ? '⭐' : '⚠️'} ${esc(r.name)}</b><div class="muted small">${esc(r.detail.slice(0, 70))}</div></div>
@@ -685,7 +685,7 @@ async function vCampagnes(view) {
     b.onclick = async () => {
       const el = $(`#${b.dataset.copyText}`, view);
       await copyText(el.value !== undefined ? el.value : el.textContent);
-      fx.toast('📋 Copié — va le coller !');
+      fx.toast('📋 Copié : va le coller !');
       fx.play('pop');
     };
   });
@@ -704,7 +704,7 @@ async function vCampagnes(view) {
     };
     $('#camp-posted').onchange = async (e) => {
       await api(`/campaigns/${current.id}`, { method: 'PATCH', body: { posted: e.target.checked } });
-      if (e.target.checked) { fx.toast('📣 Post publié — la semaine est lancée !'); fx.confetti(60); }
+      if (e.target.checked) { fx.toast('📣 Post publié : la semaine est lancée !'); fx.confetti(60); }
       vCampagnes(view);
     };
     $('#camp-save-post').onclick = async () => {
@@ -747,7 +747,7 @@ async function vCampagnes(view) {
   const refModal = (r) => {
     const m = modal(`
       <h2>${r ? '✏️ Référence' : '➕ Nouvelle référence'}</h2>
-      ${r && !r.verified ? '<p class="small" style="color:var(--gold2)">⚠️ Nom issu de la dictée vocale — corrige l’orthographe puis coche « vérifiée ».</p>' : ''}
+      ${r && !r.verified ? '<p class="small" style="color:var(--gold2)">⚠️ Nom issu de la dictée vocale : corrige l’orthographe puis coche « vérifiée ».</p>' : ''}
       <div class="form-grid" style="margin-top:10px">
         <label class="field wide">Nom (tel qu'il apparaîtra dans les emails)<input id="rf-name" value="${esc(r ? r.name : '')}"></label>
         <label class="field wide">Ce qu'on a fait pour eux<input id="rf-detail" value="${esc(r ? r.detail : '')}"></label>
@@ -885,12 +885,12 @@ async function vContacts(view) {
             <td><select class="cell-mini" data-seg-id="${c.id}" title="Changer la typologie">${Object.entries(S.segments).map(([k, s]) => `<option value="${k}" ${c.segment === k ? 'selected' : ''}>${s.emoji} ${esc(s.label)}</option>`).join('')}</select></td>
             <td><select class="cell-mini" data-stage-id="${c.id}" title="Changer l'étape">${S.stages.map((s) => `<option value="${s.code}" ${c.stage === s.code ? 'selected' : ''}>${s.emoji} ${esc(s.label)}</option>`).join('')}</select></td>
             <td class="presence" title="email / téléphone / LinkedIn">${c.email ? '✉️' : '·'}${c.phone ? '☎️' : '·'}${c.linkedin_url ? '🔗' : '·'}</td>
-            <td class="small">${c.next_action ? `${esc(c.next_action)}<br><span class="muted">${dueLabel(c.next_action_at)}</span>` : '<span class="faint">—</span>'} <button class="ghost cell-mini" data-na-id="${c.id}" title="Modifier la prochaine action">✏️</button></td>
-            <td>${c.revenue_history ? eur(c.revenue_history) : '<span class="faint">—</span>'}</td>
+            <td class="small">${c.next_action ? `${esc(c.next_action)}<br><span class="muted">${dueLabel(c.next_action_at)}</span>` : '<span class="faint">·</span>'} <button class="ghost cell-mini" data-na-id="${c.id}" title="Modifier la prochaine action">✏️</button></td>
+            <td>${c.revenue_history ? eur(c.revenue_history) : '<span class="faint">·</span>'}</td>
           </tr>`).join('')}
         </tbody>
       </table>
-      ${contacts.length === 0 ? '<p class="muted" style="padding:14px">Aucun contact — passe par <a href="#/import">Imports</a> pour remplir ton terrain de chasse.</p>' : ''}
+      ${contacts.length === 0 ? '<p class="muted" style="padding:14px">Aucun contact : passe par <a href="#/import">Imports</a> pour remplir ton terrain de chasse.</p>' : ''}
     </div>`;
 
   let searchTimer = null;
@@ -943,7 +943,7 @@ async function vContacts(view) {
     b.onclick = () => {
       const contact = contacts.find((x) => String(x.id) === b.dataset.naId);
       const m = modal(`
-        <h2>📆 Prochaine action — ${esc(contact.first_name)} ${esc(contact.last_name)}</h2>
+        <h2>📆 Prochaine action · ${esc(contact.first_name)} ${esc(contact.last_name)}</h2>
         <div class="form-grid" style="margin-top:10px">
           <label class="field wide">Quoi faire<input id="na-what" value="${esc(contact.next_action)}" placeholder="Ex : Relancer le devis, appeler après son événement…"></label>
           <label class="field">Pour quand<input id="na-when" type="date" value="${esc(contact.next_action_at)}"></label>
@@ -1003,7 +1003,7 @@ async function launchEnrich(ids, after) {
   if (!confirm(`Enrichir ${Math.min(ids.length, 100)} contact(s) via FullEnrich ?\n⚠️ Consomme des crédits FullEnrich (email + téléphone en cascade).`)) return;
   try {
     const r = await api('/fullenrich/enrich', { method: 'POST', body: { contact_ids: ids } });
-    fx.toast(`🧪 Enrichissement lancé (${r.count} contacts). Résultats dans quelques minutes — vois la vue Imports.`);
+    fx.toast(`🧪 Enrichissement lancé (${r.count} contacts). Résultats dans quelques minutes : vois la vue Imports.`);
     if (after) after();
   } catch (e) { fx.error(e.message); }
 }
@@ -1085,7 +1085,7 @@ async function openContact(id) {
         <label class="field">Téléphone<input id="e-ph" value="${esc(c.phone)}"></label>
         <label class="field">Entreprise<input id="e-co" value="${esc(c.company)}"></label>
         <label class="field">Poste<input id="e-jt" value="${esc(c.job_title)}"></label>
-        <label class="field wide">💎 Icebreaker — ton lien avec la personne (1re ligne des messages via {accroche})
+        <label class="field wide">💎 Icebreaker : ton lien avec la personne (1re ligne des messages via {accroche})
           <div class="row"><input id="e-ice" value="${esc(c.icebreaker)}" placeholder="Ancien employeur commun, ville, sport, destination…" style="flex:1"><button id="e-ice-ai" title="Suggérer (IA + mon profil)">✨</button></div>
           ${(data.hints || []).length ? `<span class="small" style="color:var(--green2)">🔗 Points communs détectés : ${data.hints.map(esc).join(', ')}</span>` : ''}
         </label>
@@ -1161,7 +1161,7 @@ async function openContact(id) {
         ${activities.length === 0 ? '<p class="muted small">Rien pour l’instant.</p>' : ''}
         ${activities.map((a) => {
           const def = S.actions[a.type] || { label: a.type, emoji: '•' };
-          return `<div class="tl-item"><div class="tl-date">${fmtDateTime(a.created_at)} ${a.xp ? `· <b style="color:var(--gold2)">+${a.xp} XP</b>` : ''}</div>${def.emoji} <b>${esc(def.label)}</b>${a.note ? ` — ${esc(a.note)}` : ''}</div>`;
+          return `<div class="tl-item"><div class="tl-date">${fmtDateTime(a.created_at)} ${a.xp ? `· <b style="color:var(--gold2)">+${a.xp} XP</b>` : ''}</div>${def.emoji} <b>${esc(def.label)}</b>${a.note ? ` : ${esc(a.note)}` : ''}</div>`;
         }).join('')}
       </div>
     </div>
@@ -1189,7 +1189,7 @@ async function openContact(id) {
       const d = await api('/ai/draft', { method: 'POST', body: { contact_id: c.id, purpose: 'icebreaker' } });
       const lines = d.body.split('\n').map((s) => s.trim()).filter((s) => s.length > 8);
       const m = modal(`<h2>💎 Suggestions d'icebreaker</h2>
-        <div class="grid" style="margin-top:10px">${lines.map((l) => `<button data-pick-ice style="justify-content:flex-start;text-align:left">${esc(l)}</button>`).join('') || '<p class="muted">Rien trouvé — remplis « Mon profil » dans Réglages.</p>'}</div>`);
+        <div class="grid" style="margin-top:10px">${lines.map((l) => `<button data-pick-ice style="justify-content:flex-start;text-align:left">${esc(l)}</button>`).join('') || '<p class="muted">Rien trouvé : remplis « Mon profil » dans Réglages.</p>'}</div>`);
       $$('[data-pick-ice]', m).forEach((b) => { b.onclick = () => { $('#e-ice').value = b.textContent; m.remove(); }; });
     } catch (e) { fx.error(e.message); }
     btn.disabled = false; btn.textContent = '✨';
@@ -1216,7 +1216,7 @@ async function openContact(id) {
       b.disabled = true; b.textContent = '🧾 …';
       try {
         await api('/pennylane/invoice_from_quote', { method: 'POST', body: { deal_id: Number(b.dataset.invoicePl) } });
-        fx.toast('🧾 Facture créée en BROUILLON dans Pennylane — valide-la là-bas.');
+        fx.toast('🧾 Facture créée en BROUILLON dans Pennylane : valide-la là-bas.');
         const res = await api(`/deals/${b.dataset.invoicePl}`, { method: 'PATCH', body: { status: 'facture' } });
         await celebrate(res.celebration);
         openContact(c.id);
@@ -1327,7 +1327,7 @@ function quoteModal(contact, after) {
       } });
       m.remove();
       await celebrate(res.celebration);
-      fx.toast(`📄 Devis créé dans Pennylane${res.file_url ? ' — PDF dispo sur la fiche' : ''}`);
+      fx.toast(`📄 Devis créé dans Pennylane${res.file_url ? ' : PDF dispo sur la fiche' : ''}`);
       if (after) after();
     } catch (e) {
       $('#q-error', m).textContent = e.message;
@@ -1369,7 +1369,7 @@ async function vInbox(view) {
       <h3>➕ Nouvelle demande reçue</h3>
       <textarea id="i-content" rows="3" placeholder="Colle ici le message reçu…"></textarea>
       <div class="row" style="margin-top:8px">
-        <select id="i-contact"><option value="">🔍 Lier à un contact (optionnel)</option>${contacts.map((c) => `<option value="${c.id}">${esc(c.first_name)} ${esc(c.last_name)} — ${esc(c.company || '')}</option>`).join('')}</select>
+        <select id="i-contact"><option value="">🔍 Lier à un contact (optionnel)</option>${contacts.map((c) => `<option value="${c.id}">${esc(c.first_name)} ${esc(c.last_name)} · ${esc(c.company || '')}</option>`).join('')}</select>
         <select id="i-source"><option>email</option><option>instagram</option><option>linkedin</option><option>site web</option><option>téléphone</option></select>
         <button class="primary" id="i-add">Ajouter</button>
       </div>
@@ -1491,7 +1491,7 @@ async function vAutopilot(view) {
         <li>Va sur <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">myaccount.google.com/apppasswords</a> → crée un mot de passe d'application « La Chasse » ;</li>
         <li>Colle-le dans <a href="#/reglages">Réglages → Gmail</a> avec ton adresse, puis teste SMTP + IMAP.</li>
       </ol>
-      <p class="muted small">L'autopilote enverra depuis TON adresse Gmail (réponses naturelles, délivrabilité maximale), gardera chaque relance dans le même fil, et lira ta boîte pour détecter les réponses — jamais les contenus, seulement les en-têtes.</p>
+      <p class="muted small">L'autopilote enverra depuis TON adresse Gmail (réponses naturelles, délivrabilité maximale), gardera chaque relance dans le même fil, et lira ta boîte pour détecter les réponses : jamais les contenus, seulement les en-têtes.</p>
     </div>` : '';
 
   view.innerHTML = `
@@ -1510,8 +1510,8 @@ async function vAutopilot(view) {
         </label>
         <label class="field" style="flex-direction:row;align-items:center;gap:8px">Mode
           <select id="ap-mode">
-            <option value="review" ${ap.mode === 'review' ? 'selected' : ''}>👀 Revue — je valide chaque email</option>
-            <option value="auto" ${ap.mode === 'auto' ? 'selected' : ''}>🚀 Auto — envoi sans validation</option>
+            <option value="review" ${ap.mode === 'review' ? 'selected' : ''}>👀 Revue : je valide chaque email</option>
+            <option value="auto" ${ap.mode === 'auto' ? 'selected' : ''}>🚀 Auto : envoi sans validation</option>
           </select>
         </label>
         <div class="muted small">📤 <b>${ap.sent_today}</b>/${ap.daily_cap} envoyés aujourd'hui · 🕘 fenêtre ${ap.window} · 👥 <b>${ap.active_enrollments}</b> en séquence · 💬 <b>${ap.replies_today}</b> réponse(s) auto détectée(s) aujourd'hui</div>
@@ -1538,7 +1538,7 @@ async function vAutopilot(view) {
     ${queuedItems.length ? `
     <div class="card" style="margin-top:14px">
       <h2>⏱️ Départ imminent (${queuedItems.length})</h2>
-      ${queuedItems.map((o) => `<div class="small" style="padding:4px 0">📨 ${esc(o.first_name || '')} ${esc(o.last_name || '')} — « ${esc(o.subject)} » · ${o.scheduled_at ? new Date(o.scheduled_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : 'dès que possible'} <button class="ghost" data-ob-cancel="${o.id}" style="padding:2px 8px">✖</button></div>`).join('')}
+      ${queuedItems.map((o) => `<div class="small" style="padding:4px 0">📨 ${esc(o.first_name || '')} ${esc(o.last_name || '')} · « ${esc(o.subject)} » · ${o.scheduled_at ? new Date(o.scheduled_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : 'dès que possible'} <button class="ghost" data-ob-cancel="${o.id}" style="padding:2px 8px">✖</button></div>`).join('')}
     </div>` : ''}
 
     <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:14px;align-items:start">
@@ -1569,7 +1569,7 @@ async function vAutopilot(view) {
             <td class="t-name">${esc(e.first_name)} ${esc(e.last_name)}<div class="t-sub">${esc(e.company || e.email)}</div></td>
             <td class="small">${esc(e.seq_name)}</td>
             <td class="mono">${Math.min(e.current_step + 1, e.total_steps)}/${e.total_steps}</td>
-            <td class="small">${e.status === 'active' ? (e.next_send_at ? dueLabel(e.next_send_at) : '—') : '—'}</td>
+            <td class="small">${e.status === 'active' ? (e.next_send_at ? dueLabel(e.next_send_at) : '·') : '·'}</td>
             <td class="small">${ENROLL_STATUS[e.status] || esc(e.status)}${e.stop_reason ? `<div class="faint">${esc(e.stop_reason)}</div>` : ''}</td>
             <td class="row" style="justify-content:flex-end">
               ${e.status === 'active' ? `<button class="ghost" data-en-pause="${e.id}" title="Pause">⏸️</button>` : ''}
@@ -1585,13 +1585,13 @@ async function vAutopilot(view) {
     <div class="card" style="margin-top:14px">
       <h2>📜 Journal d'envoi</h2>
       ${recent.filter((o) => ['sent', 'failed', 'cancelled'].includes(o.status)).slice(0, 15).map((o) => `
-        <div class="small" style="padding:3px 0">${OUTBOX_STATUS[o.status]} · ${esc(o.first_name || '')} ${esc(o.last_name || '')} — « ${esc(o.subject)} » ${o.sent_at ? '· ' + fmtDateTime(o.sent_at) : ''}${o.error ? ` <span style="color:var(--red2)">${esc(o.error.slice(0, 90))}</span>` : ''}</div>`).join('') || '<p class="muted small">Rien envoyé pour l’instant.</p>'}
+        <div class="small" style="padding:3px 0">${OUTBOX_STATUS[o.status]} · ${esc(o.first_name || '')} ${esc(o.last_name || '')} · « ${esc(o.subject)} » ${o.sent_at ? '· ' + fmtDateTime(o.sent_at) : ''}${o.error ? ` <span style="color:var(--red2)">${esc(o.error.slice(0, 90))}</span>` : ''}</div>`).join('') || '<p class="muted small">Rien envoyé pour l’instant.</p>'}
     </div>`;
 
   // --- interrupteurs
   $('#ap-enabled').onchange = async (e) => {
     await api('/settings', { method: 'PUT', body: { autopilot_enabled: e.target.checked ? '1' : '0' } });
-    fx.toast(e.target.checked ? '🟢 Autopilote activé — il tourne toutes les 10 min' : '⚪ Autopilote en veille');
+    fx.toast(e.target.checked ? '🟢 Autopilote activé : il tourne toutes les 10 min' : '⚪ Autopilote en veille');
     fx.play('pop');
     vAutopilot(view);
   };
@@ -1628,7 +1628,7 @@ async function vAutopilot(view) {
   if (apAll) apAll.onclick = async () => {
     try {
       for (const o of awaiting) await approveOne(o.id);
-      fx.toast(`✅ ${awaiting.length} email(s) approuvé(s) — envoi dans les minutes qui viennent`);
+      fx.toast(`✅ ${awaiting.length} email(s) approuvé(s) : envoi dans les minutes qui viennent`);
       fx.play('quest');
       vAutopilot(view);
     } catch (e) { fx.error(e.message); }
@@ -1799,7 +1799,7 @@ async function vImport(view) {
         <div id="csv-map"></div>
       </div>
       <div class="card">
-        <h2>🗂️ Répertoire chaud — tes appels & WhatsApp</h2>
+        <h2>🗂️ Répertoire chaud : tes appels & WhatsApp</h2>
         <p class="muted small">Les gens que tu as déjà eus au téléphone ou sur WhatsApp te connaissent : ce sont tes leads les plus faciles. La Chasse lit l'historique <b>en local sur ce Mac</b>, note chaque relation, écarte le bruit (banques, colis, codes) et te propose une liste à valider. <b>Rien n'entre dans le CRM sans ton clic.</b></p>
         <div class="row">
           <select id="rep-days">
@@ -1825,18 +1825,18 @@ async function vImport(view) {
       </div>
       <div class="grid">
         <div class="card">
-          <h2>💶 Pennylane — tes anciens clients</h2>
+          <h2>💶 Pennylane : tes anciens clients</h2>
           <p class="muted small">Importe tous tes clients Pennylane avec leur CA facturé : auto-marqués « ancien client » et segmentés (≥ seuil → Grand Compte). Ce sont tes leads les plus chauds.</p>
           <div class="row"><button id="pl-test">🔌 Tester</button><button class="primary" id="pl-import">📥 Importer les clients</button><span id="pl-status" class="small muted"></span></div>
         </div>
         <div class="card">
-          <h2>🟠 HubSpot — CRM hybride</h2>
+          <h2>🟠 HubSpot : CRM hybride</h2>
           <p class="muted small">Import des contacts HubSpot ici, et push des contacts de la Chasse vers HubSpot (bouton ⬆️ sur les fiches / la vue Contacts). La Chasse pilote la prospection, HubSpot reste ta base "officielle".</p>
           <div class="row"><button id="hs-test">🔌 Tester</button><button class="primary" id="hs-import">📥 Importer les contacts</button><span id="hs-status" class="small muted"></span></div>
         </div>
         <div class="card">
-          <h2>📧 Gmail — retrouve tes contacts</h2>
-          <p class="muted small">Scanne le dossier « Messages envoyés » de ta boîte (en-têtes uniquement, jamais le contenu) pour retrouver toutes les personnes à qui tu as déjà écrit — souvent des clients ou prospects oubliés.</p>
+          <h2>📧 Gmail : retrouve tes contacts</h2>
+          <p class="muted small">Scanne le dossier « Messages envoyés » de ta boîte (en-têtes uniquement, jamais le contenu) pour retrouver toutes les personnes à qui tu as déjà écrit : souvent des clients ou prospects oubliés.</p>
           <div class="row">
             <select id="gm-days"><option value="365">12 derniers mois</option><option value="730" selected>24 derniers mois</option><option value="1825">5 ans</option></select>
             <button class="primary" id="gm-scan">🔍 Scanner ma boîte</button>
@@ -1844,13 +1844,13 @@ async function vImport(view) {
           <div id="gm-results"></div>
         </div>
         <div class="card">
-          <h2>🧪 FullEnrich — emails & téléphones</h2>
-          <p class="muted small"><b>${enrichables.total}</b> contact(s) sans email ou téléphone. L'enrichissement (cascade 15+ fournisseurs) consomme des crédits FullEnrich — confirmation avant chaque lancement.</p>
+          <h2>🧪 FullEnrich : emails & téléphones</h2>
+          <p class="muted small"><b>${enrichables.total}</b> contact(s) sans email ou téléphone. L'enrichissement (cascade 15+ fournisseurs) consomme des crédits FullEnrich : confirmation avant chaque lancement.</p>
           <div class="row">
             <button class="primary" id="fe-launch" ${enrichables.total === 0 ? 'disabled' : ''}>🧪 Enrichir les contacts incomplets</button>
             ${pendingJobs.length ? `<button id="fe-poll">🔄 Vérifier les résultats (${pendingJobs.length} en cours)</button>` : ''}
           </div>
-          ${jobs.length ? `<div style="margin-top:10px">${jobs.slice(0, 5).map((j) => `<div class="small muted">· Job #${j.id} — ${j.status === 'pending' ? '⏳ en cours' : j.status === 'done' ? '✅ terminé' : '⚠️ ' + esc(j.status)} ${j.error ? `<span class="faint">(${esc(j.error.slice(0, 80))})</span>` : ''}</div>`).join('')}</div>` : ''}
+          ${jobs.length ? `<div style="margin-top:10px">${jobs.slice(0, 5).map((j) => `<div class="small muted">· Job #${j.id} · ${j.status === 'pending' ? '⏳ en cours' : j.status === 'done' ? '✅ terminé' : '⚠️ ' + esc(j.status)} ${j.error ? `<span class="faint">(${esc(j.error.slice(0, 80))})</span>` : ''}</div>`).join('')}</div>` : ''}
         </div>
       </div>
     </div>`;
@@ -1896,7 +1896,7 @@ async function vImport(view) {
       const { found } = await api('/mail/scan', { method: 'POST', body: { days: Number($('#gm-days').value) } });
       const news = found.filter((f) => !f.existing_id);
       $('#gm-results').innerHTML = `
-        <p style="margin-top:10px"><b>${found.length}</b> correspondant(s) trouvés — <b>${news.length}</b> pas encore dans le CRM :</p>
+        <p style="margin-top:10px"><b>${found.length}</b> correspondant(s) trouvés : <b>${news.length}</b> pas encore dans le CRM :</p>
         <div style="max-height:260px;overflow-y:auto">
           ${found.slice(0, 200).map((f, i) => `
             <label class="row small" style="padding:3px 4px;border-bottom:1px solid var(--border);cursor:pointer">
@@ -1932,7 +1932,7 @@ async function vImport(view) {
     if (!avertissements || !avertissements.length) { box.innerHTML = ''; return; }
     box.innerHTML = avertissements.map((a) => `
       <div style="color:var(--gold2);background:rgba(234,179,8,.1);border:1px solid rgba(234,179,8,.4);border-radius:9px;padding:10px 12px;font-size:13px;margin-top:8px">
-        <b>${a.source === 'appels' ? '📞 Appels' : '💬 WhatsApp'}</b> — ${esc(a.message)}
+        <b>${a.source === 'appels' ? '📞 Appels' : '💬 WhatsApp'}</b> : ${esc(a.message)}
       </div>`).join('');
   };
 
@@ -1945,7 +1945,7 @@ async function vImport(view) {
       return;
     }
     $('#rep-results').innerHTML = `
-      <p style="margin-top:10px"><b>${st.total}</b> relation(s)${titre ? ' ' + titre : ''} — <b>${st.nouveaux}</b> pas encore dans le CRM, dont <b>${st.chauds}</b> 🔥 chaudes et <b>${st.avec_signaux}</b> avec du vocabulaire de travail.</p>
+      <p style="margin-top:10px"><b>${st.total}</b> relation(s)${titre ? ' ' + titre : ''} : <b>${st.nouveaux}</b> pas encore dans le CRM, dont <b>${st.chauds}</b> 🔥 chaudes et <b>${st.avec_signaux}</b> avec du vocabulaire de travail.</p>
       <div class="row small muted" style="gap:8px;margin-bottom:4px">
         <button id="rep-all">Tout cocher</button><button id="rep-none">Tout décocher</button>
         <span>Pré-cochés : les nouveaux contacts à partir de 45/100.</span>
@@ -1986,7 +1986,7 @@ async function vImport(view) {
   api('/repertoire/etat').then((etat) => {
     const el = $('#rep-etat');
     if (!el) return;
-    if (!etat.mac) { el.textContent = 'Lecture automatique réservée au Mac — utilise les plans B ci-dessous.'; return; }
+    if (!etat.mac) { el.textContent = 'Lecture automatique réservée au Mac : utilise les plans B ci-dessous.'; return; }
     const bouts = [];
     bouts.push(etat.appels_disponible ? '📞 appels détectés' : '📞 aucun historique');
     bouts.push(etat.whatsapp_disponible ? '💬 WhatsApp détecté' : '💬 WhatsApp absent');
@@ -2031,7 +2031,7 @@ async function vImport(view) {
         fx.toast(`🧪 Enrichissement terminé : ${done.reduce((s, r) => s + r.enriched, 0)} contact(s) complété(s) !`);
         fx.play('quest');
         vImport(view);
-      } else if (!silent) fx.toast('⏳ Toujours en cours — FullEnrich prend quelques minutes.');
+      } else if (!silent) fx.toast('⏳ Toujours en cours : FullEnrich prend quelques minutes.');
     } catch (e) { if (!silent) fx.error(e.message); }
   };
   if (pollBtn) pollBtn.onclick = () => doPoll(false);
@@ -2050,13 +2050,13 @@ function renderCsvMap(view) {
       <p><b>${d.total}</b> ligne(s) détectée(s) (séparateur « ${d.delimiter === '\t' ? 'tab' : d.delimiter} »). Vérifie le mapping :</p>
       <div class="form-grid">
         ${FIELDS.map(([f, label]) => `<label class="field">${label}
-          <select data-map="${f}"><option value="">— ignorer —</option>${d.headers.map((h, i) => `<option value="${i}" ${d.auto_mapping[f] === i ? 'selected' : ''}>${esc(h)}</option>`).join('')}</select>
+          <select data-map="${f}"><option value="">(ignorer)</option>${d.headers.map((h, i) => `<option value="${i}" ${d.auto_mapping[f] === i ? 'selected' : ''}>${esc(h)}</option>`).join('')}</select>
         </label>`).join('')}
       </div>
       <div class="row" style="margin-top:10px">
         <label class="field">Typologie par défaut<select id="csv-seg">${Object.entries(S.segments).map(([k, s]) => `<option value="${k}" ${k === 'inconnu' ? 'selected' : ''}>${s.emoji} ${esc(s.label)}</option>`).join('')}</select></label>
         <label class="field">Origine<select id="csv-origin"><option>linkedin</option><option>csv</option></select></label>
-        ${importCampaigns.length ? `<label class="field">📅 Campagne<select id="csv-camp"><option value="0">— aucune —</option>${importCampaigns.map((c) => `<option value="${c.id}" ${importCampaignId === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>` : ''}
+        ${importCampaigns.length ? `<label class="field">📅 Campagne<select id="csv-camp"><option value="0">(aucune)</option>${importCampaigns.map((c) => `<option value="${c.id}" ${importCampaignId === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>` : ''}
         <label class="chip" style="cursor:pointer;margin-top:14px"><input type="checkbox" id="csv-former"> 💰 anciens clients</label>
         <button class="primary big" id="csv-go" style="margin-top:8px">📥 Importer ${d.total} contacts</button>
       </div>
@@ -2131,7 +2131,7 @@ async function vReglages(view) {
             <label class="field">Objectif factures (boss)<input id="s-goal" type="number" min="1" value="${esc(s.objectif_factures)}"></label>
             <label class="field">Seuil Grand Compte (€ CA)<input id="s-seuil" type="number" min="0" value="${esc(s.seuil_grand_compte)}"></label>
             <label class="field">📞 Appels / jour (objectif)<input id="s-calls" type="number" min="1" max="50" value="${esc(s.objectif_appels_jour)}"></label>
-            <label class="field wide"><span>🧬 Mon profil — pour trouver des liens avec les prospects (sépare par des virgules : anciens employeurs/clients, écoles, villes, sports, destinations…)</span>
+            <label class="field wide"><span>🧬 Mon profil : pour trouver des liens avec les prospects (sépare par des virgules : anciens employeurs/clients, écoles, villes, sports, destinations…)</span>
               <textarea id="s-profil" rows="3" placeholder="Ex : Galec, La Poste, Pullman, Toulouse, Hyrox, crossfit, République Dominicaine, montagne…">${esc(s.mon_profil)}</textarea>
             </label>
           </div>
@@ -2165,7 +2165,7 @@ async function vReglages(view) {
           <label class="field wide">Mot de passe <span class="faint">(d'application pour Gmail, normal pour les autres)</span><input id="s-gmailpw" type="password" value="${esc(s.gmail_app_password)}"></label>
           <label class="field">Cap d'envoi / jour<input id="s-cap" type="number" min="1" max="100" value="${esc(s.autopilot_daily_cap)}"></label>
           <label class="field">Fenêtre d'envoi<div class="row"><input id="s-ws" type="number" min="0" max="23" value="${esc(s.autopilot_window_start)}" style="width:64px">h → <input id="s-we" type="number" min="1" max="24" value="${esc(s.autopilot_window_end)}" style="width:64px">h</div></label>
-          <label class="field wide">Lien de RDV (Calendly, Google…) — variable {lien_rdv}<input id="s-booking" value="${esc(s.booking_url)}" placeholder="https://calendly.com/…"></label>
+          <label class="field wide">Lien de RDV (Calendly, Google…) : variable {lien_rdv}<input id="s-booking" value="${esc(s.booking_url)}" placeholder="https://calendly.com/…"></label>
           <label class="chip wide" style="cursor:pointer"><input type="checkbox" id="s-weekdays" ${s.autopilot_weekdays_only !== '0' ? 'checked' : ''}> envoyer uniquement en jours ouvrés</label>
         </div>
         <details id="s-servers" style="margin-top:8px">
@@ -2189,19 +2189,19 @@ async function vReglages(view) {
       <div class="card">
         <h2>🔑 Clés API</h2>
         <p class="muted small">Chaque clé est stockée en local. Les champs affichent « •••• » quand une clé est déjà enregistrée : ne les modifie que pour la remplacer.</p>
-        <label class="field" style="margin-bottom:10px">💶 Pennylane — <a href="https://app.pennylane.com" target="_blank" rel="noopener">app.pennylane.com</a> → Paramètres → API
+        <label class="field" style="margin-bottom:10px">💶 Pennylane : <a href="https://app.pennylane.com" target="_blank" rel="noopener">app.pennylane.com</a> → Paramètres → API
           <div class="row"><input id="s-pl" type="password" value="${esc(s.pennylane_api_key)}" style="flex:1"><button data-test="pennylane">🔌</button></div>
           <span class="small" id="t-pennylane"></span>
         </label>
-        <label class="field" style="margin-bottom:10px">🧪 FullEnrich — app.fullenrich.com → Settings → API
+        <label class="field" style="margin-bottom:10px">🧪 FullEnrich : app.fullenrich.com → Settings → API
           <div class="row"><input id="s-fe" type="password" value="${esc(s.fullenrich_api_key)}" style="flex:1"><button data-test="fullenrich">🔌</button></div>
           <span class="small" id="t-fullenrich"></span>
         </label>
-        <label class="field" style="margin-bottom:10px">🟠 HubSpot — token d'application privée (scopes contacts read/write)
+        <label class="field" style="margin-bottom:10px">🟠 HubSpot : token d'application privée (scopes contacts read/write)
           <div class="row"><input id="s-hs" type="password" value="${esc(s.hubspot_token)}" style="flex:1"><button data-test="hubspot">🔌</button></div>
           <span class="small" id="t-hubspot"></span>
         </label>
-        <label class="field" style="margin-bottom:10px">✨ Claude (rédaction IA) — console.anthropic.com → API keys
+        <label class="field" style="margin-bottom:10px">✨ Claude (rédaction IA) : console.anthropic.com → API keys
           <div class="row"><input id="s-ai" type="password" value="${esc(s.anthropic_api_key)}" style="flex:1"></div>
         </label>
         <label class="field">Modèle IA
@@ -2244,7 +2244,7 @@ async function vReglages(view) {
     if (!p) { $('#s-servers').open = true; return; } // "Autre" : saisie manuelle
     $('#s-smtph').value = p.smtp_host; $('#s-smtpp').value = p.smtp_port;
     $('#s-imaph').value = p.imap_host; $('#s-imapp').value = p.imap_port;
-    fx.toast(`⚙️ Serveurs ${e.target.options[e.target.selectedIndex].text} appliqués — pense à Enregistrer`);
+    fx.toast(`⚙️ Serveurs ${e.target.options[e.target.selectedIndex].text} appliqués : pense à Enregistrer`);
   };
   $('#s-save').onclick = async () => {
     try {
@@ -2278,7 +2278,7 @@ async function vReglages(view) {
       return `Remplis l'adresse ET le mot de passe d'application ci-dessus, puis reclique.`;
     }
     if (/Réseau injoignable|ENOTFOUND|ECONNREFUSED|délai dépassé|ETIMEDOUT/i.test(msg)) {
-      return `Impossible de joindre les serveurs de Google : vérifie ta connexion internet. Sur un réseau d'entreprise/VPN, les ports d'envoi d'email sont parfois bloqués — réessaie depuis chez toi ou en partage de connexion.`;
+      return `Impossible de joindre les serveurs de Google : vérifie ta connexion internet. Sur un réseau d'entreprise/VPN, les ports d'envoi d'email sont parfois bloqués : réessaie depuis chez toi ou en partage de connexion.`;
     }
     return `Envoie ce message tel quel à Claude, il saura quoi corriger.`;
   };

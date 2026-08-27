@@ -1,8 +1,8 @@
 'use strict';
-// 🤖 AUTOPILOTE — le moteur qui prospecte à ta place.
+// 🤖 AUTOPILOTE : le moteur qui prospecte à ta place.
 // Boucle : détecter les réponses (IMAP) → planifier les étapes dues (séquences)
 // → envoyer (SMTP, dans la fenêtre horaire, sous le cap quotidien, jours ouvrés).
-// Règle d'or : dès qu'un prospect répond, sa séquence S'ARRÊTE — c'est à toi de
+// Règle d'or : dès qu'un prospect répond, sa séquence S'ARRÊTE : c'est à toi de
 // transformer la réponse en call.
 
 const dbApi = require('./db');
@@ -20,7 +20,7 @@ function isConfigured() {
 function mailCfg() {
   const user = getSetting('gmail_user');
   const pass = String(getSetting('gmail_app_password') || '').replace(/\s+/g, ''); // Gmail affiche "xxxx xxxx xxxx xxxx"
-  if (!user || !pass) throw new Error('Gmail non configuré — renseigne ton adresse et un mot de passe d’application dans Réglages.');
+  if (!user || !pass) throw new Error('Gmail non configuré : renseigne ton adresse et un mot de passe d’application dans Réglages.');
   return {
     smtp: { host: getSetting('smtp_host'), port: Number(getSetting('smtp_port')), secure: getSetting('smtp_secure') !== '0', user, pass },
     imap: { host: getSetting('imap_host'), port: Number(getSetting('imap_port')), secure: getSetting('imap_secure') !== '0', user, pass },
@@ -115,7 +115,7 @@ async function pollReplies() {
       dbApi.updateContact(contact.id, { email_status: 'valid' });
       run('INSERT INTO inbox (contact_id, source, content, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
         contact.id, 'gmail-auto',
-        `📬 ${contact.first_name} ${contact.last_name} (${contact.company || contact.email}) a répondu — objet : « ${msg.subject} ». Ouvre Gmail pour lire le message et propose un call !`,
+        `📬 ${contact.first_name} ${contact.last_name} (${contact.company || contact.email}) a répondu : objet : « ${msg.subject} ». Ouvre Gmail pour lire le message et propose un call !`,
         'nouveau', nowIso(), nowIso());
       repliesFound++;
     }
@@ -128,7 +128,7 @@ function renderStep(contact, step, enrollment) {
   const tpl = get('SELECT * FROM templates WHERE code = ?', step.template_code);
   if (!tpl) throw new Error(`Template « ${step.template_code} » introuvable`);
   const rendered = playbooks.renderTemplate(tpl, contact, allSettings());
-  let subject = rendered.subject || `Prise de contact — ${getSetting('company_name')}`;
+  let subject = rendered.subject || `Prise de contact : ${getSetting('company_name')}`;
   if (step.step_index > 0) subject = 'Re: ' + (enrollment.first_subject || subject.replace(/^Re:\s*/i, ''));
   return { subject, body: rendered.body };
 }
@@ -142,7 +142,7 @@ function nextSlot() {
 
 function processDue({ ignoreWindow = false } = {}) {
   const now = new Date();
-  if (!workday(now)) return { queued: 0, reason: 'week-end — repos du guerrier' };
+  if (!workday(now)) return { queued: 0, reason: 'week-end : repos du guerrier' };
   if (!ignoreWindow && !windowOpen(now)) return { queued: 0, reason: `hors fenêtre d'envoi (${getSetting('autopilot_window_start')}h-${getSetting('autopilot_window_end')}h)` };
 
   const cap = Number(getSetting('autopilot_daily_cap') || 20);
@@ -243,12 +243,12 @@ async function flushOutbox({ force = false } = {}) {
       const contact = get('SELECT * FROM contacts WHERE id = ?', item.contact_id);
       if (contact) {
         const type = item.step_index === 0 ? 'message_envoye' : 'relance';
-        game.insertActivity({ contact_id: contact.id, type, note: `🤖 Autopilote — « ${item.subject.slice(0, 70)} »`, meta: { auto: true, outbox_id: item.id } });
+        game.insertActivity({ contact_id: contact.id, type, note: `🤖 Autopilote : « ${item.subject.slice(0, 70)} »`, meta: { auto: true, outbox_id: item.id } });
         const patch = { last_touch_at: nowIso() };
         if (contact.stage === 'a_contacter') patch.stage = 'contacte';
         if (e) {
           const nx = get('SELECT next_send_at, status FROM enrollments WHERE id = ?', e.id);
-          patch.next_action = nx.status === 'finished' ? 'Séquence terminée — passer en manuel' : '🤖 Séquence — prochaine étape';
+          patch.next_action = nx.status === 'finished' ? 'Séquence terminée : passer en manuel' : '🤖 Séquence : prochaine étape';
           patch.next_action_at = nx.status === 'finished' ? localDay() : '';
         }
         dbApi.updateContact(contact.id, patch);
@@ -339,7 +339,7 @@ function importScanned(entries) {
 async function sendOneOff({ contact_id, subject, body }) {
   const contact = get('SELECT * FROM contacts WHERE id = ?', contact_id);
   if (!contact) throw new Error('Contact introuvable');
-  if (!contact.email) throw new Error("Ce contact n'a pas d'email — enrichis-le (FullEnrich) ou contacte-le via LinkedIn.");
+  if (!contact.email) throw new Error("Ce contact n'a pas d'email : enrichis-le (FullEnrich) ou contacte-le via LinkedIn.");
   const cfg = mailCfg();
   const cap = Number(getSetting('autopilot_daily_cap') || 20);
   if (sentToday() >= cap) throw new Error(`Cap quotidien atteint (${cap} emails aujourd'hui). Remonte-le dans Réglages si besoin.`);
@@ -367,21 +367,21 @@ async function sendOneOff({ contact_id, subject, body }) {
   const celebration = game.logAction({
     contact_id: contact.id,
     type: touches > 0 ? 'relance' : 'message_envoye',
-    note: `📤 Email envoyé — « ${String(subject || '').slice(0, 70)} »`,
+    note: `📤 Email envoyé : « ${String(subject || '').slice(0, 70)} »`,
     meta: { direct_send: true, message_id: messageId },
   });
   return { message_id: messageId, to: contact.email, celebration };
 }
 
 // ---------------------------------------------------------------- tests de connexion
-async function testSmtp() { await smtp.testAuth({ ...mailCfg().smtp }); return { ok: true, message: 'SMTP Gmail OK — prêt à envoyer' }; }
-async function testImap() { await imap.testLogin(mailCfg().imap); return { ok: true, message: 'IMAP Gmail OK — détection des réponses prête' }; }
+async function testSmtp() { await smtp.testAuth({ ...mailCfg().smtp }); return { ok: true, message: 'SMTP Gmail OK : prêt à envoyer' }; }
+async function testImap() { await imap.testLogin(mailCfg().imap); return { ok: true, message: 'IMAP Gmail OK : détection des réponses prête' }; }
 async function sendTestEmail() {
   const cfg = mailCfg();
   const { messageId } = await smtp.sendMail({
     ...cfg.smtp, from: cfg.from, fromName: getSetting('user_name') || '', to: cfg.from,
-    subject: '⚔️ Test La Chasse — ton autopilote fonctionne',
-    body: `Si tu lis ceci dans ta boîte, l'envoi SMTP marche parfaitement.\n\nProchaine étape : enrôle tes anciens clients dans la séquence « Réactivation » et laisse tourner. 🎯\n\n— La Chasse`,
+    subject: '⚔️ Test La Chasse : ton autopilote fonctionne',
+    body: `Si tu lis ceci dans ta boîte, l'envoi SMTP marche parfaitement.\n\nProchaine étape : enrôle tes anciens clients dans la séquence « Réactivation » et laisse tourner. 🎯\n\nLa Chasse`,
   });
   return { ok: true, message: `Email de test envoyé à ${cfg.from}`, message_id: messageId };
 }

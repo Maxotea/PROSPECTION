@@ -2,7 +2,7 @@
 // Intégration Pennylane (API externe v2) :
 //  - import des clients existants ("anciens clients") + CA facturé par client
 //  - création de client, création de devis (quotes), facture depuis devis (brouillon)
-// Doc : https://pennylane.readme.io — base https://app.pennylane.com/api/external/v2
+// Doc : https://pennylane.readme.io : base https://app.pennylane.com/api/external/v2
 
 const dbApi = require('../db');
 const { get, all, run, getSetting, nowIso, upsertContact } = dbApi;
@@ -12,7 +12,7 @@ const { apiFetch } = require('./util');
 function base() { return (getSetting('pennylane_base') || 'https://app.pennylane.com/api/external/v2').replace(/\/$/, ''); }
 function headers() {
   const key = getSetting('pennylane_api_key');
-  if (!key) throw new Error("Clé API Pennylane manquante — renseigne-la dans Réglages.");
+  if (!key) throw new Error("Clé API Pennylane manquante : renseigne-la dans Réglages.");
   return { Authorization: `Bearer ${key}` };
 }
 
@@ -120,8 +120,8 @@ async function ensureCustomer(contact, extra = {}) {
       }
     : {
         customer_type: 'individual',
-        first_name: contact.first_name || '—',
-        last_name: contact.last_name || '—',
+        first_name: contact.first_name || 'Client',
+        last_name: contact.last_name || 'Inconnu',
         emails: contact.email ? [contact.email] : [],
       };
   const address = {
@@ -167,7 +167,7 @@ async function createQuote(contact, { title = '', lines = [], deadline_days = 30
      VALUES (?, ?, ?, 'devis_envoye', ?, ?, ?, ?)`,
     contact.id, title || `Devis ${contact.company || contact.last_name}`, amount, quoteId, String(fileUrl || ''), now, now
   );
-  const celebration = game.logAction({ contact_id: contact.id, deal_id: lastId, type: 'devis_envoye', note: `Devis Pennylane #${quoteId} — ${amount.toFixed(0)} € HT` });
+  const celebration = game.logAction({ contact_id: contact.id, deal_id: lastId, type: 'devis_envoye', note: `Devis Pennylane #${quoteId} : ${amount.toFixed(0)} € HT` });
   return { deal: get('SELECT * FROM deals WHERE id = ?', lastId), quote_id: quoteId, file_url: fileUrl, celebration, raw: res };
 }
 

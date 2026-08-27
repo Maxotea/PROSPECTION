@@ -1,7 +1,7 @@
 'use strict';
 // Client SMTP minimal, zéro dépendance (node:tls / node:net).
 // Conçu pour Gmail (smtp.gmail.com:465, TLS implicite, AUTH PLAIN avec mot de
-// passe d'application), mais hosts/ports configurables — dont un mode non-TLS
+// passe d'application), mais hosts/ports configurables : dont un mode non-TLS
 // réservé aux serveurs de test locaux.
 
 const tls = require('node:tls');
@@ -59,11 +59,11 @@ function buildMessage({ from, fromName, to, subject, body, inReplyTo, references
 // ---------------------------------------------------------------- client SMTP
 function smtpConnect({ host, port, secure, timeoutMs = 20000 }) {
   return new Promise((resolve, reject) => {
-    const onError = (e) => reject(new Error(`SMTP ${host}:${port} — ${e.message}`));
+    const onError = (e) => reject(new Error(`SMTP ${host}:${port} : ${e.message}`));
     const sock = secure
       ? tls.connect({ host, port, servername: host }, () => resolve(sock))
       : net.connect({ host, port }, () => resolve(sock));
-    sock.setTimeout(timeoutMs, () => { sock.destroy(); reject(new Error(`SMTP ${host}:${port} — délai dépassé`)); });
+    sock.setTimeout(timeoutMs, () => { sock.destroy(); reject(new Error(`SMTP ${host}:${port} : délai dépassé`)); });
     sock.once('error', onError);
   });
 }
@@ -95,7 +95,7 @@ function reader(sock) {
     read() {
       return new Promise((resolve, reject) => {
         pending = { resolve, reject };
-        pending.timer = setTimeout(() => { if (pending) { pending = null; reject(new Error('SMTP — pas de réponse du serveur')); } }, 20000);
+        pending.timer = setTimeout(() => { if (pending) { pending = null; reject(new Error('SMTP : pas de réponse du serveur')); } }, 20000);
         tryFlush();
       });
     },
@@ -107,7 +107,7 @@ async function expect(r, sock, cmd, codes) {
   const res = await r.read();
   const code = Number(res.slice(0, 3));
   if (!codes.includes(code)) {
-    const err = new Error(`SMTP — réponse ${res.split('\r\n').pop() || res}`.slice(0, 300));
+    const err = new Error(`SMTP : réponse ${res.split('\r\n').pop() || res}`.slice(0, 300));
     err.smtpCode = code;
     throw err;
   }

@@ -1,5 +1,5 @@
 'use strict';
-// 🗂️ RÉPERTOIRE CHAUD — « qui as-tu déjà eu au téléphone ou sur WhatsApp,
+// 🗂️ RÉPERTOIRE CHAUD : « qui as-tu déjà eu au téléphone ou sur WhatsApp,
 // et jamais transformé en client ? »
 //
 // C'est le gisement le plus rentable de la prospection : ces gens te connaissent

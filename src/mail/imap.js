@@ -1,5 +1,5 @@
 'use strict';
-// Client IMAP minimal, zéro dépendance — juste ce qu'il faut pour :
+// Client IMAP minimal, zéro dépendance : juste ce qu'il faut pour :
 //  1. détecter les nouvelles réponses dans INBOX (UID SEARCH + FETCH d'en-têtes)
 //  2. scanner le dossier "Messages envoyés" pour retrouver ses correspondants
 // Conçu pour Gmail (imap.gmail.com:993, LOGIN avec mot de passe d'application),
@@ -24,8 +24,8 @@ class Imap {
       this.sock = secure
         ? tls.connect({ host, port, servername: host }, onReady)
         : net.connect({ host, port }, onReady);
-      this.sock.setTimeout(timeoutMs, () => { this.sock.destroy(); const e = new Error(`IMAP ${host}:${port} — délai dépassé`); this.pending ? this.pending.reject(e) : reject(e); });
-      this.sock.once('error', (e) => { const err = new Error(`IMAP ${host}:${port} — ${e.message}`); this.pending ? this.pending.reject(err) : reject(err); });
+      this.sock.setTimeout(timeoutMs, () => { this.sock.destroy(); const e = new Error(`IMAP ${host}:${port} : délai dépassé`); this.pending ? this.pending.reject(e) : reject(e); });
+      this.sock.once('error', (e) => { const err = new Error(`IMAP ${host}:${port} : ${e.message}`); this.pending ? this.pending.reject(err) : reject(err); });
       this.sock.on('data', (chunk) => { this.buffer = Buffer.concat([this.buffer, chunk]); this._drain(); });
     });
   }
@@ -57,7 +57,7 @@ class Imap {
       if (line.startsWith(p.tag + ' ')) {
         this.pending = null;
         if (/^\S+ OK/i.test(line)) p.resolve(p.entries);
-        else p.reject(new Error(`IMAP — ${line.slice(0, 200)}`));
+        else p.reject(new Error(`IMAP : ${line.slice(0, 200)}`));
         return;
       }
     }

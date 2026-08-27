@@ -13,9 +13,9 @@ const { apiFetch } = require('./integrations/util');
 // ---------------------------------------------------------------- références OTEA
 // ⚠️ verified: 0 = nom/orthographe à vérifier dans l'UI (transcription vocale).
 const REFERENCE_SEED = [
-  { code: 'galec', name: 'Le Galec — centrale E.Leclerc', detail: 'Vidéos de communication interne pour la centrale d’achats des centres E.Leclerc', sectors: ['grande_distribution', 'agriculture', 'corporate_industrie'], verified: 1 },
+  { code: 'galec', name: 'Le Galec · centrale E.Leclerc', detail: 'Vidéos de communication interne pour la centrale d’achats des centres E.Leclerc', sectors: ['grande_distribution', 'agriculture', 'corporate_industrie'], verified: 1 },
   { code: 'la_poste', name: 'La Poste', detail: 'Production vidéo (nouvelle vidéo en cours)', sectors: ['corporate_industrie', 'grande_distribution', 'aeronautique', 'collectivites'], verified: 1 },
-  { code: 'nina_ramen', name: 'Nina Ramen', detail: 'Accompagnement contenu d’une figure du copywriting — contrat renouvelé', sectors: ['influence_media'], verified: 1 },
+  { code: 'nina_ramen', name: 'Nina Ramen', detail: 'Accompagnement contenu d’une figure du copywriting, contrat renouvelé', sectors: ['influence_media'], verified: 1 },
   { code: 'madiness', name: 'Madiness (média)', detail: 'Production de contenus pour un média', sectors: ['influence_media'], verified: 0 },
   { code: 'pullman', name: 'Hôtels Pullman', detail: 'Photos & vidéos pour l’hôtellerie premium', sectors: ['hotellerie', 'agences_voyage'], verified: 1 },
   { code: 'puteaux', name: 'Ville de Puteaux', detail: 'Contenus vidéo pour la collectivité', sectors: ['collectivites'], verified: 1 },
@@ -42,7 +42,7 @@ const PRESETS = {
     emoji: '🛒', label: 'Grande distribution',
     persona: 'Responsable communication interne / Dircom enseigne',
     refs: ['galec', 'la_poste', 'raja'],
-    angle: "La communication interne des enseignes : embarquer des milliers de collaborateurs en magasin, c'est un métier — et la vidéo est le format qui marche.",
+    angle: "La communication interne des enseignes : embarquer des milliers de collaborateurs en magasin, c'est un métier, et la vidéo est le format qui marche.",
     pain: 'faire passer les messages du siège jusqu’aux équipes en magasin',
     sn_recipe: `Filtres Sales Navigator :
 • Fonction : Communication / Marketing
@@ -67,7 +67,7 @@ Astuce : vise aussi les sous-traitants rang 1/2 (moins sollicités que les grand
     emoji: '🌾', label: 'Agriculture & agroalimentaire',
     persona: 'Responsable communication coopérative / marque agro',
     refs: ['galec'],
-    angle: "Les coopératives et marques agro ont des histoires vraies à raconter — terrain, producteurs, savoir-faire — et peu d'images à la hauteur.",
+    angle: "Les coopératives et marques agro ont des histoires vraies à raconter (terrain, producteurs, savoir-faire) et peu d'images à la hauteur.",
     pain: 'raconter le terrain et les producteurs avec des images authentiques',
     sn_recipe: `Filtres Sales Navigator :
 • Intitulé : "responsable communication" OU "chargé(e) de communication"
@@ -91,7 +91,7 @@ Astuce : commence par les 4-5 étoiles et les groupes régionaux (plus de budget
     emoji: '🧳', label: 'Agences de voyage & tourisme',
     persona: 'Fondateur / Responsable marketing',
     refs: ['rep_dominicaine', 'pullman'],
-    angle: "Le voyage s'achète en vidéo : destinations, expériences, avis clients — le contenu fait la réservation.",
+    angle: "Le voyage s'achète en vidéo : destinations, expériences, avis clients : le contenu fait la réservation.",
     pain: 'vendre du rêve avec de vraies images de destination',
     sn_recipe: `Filtres Sales Navigator :
 • Intitulé : "fondateur" OU "directeur" OU "responsable marketing"
@@ -103,7 +103,7 @@ Astuce : ajoute les offices de tourisme et les DMC françaises (délégations, �
     emoji: '🏛️', label: 'Collectivités & villes',
     persona: 'Dircom mairie / chargé(e) de communication',
     refs: ['puteaux', 'thorigny', 'la_poste'],
-    angle: "Les villes qui communiquent bien créent du lien avec leurs habitants : événements, travaux, portraits — la vidéo municipale qui donne envie.",
+    angle: "Les villes qui communiquent bien créent du lien avec leurs habitants : événements, travaux, portraits : la vidéo municipale qui donne envie.",
     pain: 'rendre l’action municipale visible et concrète pour les habitants',
     sn_recipe: `Filtres Sales Navigator :
 • Intitulé : "directeur de la communication" OU "chargé de communication"
@@ -121,7 +121,7 @@ Astuce : vise les villes de 10 000 à 100 000 habitants (assez de budget, moins 
 • Intitulé : "créateur" OU "fondateur" OU "head of content"
 • Secteur : Médias, Production audiovisuelle, Marketing
 • Effectif : 1-50 · Région : France
-Astuce : les créateurs B2B (LinkedIn) investissent — regarde qui poste beaucoup avec une prod moyenne.`,
+Astuce : les créateurs B2B (LinkedIn) investissent : regarde qui poste beaucoup avec une prod moyenne.`,
   },
   immobilier_archi: {
     emoji: '🏗️', label: 'Immobilier & architecture',
@@ -189,21 +189,21 @@ function buildKit(preset, persona, refs, settings) {
 
   const emails = [
     {
-      subject: `${preset.label} × vidéo — ce qu'on a fait pour ${phare}`,
+      subject: `${preset.label} × vidéo : ce qu'on a fait pour ${phare}`,
       body: `Bonjour {prenom},
 
 {accroche}Je vous écris car cette semaine, chez ${boite}, on se concentre sur un seul secteur : ${preset.label.toLowerCase()}.
 
 ${preset.angle}
 
-On a déjà accompagné ${sentence} — et le sujet « ${preset.pain} » revient à chaque fois.
+On a déjà accompagné ${sentence}, et le sujet « ${preset.pain} » revient à chaque fois.
 
 Est-ce que c'est un enjeu chez {entreprise} en ce moment ? Si oui, je vous montre en 15 minutes ce qu'on a produit et ce que ça a changé.${rdv}
 
 {signature}`,
     },
     {
-      subject: `Re: ${preset.label} × vidéo — ce qu'on a fait pour ${phare}`,
+      subject: `Re: ${preset.label} × vidéo : ce qu'on a fait pour ${phare}`,
       body: `Bonjour {prenom},
 
 Je me permets une relance courte, avec du concret. Trois formats qui marchent très bien en ce moment dans votre secteur :
@@ -220,7 +220,7 @@ C'est exactement ce qu'on a fait pour ${phare}. Un créneau de 15 min cette sema
       subject: `On se garde sous le coude ? ({entreprise})`,
       body: `Bonjour {prenom},
 
-Dernier message de ma part — je ne veux pas encombrer votre boîte.
+Dernier message de ma part, je ne veux pas encombrer votre boîte.
 
 Si le sujet vidéo/contenu n'est pas d'actualité chez {entreprise}, aucun problème : gardez mon contact pour le jour où un projet sort (on a l'habitude des délais courts).
 
@@ -236,7 +236,7 @@ Belle continuation !
 
 ${preset.angle}
 
-On a eu la chance d'accompagner ${sentence} sur ces sujets — communication interne, films de marque, couverture d'événements.
+On a eu la chance d'accompagner ${sentence} sur ces sujets : communication interne, films de marque, couverture d'événements.
 
 Si vous travaillez dans ${preset.label.toLowerCase()} et que « ${preset.pain} » vous parle, ma porte est ouverte cette semaine : 15 minutes, je vous montre des exemples concrets, vous repartez avec des idées (même si on ne travaille jamais ensemble).
 
@@ -264,7 +264,7 @@ function createCampaign({ sector, week_start, persona, reference_ids, name }) {
   const settings = allSettings();
   const kit = buildKit(preset, persona || preset.persona, refs, settings);
 
-  const campName = name || `${preset.emoji} ${preset.label} — semaine du ${week.slice(8, 10)}/${week.slice(5, 7)}`;
+  const campName = name || `${preset.emoji} ${preset.label} · semaine du ${week.slice(8, 10)}/${week.slice(5, 7)}`;
   const now = nowIso();
   const { lastId: campaignId } = run(
     `INSERT INTO campaigns (name, sector, emoji, persona, week_start, reference_ids, sn_recipe, angle, post_draft, dm_draft, created_at)
@@ -278,7 +278,7 @@ function createCampaign({ sector, week_start, persona, reference_ids, name }) {
   kit.emails.forEach((e, i) => {
     const code = `camp_${campaignId}_${i + 1}`;
     run('INSERT INTO templates (code, name, segment, channel, subject, body, builtin, sort, campaign_id) VALUES (?, ?, ?, ?, ?, ?, 0, 200, ?)',
-      code, `${preset.emoji} ${preset.label} — email ${i + 1}`, '', 'email', e.subject, e.body, campaignId);
+      code, `${preset.emoji} ${preset.label} · email ${i + 1}`, '', 'email', e.subject, e.body, campaignId);
     templateCodes.push(code);
   });
 
@@ -341,14 +341,14 @@ function enrollAll(campaignId) {
   if (!c) throw new Error('Campagne introuvable');
   if (!c.sequence_id) throw new Error('Cette campagne n’a pas de séquence associée');
   const ids = all('SELECT id FROM contacts WHERE campaign_id = ? AND archived = 0', campaignId).map((r) => r.id);
-  if (!ids.length) throw new Error('Aucun contact rattaché à cette campagne — importe d’abord ton CSV Sales Navigator.');
+  if (!ids.length) throw new Error('Aucun contact rattaché à cette campagne : importe d’abord ton CSV Sales Navigator.');
   return autopilot.enroll(c.sequence_id, ids);
 }
 
 // ---------------------------------------------------------------- régénération IA
 async function regenerateKit(campaignId) {
   const key = getSetting('anthropic_api_key');
-  if (!key) throw new Error('Pas de clé API Claude dans Réglages — le kit statique reste en place (il est déjà solide).');
+  if (!key) throw new Error('Pas de clé API Claude dans Réglages. Le kit statique reste en place (il est déjà solide).');
   const c = get('SELECT * FROM campaigns WHERE id = ?', campaignId);
   if (!c) throw new Error('Campagne introuvable');
   const preset = PRESETS[c.sector] || { label: c.sector, angle: c.angle, pain: '', emoji: c.emoji };
@@ -385,7 +385,7 @@ Génère :
   };
 
   const emails = [1, 2, 3].map((i) => ({ subject: section(`EMAIL${i}_OBJET`), body: section(`EMAIL${i}_CORPS`) }));
-  if (emails.some((e) => !e.body)) throw new Error('Réponse IA incomplète — kit inchangé. Réessaie.');
+  if (emails.some((e) => !e.body)) throw new Error('Réponse IA incomplète, kit inchangé. Réessaie.');
 
   emails.forEach((e, i) => {
     run('UPDATE templates SET subject = ?, body = ? WHERE code = ?', e.subject || '', e.body, `camp_${campaignId}_${i + 1}`);

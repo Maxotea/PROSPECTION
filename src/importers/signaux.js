@@ -1,5 +1,5 @@
 'use strict';
-// 🔎 SIGNAUX — la partie "cerveau" du répertoire chaud, commune aux appels et à WhatsApp.
+// 🔎 SIGNAUX : la partie "cerveau" du répertoire chaud, commune aux appels et à WhatsApp.
 // Elle répond à une seule question : parmi tous les gens à qui Maxime a parlé,
 // lesquels ressemblent à des CLIENTS (ou à des clients potentiels) plutôt qu'à
 // son plombier, sa mère ou un code de vérification à 4 chiffres ?
@@ -26,7 +26,7 @@ const MOTS_BUSINESS = [
   'rdv', 'rendez-vous', 'réunion', 'visio', 'call', 'point tel', 'dispo',
 ];
 
-// Mots qui trahissent un robot, une pub ou un service — jamais un prospect.
+// Mots qui trahissent un robot, une pub ou un service : jamais un prospect.
 const MOTS_BRUIT = [
   'code de vérification', 'votre code', 'code confidentiel', 'otp',
   'ne pas répondre', 'no-reply', 'noreply', 'stop au ', 'stop sms',
@@ -95,7 +95,7 @@ function scoreRelation(e) {
   const jours = e.last_at ? Math.max(0, Math.round((Date.now() - new Date(e.last_at).getTime()) / 86400000)) : 9999;
   let score = 0;
 
-  // Récence — un contact d'il y a 3 ans se rappelle moins de toi.
+  // Récence : un contact d'il y a 3 ans se rappelle moins de toi.
   if (jours <= 30) score += 30;
   else if (jours <= 90) score += 22;
   else if (jours <= 180) score += 15;
@@ -105,7 +105,7 @@ function scoreRelation(e) {
   // Volume d'échanges.
   score += Math.min(25, (e.calls || 0) * 4 + Math.min(e.messages || 0, 200) / 10);
 
-  // Réciprocité : il t'a rappelé / il t'a répondu — c'est le signal le plus fort.
+  // Réciprocité : il t'a rappelé / il t'a répondu : c'est le signal le plus fort.
   if (e.incoming > 0 && e.outgoing > 0) score += 15;
 
   // Temps passé au téléphone ensemble.
@@ -120,7 +120,7 @@ function scoreRelation(e) {
 
   // Preuve de négociation : ça vaut plus que du vocabulaire de métier, et ça ne
   // se périme pas. Un « budget validé » d'il y a deux ans est un deal à relancer,
-  // pas un contact froid — sans ce bonus, l'ancienneté l'enterrerait.
+  // pas un contact froid : sans ce bonus, l'ancienneté l'enterrerait.
   const deals = signaux.filter((s) => MOTS_DEAL.some((d) => norm(d) === norm(s)));
   score += Math.min(15, deals.length * 8);
 

@@ -16,7 +16,7 @@ const PROPS = ['firstname', 'lastname', 'email', 'phone', 'company', 'jobtitle',
 
 function headers() {
   const token = getSetting('hubspot_token');
-  if (!token) throw new Error("Token HubSpot manquant — renseigne-le dans Réglages (application privée).");
+  if (!token) throw new Error("Token HubSpot manquant : renseigne-le dans Réglages (application privée).");
   return { Authorization: `Bearer ${token}` };
 }
 
