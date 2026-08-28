@@ -8,6 +8,45 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 
+// Filet de sécurité : Maxime n'est pas développeur. Si quelque chose casse au
+// démarrage, il doit lire une phrase qui lui dit quoi faire, pas une trace Node.
+function expliquerEtSortir(erreur) {
+  const detail = (erreur && erreur.stack) || String(erreur);
+
+  // Cas de très loin le plus fréquent : une première fenêtre de La Chasse est
+  // restée ouverte. Ce n'est pas une panne, il n'y a rien à réparer.
+  if (erreur && erreur.code === 'EADDRINUSE') {
+    console.error(`
+  ℹ️  LA CHASSE TOURNE DÉJÀ
+
+  Une autre fenêtre de La Chasse est encore ouverte sur cet ordinateur :
+  deux ne peuvent pas tourner en même temps.
+
+  Deux solutions, au choix :
+   · Va simplement sur http://localhost:${PORT} : ton app est là, elle fonctionne.
+   · Ou ferme l'autre fenêtre noire, puis relance « demarrer.command ».
+
+  (Rien n'est cassé et aucune donnée n'est perdue.)
+`);
+    process.exit(1);
+  }
+  console.error(`
+  ⚠️  LA CHASSE N'A PAS PU DÉMARRER
+
+  Tes données ne sont pas perdues : elles sont dans le dossier « data ».
+
+  À essayer, dans l'ordre :
+   1. Ferme cette fenêtre et relance en double-cliquant sur « demarrer.command ».
+   2. Vérifie qu'aucune autre fenêtre de La Chasse ne tourne déjà.
+   3. Si ça recommence, copie le texte ci-dessous et envoie-le à Claude.
+
+  ────────────── détail technique ──────────────
+${detail}
+`);
+  process.exit(1);
+}
+process.on('uncaughtException', expliquerEtSortir);
+
 // Garde-fou version : node:sqlite exige Node ≥ 22.13 : message clair plutôt qu'une erreur cryptique.
 {
   const [maj, min] = process.versions.node.split('.').map(Number);
@@ -47,9 +86,12 @@ playbooks.seedSequences(dbApi);
 campaigns.seedReferences();
 
 // Reprise unique des textes enregistrés avant l'interdiction du tiret cadratin.
-const bilanTirets = migrationTirets.migrer(dbApi, playbooks);
-if (!bilanTirets.deja_fait) {
-  const total = Object.values(bilanTirets).reduce((a, b) => a + b, 0);
+// Retouche cosmétique : elle ne doit jamais empêcher l'app de démarrer.
+const bilanTirets = migrationTirets.migrerSansRisque(dbApi, playbooks);
+if (bilanTirets.echec || bilanTirets.incidents) {
+  console.log('✍️  Réécriture des anciens textes remise à plus tard :', bilanTirets.echec || bilanTirets.incidents.join(' | '));
+} else if (!bilanTirets.deja_fait) {
+  const total = Object.values(bilanTirets).filter((v) => typeof v === 'number').reduce((a, b) => a + b, 0);
   if (total) console.log(`✍️  Tirets cadratins retirés des textes enregistrés (${JSON.stringify(bilanTirets)})`);
 }
 

@@ -33,3 +33,9 @@ echo "⚠️  LAISSE CETTE FENÊTRE OUVERTE : c'est elle qui fait tourner l'Auto
 echo "    (Pour arrêter : ferme simplement cette fenêtre.)"
 echo ""
 node --disable-warning=ExperimentalWarning server.js
+CODE=$?
+if [ "$CODE" -ne 0 ]; then
+  echo ""
+  echo "La Chasse s'est arrêtée. Le message ci-dessus explique pourquoi."
+  read -r -p "Appuie sur Entrée pour fermer cette fenêtre… "
+fi

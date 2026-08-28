@@ -120,3 +120,42 @@ test('la migration reprend la base puis se tait', () => {
 });
 
 test.after(() => { try { fs.rmSync(process.env.DATA_DIR, { recursive: true, force: true }); } catch { /* ignore */ } });
+
+test('la migration ne casse jamais le démarrage sur une base incomplète', () => {
+  // Le bug qui a empêché La Chasse de s'ouvrir : une base créée par une version
+  // antérieure n'a pas toutes les colonnes d'aujourd'hui. Une retouche de texte
+  // ne doit jamais valoir un plantage au lancement.
+  const { DatabaseSync } = require('node:sqlite');
+  const { nettoyerTable, migrerSansRisque, DRAPEAU } = require('../src/migrations/tirets');
+  const playbooks = require('../src/playbooks');
+
+  const dossier = fs.mkdtempSync(path.join(os.tmpdir(), 'chasse-vieille-'));
+  const brute = new DatabaseSync(path.join(dossier, 'ancienne.db'));
+  brute.exec("CREATE TABLE campaigns (id INTEGER PRIMARY KEY, name TEXT, angle TEXT)"); // ni post_draft ni notes
+  brute.exec("INSERT INTO campaigns (name, angle) VALUES ('Grande distribution — semaine du 24/08', 'un angle — avec tiret')");
+
+  const faussebd = {
+    all: (sql, ...p) => brute.prepare(sql).all(...p),
+    run: (sql, ...p) => brute.prepare(sql).run(...p),
+    get: (sql, ...p) => brute.prepare(sql).get(...p),
+  };
+
+  // Les colonnes absentes sont ignorées, celles qui existent sont nettoyées.
+  const touchees = nettoyerTable(faussebd, 'campaigns', ['name', 'angle', 'post_draft', 'dm_draft', 'notes']);
+  assert.strictEqual(touchees, 1);
+  const apres = brute.prepare('SELECT name, angle FROM campaigns').get();
+  assert.ok(!apres.name.includes(TIRET) && !apres.angle.includes(TIRET));
+
+  // Une table qui n'existe pas du tout ne fait pas d'histoire non plus.
+  assert.strictEqual(nettoyerTable(faussebd, 'table_qui_nexiste_pas', ['name']), 0);
+  brute.close();
+
+  // Et quoi qu'il arrive, l'enveloppe de démarrage rend la main sans lever.
+  const casse = { all() { throw new Error('base illisible'); }, run() {}, get() {},
+    getSetting: () => '', setSetting: () => {} };
+  const resultat = migrerSansRisque(casse, playbooks);
+  assert.ok(resultat.incidents || resultat.echec, 'l’incident est signalé, pas propagé');
+  assert.notStrictEqual(casse.getSetting(DRAPEAU), '1', 'le drapeau reste baissé pour retenter plus tard');
+
+  fs.rmSync(dossier, { recursive: true, force: true });
+});

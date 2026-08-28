@@ -19,3 +19,9 @@ echo "    Le CODE D'ACCÈS s'affiche juste en dessous : saisis-le sur l'iPad (un
 echo "    ⚠️  LAISSE CETTE FENÊTRE OUVERTE : c'est ce Mac qui fait tourner l'app et l'Autopilote."
 echo ""
 HOST=0.0.0.0 node --disable-warning=ExperimentalWarning server.js
+CODE=$?
+if [ "$CODE" -ne 0 ]; then
+  echo ""
+  echo "La Chasse s'est arrêtée. Le message ci-dessus explique pourquoi."
+  read -r -p "Appuie sur Entrée pour fermer cette fenêtre… "
+fi
