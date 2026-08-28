@@ -14,33 +14,7 @@ const game = require('./../gamification');
 const sig = require('./signaux');
 const appels = require('./appels');
 const whatsapp = require('./whatsapp');
-
-// ---------------------------------------------------------------- fusion des sources
-// Le même humain apparaît dans les appels ET dans WhatsApp : une seule fiche.
-function fusionner(listes) {
-  const parCle = new Map();
-  for (const entree of listes.flat()) {
-    const cle = sig.phoneKey(entree.phone) || entree.key;
-    const existant = parCle.get(cle);
-    if (!existant) {
-      parCle.set(cle, { ...entree, sources: [entree.source], signaux: [...(entree.signaux || [])] });
-      continue;
-    }
-    existant.calls += entree.calls || 0;
-    existant.messages += entree.messages || 0;
-    existant.incoming += entree.incoming || 0;
-    existant.outgoing += entree.outgoing || 0;
-    existant.duration_sec += entree.duration_sec || 0;
-    if (entree.last_at && (!existant.last_at || entree.last_at > existant.last_at)) existant.last_at = entree.last_at;
-    if (entree.first_at && (!existant.first_at || entree.first_at < existant.first_at)) existant.first_at = entree.first_at;
-    if (entree.name && !existant.name) existant.name = entree.name;
-    if (entree.phone && !existant.phone) existant.phone = entree.phone;
-    if (entree.excerpt && !existant.excerpt) existant.excerpt = entree.excerpt;
-    for (const s of entree.signaux || []) if (!existant.signaux.includes(s)) existant.signaux.push(s);
-    if (!existant.sources.includes(entree.source)) existant.sources.push(entree.source);
-  }
-  return [...parCle.values()];
-}
+const { fusionner } = require('./fusion');
 
 // ---------------------------------------------------------------- croisement avec le CRM
 function indexContacts() {
@@ -70,7 +44,13 @@ function scan({ days = 1095, sources = ['appels', 'whatsapp'] } = {}) {
     } catch (e) { avertissements.push({ source: 'whatsapp', message: e.message }); }
   }
 
-  return { ...preparer(fusionner(listes)), avertissements, groupes_ignores: groupesIgnores };
+  // Ce que l'agent du Mac a déposé compte comme une source de plus.
+  const attente = enAttente();
+  if (attente.length) listes.push(attente);
+  // Si tout vient de l'agent, les erreurs de lecture locale n'ont pas de sens ici.
+  const utiles = attente.length && !listes.some((l, i) => i < listes.length - 1 && l.length) ? [] : avertissements;
+
+  return { ...preparer(fusionner(listes)), avertissements: utiles, groupes_ignores: groupesIgnores, depuis_le_mac: attente.length };
 }
 
 // Note de relation, température, et « est-il déjà dans le CRM ? ».
@@ -115,6 +95,35 @@ function scanExportWhatsapp(texte, { days = 3650 } = {}) {
 // Lecture d'un CSV d'appels (export Android).
 function scanCsvAppels(rows, { days = 1095 } = {}) {
   return { ...preparer(fusionner([appels.lireCsv(rows, { days })])), avertissements: [] };
+}
+
+// ---------------------------------------------------------------- le pont avec le Mac
+// Quand l'app est hébergée, elle n'a plus accès aux appels ni à WhatsApp : ils
+// vivent sur le Mac. Un petit agent y tourne et dépose ici ce qu'il a trouvé.
+// Ces relations attendent la validation, exactement comme un scan fait à la main.
+function deposer(entrees) {
+  let recus = 0;
+  for (const e of entrees) {
+    if (!e || (!e.phone && !e.name)) continue;
+    const cle = sig.phoneKey(e.phone) || e.key || String(e.name);
+    dbApi.run(
+      'INSERT INTO repertoire_attente (cle, charge, recu_le) VALUES (?, ?, ?) ' +
+      'ON CONFLICT(cle) DO UPDATE SET charge = excluded.charge, recu_le = excluded.recu_le',
+      String(cle), JSON.stringify(e), dbApi.nowIso()
+    );
+    recus++;
+  }
+  return { recus };
+}
+
+function enAttente() {
+  return all('SELECT charge FROM repertoire_attente')
+    .map((l) => { try { return JSON.parse(l.charge); } catch { return null; } })
+    .filter(Boolean);
+}
+
+function viderAttente(cles) {
+  for (const cle of cles) dbApi.run('DELETE FROM repertoire_attente WHERE cle = ?', String(cle));
 }
 
 // ---------------------------------------------------------------- notes lisibles
@@ -187,6 +196,7 @@ function importer(entrees) {
     // même import ne doivent pas produire deux fiches.
     if (cle && contact) index.set(cle, contact);
   }
+  viderAttente(entrees.map((e) => sig.phoneKey(e && e.phone) || (e && e.key) || ''));
   if (created + merged > 0) {
     game.insertActivity({
       type: 'import',
@@ -210,5 +220,6 @@ function etat() {
 
 module.exports = {
   scan, scanExportWhatsapp, scanCsvAppels, importer, etat,
+  deposer, enAttente, viderAttente,
   fusionner, preparer, resumeRelation, decouperNom, indexContacts,
 };

@@ -677,6 +677,10 @@ route('POST', '/api/mail/scan_import', async (req) => {
 
 // ---- 🗂️ Répertoire chaud (historique d'appels + WhatsApp, lus en local)
 route('GET', '/api/repertoire/etat', async () => repertoire.etat());
+route('POST', '/api/repertoire/pont', async (req) => {
+  const b = await readBody(req);
+  return repertoire.deposer(Array.isArray(b.entries) ? b.entries : []);
+});
 
 // ---- 💾 Sauvegarde : télécharger toute la base en un fichier
 // Vital quand l'app est hébergée : le disque d'un hébergeur peut disparaître
@@ -799,7 +803,18 @@ const server = http.createServer(async (req, res) => {
   // Verrou : tout passe par le code d'accès (cookie 30 jours).
   if (MODE_PROTEGE) {
     const m = String(req.headers.cookie || '').match(/(?:^|;\s*)chasse_acces=([^;]+)/);
-    const authed = !!(m && memeSecret(m[1], JETON));
+    // L'agent qui tourne sur le Mac n'a pas de navigateur, donc pas de cookie :
+    // il présente le mot de passe en en-tête. Uniquement pour déposer ses
+    // trouvailles, jamais pour lire ou modifier quoi que ce soit d'autre.
+    const parCookie = !!(m && memeSecret(m[1], JETON));
+    const routePont = u.pathname === '/api/repertoire/pont';
+    const viaPont = routePont
+      && !bloque(adresseDe(req))
+      && memeSecret(String(req.headers['x-chasse-acces'] || ''), RESEAU_CODE);
+    const authed = parCookie || viaPont;
+    // Un mot de passe présenté en en-tête se force aussi bien qu'un formulaire :
+    // les essais ratés comptent dans la même limite.
+    if (!authed && routePont) noteEchec(adresseDe(req));
     if (!authed) {
       // Derrière un hébergeur, la connexion chiffrée s'arrête à son relais :
       // c'est cet en-tête qui dit si le visiteur est bien en https.

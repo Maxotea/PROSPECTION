@@ -5,3 +5,6 @@ data/
 node_modules/
 *.log
 .DS_Store
+
+# Adresse et mot de passe du pont (jamais sur GitHub)
+pont.config.json

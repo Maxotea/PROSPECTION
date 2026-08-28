@@ -236,6 +236,14 @@ CREATE TABLE IF NOT EXISTS refs (
   verified INTEGER DEFAULT 1,        -- 0 = ⚠️ orthographe / infos à vérifier
   builtin INTEGER DEFAULT 0
 );
+
+-- Relations envoyées par l'agent qui tourne sur le Mac (appels, WhatsApp).
+-- Elles attendent la validation de Maxime : rien n'entre dans le CRM tout seul.
+CREATE TABLE IF NOT EXISTS repertoire_attente (
+  cle TEXT PRIMARY KEY,
+  charge TEXT NOT NULL,               -- la fiche complète, en JSON
+  recu_le TEXT NOT NULL
+);
 `);
 
 // Migrations douces : colonnes ajoutées après coup sur des bases existantes.

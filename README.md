@@ -79,6 +79,32 @@ connexion chiffrée exigée, et pause de 15 minutes après 5 essais ratés.
 **Sauvegarde :** Réglages → **Télécharger ma sauvegarde** rapatrie toute ta base en un
 fichier. Fais-le régulièrement : un hébergeur peut perdre un disque.
 
+### 🌉 Garder WhatsApp et les appels branchés quand l'app est en ligne
+
+**La Chasse ne se connecte pas à WhatsApp, et ne le peut pas.** Il n'existe aucune
+connexion officielle donnant accès à tes conversations personnelles : l'API WhatsApp
+Business sert à écrire à des clients qui ont donné leur accord, elle ne lit pas ton
+historique. Les bibliothèques qui se font passer pour un appareil lié existent, mais
+elles violent les conditions de WhatsApp et font bannir des numéros. Ton numéro est ta
+ligne professionnelle : on n'y touche pas.
+
+Ce que l'app fait à la place : elle **lit les fichiers de l'app WhatsApp installée sur
+ton Mac**, en lecture seule. Pas de connexion, donc rien à maintenir connecté. Il suffit
+que WhatsApp pour Mac reste ouvert et lié à ton téléphone, comme d'habitude.
+
+Quand La Chasse est hébergée en ligne, elle n'a plus accès à ces fichiers. D'où le pont :
+
+1. Double-clique **`pont-mac.command`** sur ton Mac, une seule fois.
+2. Il demande l'adresse de ta Chasse en ligne et ton mot de passe.
+3. Chaque matin à 8h30, ton Mac lit tes appels et tes discussions, et **envoie
+   seulement le résultat** : des compteurs, les mots de travail repérés, un court
+   extrait du dernier message. Jamais tes conversations.
+4. Les relations trouvées t'attendent dans **Imports**, sur n'importe quel appareil.
+   Rien n'entre dans le CRM sans ton clic, comme toujours.
+
+Le Mac doit être allumé à ce moment-là. S'il dort, l'envoi se fait au réveil suivant.
+Pour tout arrêter : double-clique à nouveau sur le même fichier.
+
 ### ♾️ Ne plus jamais avoir à la lancer
 
 Double-clique **une fois** sur `demarrer-toujours.command`. La Chasse démarre alors
