@@ -36,6 +36,49 @@ Pour essayer avec des données fictives : `npm run demo` (et `npm run reset` pou
 
 Toutes tes données (contacts, clés API, historique) restent **sur ta machine**, dans `data/prospection.db` (gitignoré). Le serveur n'écoute que sur `127.0.0.1`.
 
+### ☁️ Mettre La Chasse en ligne (comme Make)
+
+Une adresse à ouvrir de n'importe où, sur n'importe quel appareil, sans rien lancer :
+l'app tourne sur un serveur au lieu de ton Mac.
+
+**Ce que ça change, honnêtement :**
+
+| | Sur ton Mac | En ligne |
+|---|---|---|
+| Accès | l'ordinateur doit être allumé | partout, tout le temps |
+| Autopilote | tourne quand l'app est ouverte | tourne 24 h/24 |
+| Tes données | uniquement chez toi | sur le serveur de l'hébergeur |
+| Coût | rien | quelques euros par mois |
+| Répertoire chaud (appels, WhatsApp) | lecture automatique | seulement par dépôt de fichier |
+
+Le dernier point est le seul vrai renoncement : lire l'historique d'appels et les
+discussions WhatsApp suppose d'être **sur** ton Mac. En ligne, il reste l'import
+d'une conversation exportée en .txt et le CSV d'appels, qui marchent depuis l'iPad.
+
+**Déploiement sur Render** (le dépôt contient déjà `Dockerfile` et `render.yaml`) :
+
+1. Crée un compte sur [render.com](https://render.com) et connecte ton GitHub.
+2. **New → Blueprint**, choisis ce dépôt : Render lit `render.yaml` et prépare tout.
+3. Il demande la variable **CODE_ACCES** : mets un vrai mot de passe, 12 caractères
+   ou plus. C'est lui qui protège ton CRM du reste d'internet.
+4. Valide. Quelques minutes plus tard tu as une adresse en `.onrender.com`.
+5. Ouvre-la sur ton iPad, Safari → Partager → **Sur l'écran d'accueil**. Tu as une icône
+   comme une vraie app.
+
+Le disque persistant (1 Go, facturé [$0.25/Go/mois](https://render.com/pricing)) garde ta
+base entre les mises à jour. Un service gratuit ne peut pas avoir de disque : il faut une
+offre payante, sinon tes contacts disparaissent à chaque redéploiement.
+
+Le `Dockerfile` fonctionne pareil sur Railway, Fly.io ou un petit serveur privé, avec
+les mêmes variables : `CODE_ACCES`, `DATA_DIR=/data`, `EN_LIGNE=1`.
+
+**Sécurité de la version en ligne :** mot de passe obligatoire (l'app refuse de démarrer
+sans, ou avec moins de 8 caractères), cookie qui ne contient jamais le mot de passe,
+connexion chiffrée exigée, et pause de 15 minutes après 5 essais ratés.
+
+**Sauvegarde :** Réglages → **Télécharger ma sauvegarde** rapatrie toute ta base en un
+fichier. Fais-le régulièrement : un hébergeur peut perdre un disque.
+
 ### ♾️ Ne plus jamais avoir à la lancer
 
 Double-clique **une fois** sur `demarrer-toujours.command`. La Chasse démarre alors

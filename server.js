@@ -7,6 +7,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
+const crypto = require('node:crypto');
 
 // Filet de sécurité : Maxime n'est pas développeur. Si quelque chose casse au
 // démarrage, il doit lire une phrase qui lui dit quoi faire, pas une trace Node.
@@ -99,17 +100,87 @@ const PORT = Number(process.env.PORT || 1337);
 const HOST = process.env.HOST || '127.0.0.1';
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
-// Mode RÉSEAU (iPad/téléphone sur le même Wi-Fi) : l'app devient visible par
-// tout le réseau local → on la verrouille derrière un code d'accès à 6 caractères.
+// L'app se verrouille dès qu'elle n'est plus seulement sur cet ordinateur.
+// Deux situations :
+//  · MODE RÉSEAU : visible sur le Wi-Fi du bureau → code court affiché au démarrage ;
+//  · MODE EN LIGNE : hébergée sur internet → mot de passe choisi par Maxime,
+//    donné par la variable CODE_ACCES. Sans elle, l'app REFUSE de s'ouvrir au
+//    public : mieux vaut ne pas démarrer que démarrer grand ouvert.
+const CODE_ENV = String(process.env.CODE_ACCES || '').trim();
+const EN_LIGNE = String(process.env.EN_LIGNE || '') === '1' || !!CODE_ENV;
 const NETWORK_MODE = !['127.0.0.1', 'localhost', '::1'].includes(HOST);
+const MODE_PROTEGE = NETWORK_MODE || EN_LIGNE;
+
 let RESEAU_CODE = '';
-if (NETWORK_MODE) {
-  RESEAU_CODE = dbApi.getSetting('reseau_code');
-  if (!RESEAU_CODE) {
-    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // sans 0/O/1/I/L ambigus
-    RESEAU_CODE = Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-    dbApi.setSetting('reseau_code', RESEAU_CODE);
+if (MODE_PROTEGE) {
+  if (EN_LIGNE) {
+    if (CODE_ENV.length < 8) {
+      console.error(`
+  ⚠️  MOT DE PASSE MANQUANT OU TROP COURT
+
+  La Chasse est configurée pour être accessible en ligne, mais la variable
+  CODE_ACCES est vide ou fait moins de 8 caractères. Elle refuse de démarrer
+  plutôt que de laisser tes contacts et tes clés en accès libre.
+
+  → Dans les réglages de ton hébergeur, ajoute une variable d'environnement
+    CODE_ACCES avec un mot de passe long (12 caractères ou plus), puis relance.
+`);
+      process.exit(1);
+    }
+    RESEAU_CODE = CODE_ENV;
+  } else {
+    RESEAU_CODE = dbApi.getSetting('reseau_code');
+    if (!RESEAU_CODE) {
+      const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // sans 0/O/1/I/L ambigus
+      RESEAU_CODE = Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+      dbApi.setSetting('reseau_code', RESEAU_CODE);
+    }
   }
+}
+
+// Le cookie ne contient JAMAIS le mot de passe lui-même : il porte une empreinte
+// calculée avec un secret propre à cette installation. Elle survit aux
+// redémarrages (inutile de se reconnecter à chaque mise en ligne) sans jamais
+// laisser le mot de passe circuler à chaque requête.
+function jetonSession() {
+  let secret = dbApi.getSetting('session_secret');
+  if (!secret) {
+    secret = crypto.randomBytes(32).toString('hex');
+    dbApi.setSetting('session_secret', secret);
+  }
+  return crypto.createHmac('sha256', secret).update(RESEAU_CODE).digest('hex').slice(0, 32);
+}
+const JETON = MODE_PROTEGE ? jetonSession() : '';
+
+// Comparaison à durée constante : on ne veut pas qu'un attaquant devine le mot
+// de passe caractère par caractère en mesurant le temps de réponse.
+function memeSecret(a, b) {
+  const A = Buffer.from(String(a));
+  const B = Buffer.from(String(b));
+  if (A.length !== B.length) return false;
+  return crypto.timingSafeEqual(A, B);
+}
+
+// Sur internet, une page de connexion sans limite se fait forcer en quelques
+// heures. Cinq essais ratés par adresse, puis quinze minutes de pause.
+const tentatives = new Map();
+const MAX_TENTATIVES = 5;
+const PAUSE_MS = 15 * 60 * 1000;
+function adresseDe(req) {
+  const relais = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  return relais || req.socket.remoteAddress || 'inconnue';
+}
+function bloque(ip) {
+  const t = tentatives.get(ip);
+  if (!t) return 0;
+  if (Date.now() > t.jusqu) { tentatives.delete(ip); return 0; }
+  return t.n >= MAX_TENTATIVES ? Math.ceil((t.jusqu - Date.now()) / 60000) : 0;
+}
+function noteEchec(ip) {
+  const t = tentatives.get(ip) || { n: 0, jusqu: 0 };
+  t.n++;
+  t.jusqu = Date.now() + PAUSE_MS;
+  tentatives.set(ip, t);
 }
 
 function loginPage(wrong) {
@@ -121,9 +192,9 @@ function loginPage(wrong) {
   .err{color:#f87171;font-size:14px}</style></head><body>
   <form class="box" method="POST" action="/acces">
     <div style="font-size:44px">⚔️</div><h2 style="margin:6px 0">La Chasse</h2>
-    <p style="color:#93a0c9;font-size:14px">Entre le code affiché dans la fenêtre noire de ton ordinateur.</p>
-    ${wrong ? '<p class="err">❌ Mauvais code, réessaie.</p>' : ''}
-    <input name="code" maxlength="6" autofocus autocomplete="off" placeholder="••••••">
+    <p style="color:#93a0c9;font-size:14px">${EN_LIGNE ? 'Entre ton mot de passe.' : 'Entre le code affiché dans la fenêtre noire de ton ordinateur.'}</p>
+    ${wrong ? `<p class="err">${wrong === 'bloque' ? '⏳ Trop d’essais. Réessaie dans quelques minutes.' : '❌ Mauvais code, réessaie.'}</p>` : ''}
+    <input name="code" type="${EN_LIGNE ? 'password' : 'text'}" maxlength="${EN_LIGNE ? 128 : 6}" autofocus autocomplete="${EN_LIGNE ? 'current-password' : 'off'}" placeholder="••••••" style="${EN_LIGNE ? 'letter-spacing:4px;font-size:20px;text-transform:none' : ''}">
     <button type="submit">Entrer</button>
   </form></body></html>`;
 }
@@ -606,6 +677,30 @@ route('POST', '/api/mail/scan_import', async (req) => {
 
 // ---- 🗂️ Répertoire chaud (historique d'appels + WhatsApp, lus en local)
 route('GET', '/api/repertoire/etat', async () => repertoire.etat());
+
+// ---- 💾 Sauvegarde : télécharger toute la base en un fichier
+// Vital quand l'app est hébergée : le disque d'un hébergeur peut disparaître
+// avec le service. VACUUM INTO écrit une copie cohérente même pendant que
+// l'Autopilote travaille, contrairement à une simple copie de fichier.
+route('GET', '/api/sauvegarde', async (req, params, query, res) => {
+  const dossier = fs.mkdtempSync(path.join(os.tmpdir(), 'chasse-sauvegarde-'));
+  const copie = path.join(dossier, 'sauvegarde.db');
+  try {
+    dbApi.db.exec(`VACUUM INTO '${copie.replace(/'/g, "''")}'`);
+    const contenu = fs.readFileSync(copie);
+    const jour = dbApi.localDay();
+    res.writeHead(200, {
+      'Content-Type': 'application/octet-stream',
+      'Content-Disposition': `attachment; filename="la-chasse-${jour}.db"`,
+      'Content-Length': contenu.length,
+      'Cache-Control': 'no-store',
+    });
+    res.end(contenu);
+  } finally {
+    try { fs.rmSync(dossier, { recursive: true, force: true }); } catch { /* rien à nettoyer */ }
+  }
+  return null; // la réponse est déjà écrite : le routeur ne doit rien ajouter
+});
 route('POST', '/api/repertoire/scan', async (req) => {
   const b = await readBody(req);
   const sources = Array.isArray(b.sources) && b.sources.length ? b.sources : ['appels', 'whatsapp'];
@@ -693,29 +788,52 @@ const server = http.createServer(async (req, res) => {
   const u = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const query = Object.fromEntries(u.searchParams.entries());
 
-  // Verrou du mode réseau : tout passe par le code d'accès (cookie 30 jours).
-  if (NETWORK_MODE) {
+  // Contrôle de santé de l'hébergeur : il doit répondre sans mot de passe,
+  // sinon l'hébergeur croit l'app en panne et la redémarre en boucle.
+  if (u.pathname === '/sante') {
+    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end('ok');
+    return;
+  }
+
+  // Verrou : tout passe par le code d'accès (cookie 30 jours).
+  if (MODE_PROTEGE) {
     const m = String(req.headers.cookie || '').match(/(?:^|;\s*)chasse_acces=([^;]+)/);
-    const authed = !!(m && m[1] === RESEAU_CODE);
+    const authed = !!(m && memeSecret(m[1], JETON));
     if (!authed) {
+      // Derrière un hébergeur, la connexion chiffrée s'arrête à son relais :
+      // c'est cet en-tête qui dit si le visiteur est bien en https.
+      const https = String(req.headers['x-forwarded-proto'] || '').includes('https');
+      const sur = https || EN_LIGNE ? '; Secure' : '';
+
       if (req.method === 'POST' && u.pathname === '/acces') {
+        const ip = adresseDe(req);
+        const minutes = bloque(ip);
+        if (minutes) {
+          res.writeHead(429, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.end(loginPage('bloque'));
+          return;
+        }
         const chunks = [];
         req.on('data', (c) => chunks.push(c));
         req.on('end', () => {
           const raw = Buffer.concat(chunks).toString('utf8');
           let code = '';
-          try { code = decodeURIComponent((raw.match(/code=([^&]*)/) || [])[1] || '').trim().toUpperCase(); } catch { /* corps illisible */ }
-          if (code === RESEAU_CODE) {
-            res.writeHead(302, { 'Set-Cookie': `chasse_acces=${RESEAU_CODE}; Path=/; Max-Age=2592000; HttpOnly; SameSite=Lax`, Location: '/' });
+          try { code = decodeURIComponent((raw.match(/code=([^&]*)/) || [])[1] || '').replace(/\+/g, ' ').trim(); } catch { /* corps illisible */ }
+          if (!EN_LIGNE) code = code.toUpperCase(); // le code local est en majuscules
+          if (memeSecret(code, RESEAU_CODE)) {
+            tentatives.delete(ip);
+            res.writeHead(302, { 'Set-Cookie': `chasse_acces=${JETON}; Path=/; Max-Age=2592000; HttpOnly; SameSite=Lax${sur}`, Location: '/' });
             res.end();
           } else {
+            noteEchec(ip);
             res.writeHead(401, { 'Content-Type': 'text/html; charset=utf-8' });
             res.end(loginPage(true));
           }
         });
         return;
       }
-      if (u.pathname.startsWith('/api')) { json(res, 401, { error: "Accès verrouillé : ouvre la page d'accueil et saisis le code affiché sur l'ordinateur." }); return; }
+      if (u.pathname.startsWith('/api')) { json(res, 401, { error: EN_LIGNE ? 'Session expirée : recharge la page et saisis ton mot de passe.' : "Accès verrouillé : ouvre la page d'accueil et saisis le code affiché sur l'ordinateur." }); return; }
       res.writeHead(401, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(loginPage(false));
       return;
@@ -770,7 +888,7 @@ if (process.env.NODE_ENV !== 'test') {
 
 server.listen(PORT, HOST, () => {
   let reseau = '';
-  if (NETWORK_MODE) {
+  if (NETWORK_MODE && !EN_LIGNE) {
     const ips = Object.values(os.networkInterfaces()).flat()
       .filter((n) => n && n.family === 'IPv4' && !n.internal)
       .map((n) => n.address);

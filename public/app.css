@@ -86,8 +86,9 @@ button, .btn {
 button:hover, .btn:hover { background: #222a52; border-color: var(--accent); transform: translateY(-1px); }
 button:active { transform: translateY(0) scale(.98); }
 button:disabled { opacity: .45; cursor: not-allowed; transform: none; }
-button.primary { background: linear-gradient(135deg, #7c3aed, #8b5cf6); border-color: #7c3aed; box-shadow: 0 4px 18px rgba(139, 92, 246, .35); }
-button.primary:hover { background: linear-gradient(135deg, #8b5cf6, #a78bfa); }
+button.primary, .btn.primary { background: linear-gradient(135deg, #7c3aed, #8b5cf6); border-color: #7c3aed; box-shadow: 0 4px 18px rgba(139, 92, 246, .35); }
+button.primary:hover, .btn.primary:hover { background: linear-gradient(135deg, #8b5cf6, #a78bfa); }
+a.btn { text-decoration: none; }
 button.gold { background: linear-gradient(135deg, #a16207, #ca8a04); border-color: #a16207; box-shadow: 0 4px 18px rgba(234, 179, 8, .3); }
 button.danger { border-color: #7f1d1d; color: var(--red2); }
 button.danger:hover { background: rgba(220, 38, 38, .15); border-color: var(--red); }

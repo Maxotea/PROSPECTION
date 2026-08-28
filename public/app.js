@@ -2187,8 +2187,13 @@ async function vReglages(view) {
         <p class="muted small">💡 Les boutons de test enregistrent automatiquement tes réglages avant de tester. Démarre avec un cap bas (10-15/jour) puis monte progressivement : c'est la meilleure protection de ta délivrabilité.</p>
       </div>
       <div class="card">
+        <h2>💾 Sauvegarde</h2>
+        <p class="muted small">Télécharge toute ta Chasse dans un seul fichier : contacts, historique, réglages, campagnes. À faire de temps en temps, et surtout si l'app est hébergée en ligne : un hébergeur peut perdre un disque, pas toi.</p>
+        <a class="btn primary" id="s-backup" href="/api/sauvegarde" download>💾 Télécharger ma sauvegarde</a>
+      </div>
+      <div class="card">
         <h2>🔑 Clés API</h2>
-        <p class="muted small">Chaque clé est stockée en local. Les champs affichent « •••• » quand une clé est déjà enregistrée : ne les modifie que pour la remplacer.</p>
+        <p class="muted small">Chaque clé est stockée dans ta base de données, jamais dans le code. Les champs affichent « •••• » quand une clé est déjà enregistrée : ne les modifie que pour la remplacer.</p>
         <label class="field" style="margin-bottom:10px">💶 Pennylane : <a href="https://app.pennylane.com" target="_blank" rel="noopener">app.pennylane.com</a> → Paramètres → API
           <div class="row"><input id="s-pl" type="password" value="${esc(s.pennylane_api_key)}" style="flex:1"><button data-test="pennylane">🔌</button></div>
           <span class="small" id="t-pennylane"></span>

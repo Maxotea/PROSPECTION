@@ -1,0 +1,19 @@
+# Déploiement en un clic sur Render (render.com).
+# Render lit ce fichier et crée le service, le disque et les variables.
+services:
+  - type: web
+    name: la-chasse
+    runtime: docker
+    plan: starter          # un disque persistant demande une offre payante
+    healthCheckPath: /sante
+    disk:
+      name: donnees
+      mountPath: /data     # la base SQLite vit ici, elle survit aux mises à jour
+      sizeGB: 1
+    envVars:
+      - key: DATA_DIR
+        value: /data
+      - key: EN_LIGNE
+        value: "1"
+      - key: CODE_ACCES
+        sync: false        # à saisir dans l'interface de Render, jamais dans le code
