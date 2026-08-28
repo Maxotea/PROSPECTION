@@ -36,6 +36,19 @@ Pour essayer avec des données fictives : `npm run demo` (et `npm run reset` pou
 
 Toutes tes données (contacts, clés API, historique) restent **sur ta machine**, dans `data/prospection.db` (gitignoré). Le serveur n'écoute que sur `127.0.0.1`.
 
+### 🩺 Quand ça ne s'ouvre pas
+
+**« Ce site est inaccessible » / ERR_CONNECTION_REFUSED dans le navigateur** veut dire
+une seule chose : l'app ne tourne pas. Le navigateur n'est qu'une fenêtre ouverte sur
+elle. **La Chasse ne tourne que pendant que la fenêtre noire est ouverte** : si tu la
+fermes (ou si tu redémarres le Mac), l'adresse ne répond plus tant que tu n'as pas
+relancé `demarrer.command`.
+
+Si le relancement ne suffit pas, **double-clique sur `diagnostic.command`**. Il ne
+répare rien et ne touche à aucune donnée : il vérifie Node, les fichiers, ta base, le
+port, essaie de démarrer l'app, et écrit un rapport lisible (une copie est déposée sur
+ton Bureau) à envoyer tel quel.
+
 ### 🔄 Mettre à jour sans perdre tes données
 
 Tes contacts, tes clés API et ton historique vivent dans le dossier **`data/`** : jamais dans le code. Donc pour passer à une nouvelle version :
