@@ -36,6 +36,16 @@ Pour essayer avec des données fictives : `npm run demo` (et `npm run reset` pou
 
 Toutes tes données (contacts, clés API, historique) restent **sur ta machine**, dans `data/prospection.db` (gitignoré). Le serveur n'écoute que sur `127.0.0.1`.
 
+### ♾️ Ne plus jamais avoir à la lancer
+
+Double-clique **une fois** sur `demarrer-toujours.command`. La Chasse démarre alors
+toute seule à chaque ouverture de session, se relance si elle s'arrête, et tourne sans
+fenêtre noire à garder ouverte. C'est aussi ce qui permet à **l'Autopilote d'envoyer tes
+relances toute la journée** : sans ça, il ne tourne que pendant que la fenêtre est ouverte.
+
+Pour revenir en arrière, double-clique à nouveau sur le même fichier : il propose de
+retirer le démarrage automatique.
+
 ### 🩺 Quand ça ne s'ouvre pas
 
 **« Ce site est inaccessible » / ERR_CONNECTION_REFUSED dans le navigateur** veut dire

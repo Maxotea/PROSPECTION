@@ -73,7 +73,20 @@ else
   dire "ℹ️  Aucune Chasse en cours : le port 1337 est libre."
 fi
 
-# 5. Le test qui compte : est-ce que l'app démarre ?
+# 5. Le démarrage automatique est-il en place ?
+PLIST="$HOME/Library/LaunchAgents/com.oteaproduction.lachasse.plist"
+if [ -f "$PLIST" ]; then
+  dire "✅ Démarrage automatique installé : La Chasse se lance seule à l'ouverture de session."
+  if [ -f "$HOME/Library/Logs/la-chasse.log" ]; then
+    dire "   Ses dernières lignes de journal :"
+    while IFS= read -r ligne; do dire "   | $ligne"; done < <(tail -12 "$HOME/Library/Logs/la-chasse.log" 2>/dev/null)
+  fi
+else
+  dire "ℹ️  Pas de démarrage automatique : l'app ne tourne que si une fenêtre noire est ouverte."
+  dire "   → Pour ne plus y penser : double-clique sur demarrer-toujours.command"
+fi
+
+# 6. Le test qui compte : est-ce que l'app démarre ?
 dire ""
 dire "──────────────────────────────────────────────"
 dire "🚀 Test de démarrage (une dizaine de secondes)…"
