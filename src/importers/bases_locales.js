@@ -35,11 +35,33 @@ const CHEMINS_WHATSAPP = [
   path.join(HOME, 'Library/Containers/net.whatsapp.WhatsApp/Data/Library/Application Support/ChatStorage.sqlite'),
 ];
 
-function trouverFichier(chemins) {
+// « Absent » et « interdit » sont deux choses très différentes, et macOS les
+// renvoie de la même manière si on ne regarde pas le code d'erreur. Les
+// confondre revient à dire « WhatsApp n'est pas installé » à quelqu'un qui l'a
+// installé : c'est faux, et ça envoie chercher au mauvais endroit.
+function chercher(chemins) {
+  let refuse = false;
   for (const c of chemins) {
-    try { if (fs.statSync(c).isFile()) return c; } catch { /* absent ou interdit */ }
+    try {
+      if (fs.statSync(c).isFile()) return { chemin: c, etat: 'trouve' };
+    } catch (err) {
+      if (estRefusMacos(err)) refuse = true;
+    }
   }
-  return null;
+  return { chemin: null, etat: refuse ? 'refuse' : 'absent' };
+}
+
+function trouverFichier(chemins) {
+  return chercher(chemins).chemin;
+}
+
+// Le message qui explique vraiment la situation, selon où tourne l'app.
+function expliquerAbsence(etat, quoi, conseilMac) {
+  if (etat === 'refuse') return ERREUR_ACCES;
+  if (process.platform !== 'darwin') {
+    return `La Chasse tourne sur un serveur en ligne, pas sur ton Mac : elle ne peut donc pas lire ${quoi} directement, même s'ils sont bien là. Installe le pont sur ton Mac (double-clic sur pont-mac.command) pour qu'il les envoie chaque matin, ou dépose un fichier ici.`;
+  }
+  return conseilMac;
 }
 
 // macOS refuse l'accès tant que le Terminal n'a pas l'« Accès complet au disque ».
@@ -104,6 +126,6 @@ function texte(v) {
 module.exports = {
   EPOCH_2001, dateCoreData, HOME,
   CHEMINS_APPELS, CHEMINS_WHATSAPP, ERREUR_ACCES,
-  trouverFichier, estRefusMacos, ouvrirLecture, copieTravail,
+  trouverFichier, chercher, expliquerAbsence, estRefusMacos, ouvrirLecture, copieTravail,
   colonnes, choisirColonne, tableExiste, texte,
 };

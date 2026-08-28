@@ -214,7 +214,12 @@ function etat() {
   return {
     appels_disponible: appels.disponible(),
     whatsapp_disponible: whatsapp.disponible(),
+    // 'trouve', 'refuse' (macOS bloque) ou 'absent' : trois situations qui
+    // demandent trois réponses différentes, et qu'il ne faut pas confondre.
+    appels_etat: appels.etatSource(),
+    whatsapp_etat: whatsapp.etatSource(),
     mac: process.platform === 'darwin',
+    en_attente: enAttente().length,
   };
 }
 

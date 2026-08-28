@@ -29,6 +29,10 @@ function disponible() {
   return !!chemin();
 }
 
+function etatSource() {
+  return bl.chercher(bl.CHEMINS_WHATSAPP).etat;
+}
+
 // '33611223344@s.whatsapp.net' → '+33611223344' ; les groupes finissent par '@g.us'.
 function jidVersTelephone(jid) {
   const s = String(jid || '');
@@ -47,11 +51,11 @@ function extrait(texte) {
 
 // ---------------------------------------------------------------- base locale du Mac
 function lireBase({ days = 1095 } = {}) {
-  const src = chemin();
+  const { chemin: src, etat } = bl.chercher(bl.CHEMINS_WHATSAPP);
   if (!src) {
-    throw new Error(
-      "WhatsApp n'est pas installé sur ce Mac (ou ses discussions ne sont pas encore synchronisées). Installe WhatsApp pour Mac et connecte-le à ton téléphone, ou exporte une conversation en .txt et colle-la ici."
-    );
+    throw new Error(bl.expliquerAbsence(etat, 'tes discussions WhatsApp',
+      "WhatsApp pour Mac est introuvable sur cet ordinateur, ou ses discussions ne sont pas encore descendues du téléphone. Ouvre WhatsApp sur le Mac, laisse-le se synchroniser une minute, puis relance le scan. Sinon, exporte une conversation en .txt et dépose-la ici."
+    ));
   }
   const conn = bl.ouvrirLecture(src);
   try {
@@ -256,7 +260,7 @@ function parseExport(texteBrut, { moi = '', days = 3650 } = {}) {
 }
 
 module.exports = {
-  chemin, disponible, lireBase, parseExport, nettoyer,
+  chemin, disponible, etatSource, lireBase, parseExport, nettoyer,
   jidVersTelephone, estGroupe, extrait,
   TABLE_SESSIONS, TABLE_MESSAGES,
 };

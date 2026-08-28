@@ -1986,11 +1986,22 @@ async function vImport(view) {
   api('/repertoire/etat').then((etat) => {
     const el = $('#rep-etat');
     if (!el) return;
-    if (!etat.mac) { el.textContent = 'Lecture automatique réservée au Mac : utilise les plans B ci-dessous.'; return; }
-    const bouts = [];
-    bouts.push(etat.appels_disponible ? '📞 appels détectés' : '📞 aucun historique');
-    bouts.push(etat.whatsapp_disponible ? '💬 WhatsApp détecté' : '💬 WhatsApp absent');
-    el.textContent = bouts.join(' · ');
+    const attente = etat.en_attente ? ` · 🌉 ${etat.en_attente} relation(s) envoyées par ton Mac` : '';
+
+    if (!etat.mac) {
+      el.innerHTML = `Cette Chasse tourne <b>en ligne</b>, pas sur ton Mac : elle ne peut pas lire tes appels ni WhatsApp d'ici, même s'ils sont bien installés. Installe le pont sur ton Mac (pont-mac.command) ou dépose un fichier ci-dessous.${attente}`;
+      return;
+    }
+    // Sur le Mac : « bloqué par macOS » et « pas là » ne se disent pas pareil.
+    const dire = (etatSource, ok, rien) => (etatSource === 'refuse' ? '🔒 bloqué par macOS' : etatSource === 'trouve' ? ok : rien);
+    const bouts = [
+      dire(etat.appels_etat, '📞 appels détectés', '📞 aucun historique'),
+      dire(etat.whatsapp_etat, '💬 WhatsApp détecté', '💬 WhatsApp absent'),
+    ];
+    el.innerHTML = esc(bouts.join(' · ')) + attente;
+    if (etat.appels_etat === 'refuse' || etat.whatsapp_etat === 'refuse') {
+      repAvertir([{ source: 'appels', message: "macOS bloque la lecture, ce n'est pas que tes apps sont absentes. Réglages Système → Confidentialité et sécurité → Accès complet au disque → active « Terminal », puis relance La Chasse." }]);
+    }
   }).catch(() => {});
 
   $('#rep-scan').onclick = async () => {

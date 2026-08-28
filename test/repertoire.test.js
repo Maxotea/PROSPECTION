@@ -320,3 +320,35 @@ test('importe dans le CRM, reconnaît un contact déjà présent et alimente l�
   assert.strictEqual(karim.origin, 'appels');
   assert.strictEqual(karim.stage, 'a_contacter', 'il atterrit directement dans la file de chasse');
 });
+
+test('un accès refusé par macOS ne se dit jamais « pas installé »', () => {
+  // Le bug signalé par Maxime : WhatsApp est bien là, mais macOS interdit la
+  // lecture du dossier. statSync échoue dans les deux cas, et confondre les deux
+  // revient à envoyer quelqu'un réinstaller une app qu'il a déjà.
+  const bl = require('../src/importers/bases_locales');
+
+  const refus = Object.assign(new Error('operation not permitted'), { code: 'EPERM' });
+  assert.ok(bl.estRefusMacos(refus));
+  assert.ok(!bl.estRefusMacos(Object.assign(new Error('no such file'), { code: 'ENOENT' })));
+
+  // Fichier vraiment absent : état « absent ».
+  const vide = path.join(DATA_DIR, 'nulle-part', 'rien.sqlite');
+  assert.deepStrictEqual(bl.chercher([vide]), { chemin: null, etat: 'absent' });
+
+  // Fichier bien présent : état « trouve ».
+  const present = path.join(DATA_DIR, 'present.sqlite');
+  fs.writeFileSync(present, 'x');
+  assert.deepStrictEqual(bl.chercher([present]), { chemin: present, etat: 'trouve' });
+
+  // Et les messages disent trois choses différentes.
+  const conseilMac = 'conseil pour le Mac';
+  assert.match(bl.expliquerAbsence('refuse', 'tes discussions', conseilMac), /Accès complet au disque/);
+  const horsMac = bl.expliquerAbsence('absent', 'tes discussions WhatsApp', conseilMac);
+  if (process.platform === 'darwin') {
+    assert.strictEqual(horsMac, conseilMac);
+  } else {
+    assert.match(horsMac, /tourne sur un serveur en ligne/);
+    assert.match(horsMac, /pont-mac\.command/);
+    assert.ok(!/n'est pas installé/.test(horsMac), 'on n’accuse pas l’app d’être absente');
+  }
+});

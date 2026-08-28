@@ -20,6 +20,10 @@ function chemin() {
   return bl.trouverFichier(bl.CHEMINS_APPELS);
 }
 
+function etatSource() {
+  return bl.chercher(bl.CHEMINS_APPELS).etat;
+}
+
 function disponible() {
   return !!chemin();
 }
@@ -68,11 +72,11 @@ function agreger(lignes, { days = 1095 } = {}) {
 // Lecture de la base macOS. Le schéma varie selon la version du système :
 // on lit les colonnes réellement présentes avant d'écrire la requête.
 function lireBase({ days = 1095 } = {}) {
-  const src = chemin();
+  const { chemin: src, etat } = bl.chercher(bl.CHEMINS_APPELS);
   if (!src) {
-    throw new Error(
+    throw new Error(bl.expliquerAbsence(etat, 'ton historique d’appels',
       "Historique d'appels introuvable sur ce Mac. Sur l'iPhone : Réglages → Téléphone → « Appels sur d'autres appareils » → active ton Mac, passe un appel, puis relance le scan. Sinon, importe un CSV d'appels."
-    );
+    ));
   }
   const conn = bl.ouvrirLecture(src);
   try {
@@ -140,4 +144,4 @@ function lireCsv(rows, { days = 1095 } = {}) {
   return agreger(lignes, { days });
 }
 
-module.exports = { chemin, disponible, lireBase, lireCsv, agreger, TABLE_APPELS, DUREE_MINIMALE };
+module.exports = { chemin, disponible, etatSource, lireBase, lireCsv, agreger, TABLE_APPELS, DUREE_MINIMALE };
