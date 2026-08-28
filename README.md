@@ -249,6 +249,14 @@ Le gisement le plus rentable n'est pas sur LinkedIn : ce sont les gens que tu as
 
 ---
 
+## 📱 Sur téléphone, iPad et Mac
+
+La même app s'adapte à l'écran. Sur téléphone, la navigation passe **en bas**, à portée
+de pouce, avec des libellés courts. Les textes grandissent, les champs passent à 16 px
+(en dessous, Safari zoome tout seul dès qu'on tape), et les boutons font au moins 44 px
+de haut. Les tableaux et le kanban défilent dans leur propre cadre : la page, elle, ne
+part jamais de travers.
+
 ## 🎮 La boucle de jeu
 
 1. **🏰 Quartier général** : le boss (« 5 factures ») en barre de progression, tes 3 quêtes du jour, ta streak 🔥, tes KPI et ton XP de la semaine.

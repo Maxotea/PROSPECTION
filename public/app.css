@@ -32,17 +32,18 @@ body {
   background-image: radial-gradient(1200px 600px at 80% -10%, rgba(139, 92, 246, .12), transparent 60%),
                     radial-gradient(900px 500px at -10% 110%, rgba(234, 179, 8, .06), transparent 60%);
   color: var(--text);
-  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-text-size-adjust: 100%;
 }
 a { color: var(--accent2); text-decoration: none; }
 h1, h2, h3 { margin: 0 0 .4em; line-height: 1.2; }
 h1 { font-size: 26px; letter-spacing: .5px; }
-h2 { font-size: 18px; }
-h3 { font-size: 15px; }
+h2 { font-size: 19px; }
+h3 { font-size: 16px; }
 p { margin: .3em 0; }
 .muted { color: var(--muted); }
 .faint { color: var(--faint); }
-.small { font-size: 12.5px; }
+.small { font-size: 13.5px; }
 .hidden { display: none !important; }
 .mono { font-variant-numeric: tabular-nums; }
 
@@ -264,6 +265,7 @@ table.list tr.rowc:hover { background: rgba(139, 92, 246, .07); }
 
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
+/* ---------------------------------------------------------------- tablette */
 @media (max-width: 900px) {
   #sidebar { width: 64px; }
   #sidebar .logo span, #sidebar a span { display: none; }
@@ -271,4 +273,96 @@ table.list tr.rowc:hover { background: rgba(139, 92, 246, .07); }
   #side-level { display: none; }
   #view { padding: 18px 14px 70px; }
   .form-grid { grid-template-columns: 1fr; }
+  .grid[style*="1fr 1fr"] { grid-template-columns: 1fr !important; }
+}
+
+/* ---------------------------------------------------------------- téléphone
+   Sur un écran de 6 pouces, une barre latérale mange la largeur et les textes
+   deviennent illisibles. La navigation passe donc EN BAS, à portée de pouce,
+   et tout le corps de texte grandit. */
+@media (max-width: 700px) {
+  body { font-size: 17px; }
+
+  #app { flex-direction: column; }
+
+  #sidebar {
+    position: fixed; bottom: 0; left: 0; right: 0; top: auto;
+    width: 100%; height: auto;
+    flex-direction: row; justify-content: space-around; align-items: center;
+    gap: 0; padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+    border-right: 0; border-top: 1px solid var(--border2);
+    background: rgba(14, 18, 34, .96);
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+    overflow-x: auto; scrollbar-width: none;
+    z-index: 30;
+  }
+  #sidebar::-webkit-scrollbar { display: none; }
+  #sidebar .logo, #sidebar .sidebar-footer { display: none; }
+  #sidebar a {
+    flex-direction: column; gap: 3px; justify-content: center;
+    font-size: 21px; line-height: 1; padding: 7px 9px; border-radius: 12px;
+    flex: 0 0 auto;
+  }
+  /* Le libellé long se chevauche à cette taille : on affiche la version courte,
+     sur une seule ligne. La barre défile si tout ne tient pas. */
+  #sidebar a span { display: none; }
+  #sidebar a::after {
+    content: attr(data-court);
+    font-size: 10.5px; font-weight: 700; letter-spacing: .2px;
+    white-space: nowrap; line-height: 1.1;
+  }
+  #sidebar a.active { box-shadow: none; background: rgba(139, 92, 246, .25); }
+
+  /* La barre du bas ne doit jamais cacher le dernier bouton d'une page.
+     Et surtout : on retire « margin: 0 auto ». Sur un conteneur en colonne,
+     une marge automatique annule l'étirement et la vue se dimensionne sur son
+     contenu le plus large (un tableau, un kanban), poussant TOUTE la page hors
+     de l'écran. Bloquée à la largeur de l'écran, ce sont les tableaux qui
+     défilent dans leur cadre, comme prévu. */
+  #view {
+    padding: 16px 14px calc(96px + env(safe-area-inset-bottom));
+    margin: 0; width: 100%; max-width: 100%; min-width: 0;
+  }
+
+  /* Sur 390 px de large, toute grille à colonnes se rabat sur une seule.
+     Viser chaque cas au style près (1fr 1fr, 1.4fr 1fr…) laisse toujours
+     passer un oubli : on tranche pour toutes. */
+  #view .grid { grid-template-columns: 1fr !important; }
+  .view-header, .view-header.spread { flex-wrap: wrap; gap: 10px; }
+  .view-header h1 { width: 100%; }
+
+  h1 { font-size: 23px; }
+  h2 { font-size: 18px; }
+  .small { font-size: 14px; }
+  .chip { font-size: 13px; padding: 4px 11px; }
+  label.field { font-size: 14px; }
+
+  /* Sous 16 px, Safari zoome tout seul dès qu'on touche un champ. */
+  input, select, textarea { font-size: 16px; padding: 11px 12px; }
+
+  /* Doigt, pas souris : des cibles qu'on touche sans viser. */
+  button, .btn { padding: 11px 15px; min-height: 44px; }
+  button.big { width: 100%; justify-content: center; font-size: 17px; }
+
+  .kpi .n { font-size: 24px; }
+  .boss-count { font-size: 34px; }
+  .streak-flame { font-size: 28px; }
+
+  /* Tout ce qui est large glisse dans son propre cadre, jamais la page. */
+  .table-scroll { -webkit-overflow-scrolling: touch; }
+  table.list { font-size: 14.5px; }
+  table.list th, table.list td { padding: 11px 8px; }
+  .kanban { scroll-snap-type: x proximity; }
+  .kanban .kcol { scroll-snap-align: start; }
+
+  /* Fiche contact et fenêtres : plein écran, c'est plus lisible qu'un cadre. */
+  #drawer { width: 100%; max-width: 100%; }
+  #modal-root .modal-backdrop { padding: 12px; align-items: flex-end; }
+  .modal { padding: 20px 18px; max-height: 88vh; border-radius: 18px; }
+}
+
+/* Sur les tout petits écrans, la navigation garde ses libellés mais serre. */
+@media (max-width: 380px) {
+  #sidebar a { min-width: 44px; padding: 6px 6px; font-size: 20px; }
+  #sidebar a span { font-size: 9.5px; }
 }

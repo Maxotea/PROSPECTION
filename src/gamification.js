@@ -369,8 +369,17 @@ function huntQueue(limit = 15) {
 // (discussions chaudes et devis d'abord), pas encore appelés aujourd'hui.
 function callQueue(limit = 10) {
   const today = localDay();
+  // Un appel programme la relance suivante (J+2 à J+14 selon la typologie).
+  // Tant que cette date n'est pas arrivée, la personne ne doit PAS revenir dans
+  // la liste : sinon on rappelle le lendemain quelqu'un qu'on a eu hier, ce qui
+  // fait perdre du temps et passe pour du harcèlement. Même règle que le Mode
+  // Chasse, pour que les deux listes racontent la même histoire.
   const called = new Set(all(`SELECT DISTINCT contact_id FROM activities WHERE type = 'appel' AND day = ?`, today).map((r) => r.contact_id));
-  const rows = all(`SELECT * FROM contacts WHERE archived = 0 AND phone != '' AND stage NOT IN ('gagne','perdu')`);
+  const rows = all(
+    `SELECT * FROM contacts WHERE archived = 0 AND phone != '' AND stage NOT IN ('gagne','perdu')
+     AND ((next_action_at != '' AND next_action_at <= ?) OR (next_action_at = '' AND stage = 'a_contacter'))`,
+    today
+  );
   const scored = rows
     .filter((c) => !called.has(c.id))
     .map((c) => ({ ...c, score: contactScore(c) + (['en_discussion', 'rdv', 'devis_envoye', 'negociation'].includes(c.stage) ? 15 : 0) }));
