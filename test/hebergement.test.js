@@ -141,3 +141,83 @@ test('en ligne sans mot de passe, l’app refuse de démarrer', async () => {
   );
   fs.rmSync(bac, { recursive: true, force: true });
 });
+
+test('le déménagement : une sauvegarde se restaure sur une autre Chasse', async () => {
+  // Le parcours réel de Maxime : sa Chasse tourne sur son Mac, il télécharge sa
+  // sauvegarde, et la remet dans la version en ligne qui démarre vide.
+  const jetonDe = async (base, mdp) => {
+    const r = await fetch(base + '/acces', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: 'code=' + encodeURIComponent(mdp),
+      redirect: 'manual',
+    });
+    return (r.headers.get('set-cookie') || '').split(';')[0];
+  };
+
+  // La Chasse « du Mac », avec un contact dedans.
+  const source = fs.mkdtempSync(path.join(os.tmpdir(), 'chasse-source-'));
+  const portSource = PORT + 5;
+  const baseSource = `http://127.0.0.1:${portSource}`;
+  const srv = await demarrer({ DATA_DIR: source, PORT: String(portSource), HOST: '127.0.0.1', CODE_ACCES: MOT_DE_PASSE });
+  const jSource = await jetonDe(baseSource, MOT_DE_PASSE);
+  await fetch(baseSource + '/api/contacts', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', cookie: jSource },
+    body: JSON.stringify({ first_name: 'Karim', last_name: 'Slimani', company: 'K-Fit Coaching' }),
+  });
+  const sauvegarde = Buffer.from(await (await fetch(baseSource + '/api/sauvegarde', { headers: { cookie: jSource } })).arrayBuffer());
+  srv.kill();
+  fs.rmSync(source, { recursive: true, force: true });
+
+  // La Chasse « en ligne » démarre vide, puis reçoit la sauvegarde.
+  const jeton = await jetonDe(BASE, MOT_DE_PASSE);
+  const avant = await (await fetch(BASE + '/api/contacts', { headers: { cookie: jeton } })).json();
+
+  const r = await fetch(BASE + '/api/restauration', {
+    method: 'POST',
+    headers: { 'content-type': 'application/octet-stream', cookie: jeton },
+    body: sauvegarde,
+  });
+  assert.strictEqual(r.status, 200);
+  assert.match((await r.json()).message, /redémarre/);
+
+  // Elle se coupe pour repartir sur la nouvelle base : c'est le comportement voulu.
+  await new Promise((res) => setTimeout(res, 1500));
+  assert.notStrictEqual(serveur.exitCode, null, 'l’app se relance pour charger la sauvegarde');
+
+  // L'ancienne base a bien été mise de côté avant d'être remplacée.
+  assert.ok(fs.existsSync(path.join(dossier, 'prospection.db.avant-restauration')), 'filet de sécurité en place');
+
+  // Et la base en place est maintenant celle de la sauvegarde.
+  const { DatabaseSync } = require('node:sqlite');
+  const db = new DatabaseSync(path.join(dossier, 'prospection.db'), { readOnly: true });
+  const noms = db.prepare('SELECT last_name FROM contacts').all().map((c) => c.last_name);
+  db.close();
+  assert.ok(noms.includes('Slimani'), `contact déménagé (avant : ${avant.total} contact(s), après : ${noms.join(', ')})`);
+});
+
+test('un fichier qui n’est pas une sauvegarde est refusé', async () => {
+  // Le serveur précédent s'est arrêté volontairement : on en relance un propre.
+  const bac = fs.mkdtempSync(path.join(os.tmpdir(), 'chasse-refus-'));
+  const port = PORT + 6;
+  const srv = await demarrer({ DATA_DIR: bac, PORT: String(port), HOST: '127.0.0.1', CODE_ACCES: MOT_DE_PASSE });
+  const r0 = await fetch(`http://127.0.0.1:${port}/acces`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: 'code=' + encodeURIComponent(MOT_DE_PASSE),
+    redirect: 'manual',
+  });
+  const jeton = (r0.headers.get('set-cookie') || '').split(';')[0];
+
+  const r = await fetch(`http://127.0.0.1:${port}/api/restauration`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/octet-stream', cookie: jeton },
+    body: Buffer.alloc(4096, 0x41), // 4 Ko de « A », tout sauf une base
+  });
+  assert.strictEqual(r.status, 400);
+  assert.match((await r.json()).error, /n'est pas une sauvegarde/);
+
+  srv.kill();
+  fs.rmSync(bac, { recursive: true, force: true });
+});

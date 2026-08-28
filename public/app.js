@@ -2190,6 +2190,9 @@ async function vReglages(view) {
         <h2>💾 Sauvegarde</h2>
         <p class="muted small">Télécharge toute ta Chasse dans un seul fichier : contacts, historique, réglages, campagnes. À faire de temps en temps, et surtout si l'app est hébergée en ligne : un hébergeur peut perdre un disque, pas toi.</p>
         <a class="btn primary" id="s-backup" href="/api/sauvegarde" download>💾 Télécharger ma sauvegarde</a>
+        <p class="muted small" style="margin-top:14px"><b>Remettre une sauvegarde</b> : c'est ainsi qu'on déménage La Chasse d'un ordinateur vers la version en ligne. L'app remplace tout par le fichier et redémarre. L'ancienne base est mise de côté avant, au cas où.</p>
+        <input type="file" id="s-restore-file" accept=".db">
+        <div id="s-restore-msg" class="small muted" style="margin-top:6px"></div>
       </div>
       <div class="card">
         <h2>🔑 Clés API</h2>
@@ -2217,6 +2220,39 @@ async function vReglages(view) {
       </div>
     </div>
     <div class="row" style="margin-top:16px"><button class="primary big" id="s-save">💾 Enregistrer les réglages</button><span id="s-status" class="muted"></span></div>`;
+
+  const restoreInput = $('#s-restore-file');
+  if (restoreInput) restoreInput.onchange = async (e) => {
+    const fichier = e.target.files[0];
+    const msg = $('#s-restore-msg');
+    if (!fichier) return;
+    if (!confirm(`Remplacer TOUTES les données actuelles par « ${fichier.name} » ?\n\nL'app va redémarrer. L'ancienne base est conservée à côté au cas où.`)) {
+      e.target.value = '';
+      return;
+    }
+    msg.textContent = '⏳ Restauration en cours…';
+    try {
+      const r = await fetch('/api/restauration', {
+        method: 'POST',
+        headers: { 'content-type': 'application/octet-stream' },
+        body: await fichier.arrayBuffer(),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Restauration impossible');
+      msg.textContent = '✅ ' + data.message;
+      // L'app redémarre : on attend qu'elle réponde de nouveau avant de recharger.
+      (async () => {
+        for (let i = 0; i < 40; i++) {
+          await new Promise((res) => setTimeout(res, 1000));
+          try { if ((await fetch('/sante', { cache: 'no-store' })).ok) { location.reload(); return; } } catch { /* pas encore repartie */ }
+        }
+        msg.textContent = '✅ Sauvegarde restaurée. Recharge la page toi-même dans un instant.';
+      })();
+    } catch (err) {
+      msg.innerHTML = '<span style="color:var(--red2)">❌ ' + esc(err.message) + '</span>';
+      e.target.value = '';
+    }
+  };
 
   const saveReglages = async () => {
     await api('/settings', { method: 'PUT', body: {

@@ -76,8 +76,19 @@ les mêmes variables : `CODE_ACCES`, `DATA_DIR=/data`, `EN_LIGNE=1`.
 sans, ou avec moins de 8 caractères), cookie qui ne contient jamais le mot de passe,
 connexion chiffrée exigée, et pause de 15 minutes après 5 essais ratés.
 
-**Sauvegarde :** Réglages → **Télécharger ma sauvegarde** rapatrie toute ta base en un
-fichier. Fais-le régulièrement : un hébergeur peut perdre un disque.
+**Déménager tes données du Mac vers la version en ligne :**
+
+1. Sur ta Chasse actuelle : Réglages → **Télécharger ma sauvegarde**.
+2. Sur la version en ligne : Réglages → **Remettre une sauvegarde**, choisis le fichier.
+3. Elle remplace tout et redémarre, la page se recharge seule. Tes contacts, ton
+   historique, ton XP et tes réglages sont là.
+
+L'ancienne base est mise de côté (`prospection.db.avant-restauration`) avant d'être
+remplacée, et un fichier qui n'est pas une sauvegarde de La Chasse est refusé sans rien
+toucher.
+
+**Sauvegarde régulière :** le même bouton, de temps en temps. Un hébergeur peut perdre
+un disque, pas toi.
 
 ### 🌉 Garder WhatsApp et les appels branchés quand l'app est en ligne
 

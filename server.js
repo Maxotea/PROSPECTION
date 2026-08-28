@@ -206,6 +206,20 @@ function json(res, status, data) {
   res.end(body);
 }
 
+function readRaw(req, limit = 200 * 1024 * 1024) {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    const chunks = [];
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > limit) { reject(new Error('Fichier trop volumineux')); req.destroy(); return; }
+      chunks.push(c);
+    });
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+}
+
 function readBody(req, limit = 20 * 1024 * 1024) {
   return new Promise((resolve, reject) => {
     let size = 0;
@@ -704,6 +718,52 @@ route('GET', '/api/sauvegarde', async (req, params, query, res) => {
     try { fs.rmSync(dossier, { recursive: true, force: true }); } catch { /* rien à nettoyer */ }
   }
   return null; // la réponse est déjà écrite : le routeur ne doit rien ajouter
+});
+
+// ---- ♻️ Restauration : remettre une sauvegarde en place
+// Le chemin de migration entre le Mac et la version hébergée. On vérifie que le
+// fichier est bien une Chasse avant de toucher à quoi que ce soit, et l'ancienne
+// base est mise de côté : une restauration ratée ne doit pas coûter les contacts.
+route('POST', '/api/restauration', async (req) => {
+  const contenu = await readRaw(req);
+  if (contenu.length < 1024) throw httpError(400, 'Fichier vide ou trop petit pour être une sauvegarde.');
+
+  const dossier = fs.mkdtempSync(path.join(os.tmpdir(), 'chasse-restauration-'));
+  const candidat = path.join(dossier, 'candidate.db');
+  fs.writeFileSync(candidat, contenu);
+
+  try {
+    const { DatabaseSync } = require('node:sqlite');
+    let tables = [];
+    try {
+      const essai = new DatabaseSync(candidat, { readOnly: true });
+      tables = essai.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((t) => t.name);
+      essai.close();
+    } catch {
+      throw httpError(400, "Ce fichier n'est pas une sauvegarde de La Chasse. Reprends le fichier téléchargé depuis Réglages.");
+    }
+    for (const attendue of ['contacts', 'settings', 'templates']) {
+      if (!tables.includes(attendue)) {
+        throw httpError(400, "Ce fichier n'est pas une sauvegarde de La Chasse (il lui manque des tables).");
+      }
+    }
+
+    // Filet : on garde l'ancienne base à côté avant de la remplacer.
+    const secours = dbApi.DB_PATH + '.avant-restauration';
+    try { fs.copyFileSync(dbApi.DB_PATH, secours); } catch { /* première mise en ligne, rien à sauver */ }
+
+    fs.copyFileSync(candidat, dbApi.DB_PATH);
+    for (const suffixe of ['-wal', '-shm']) {
+      try { fs.rmSync(dbApi.DB_PATH + suffixe, { force: true }); } catch { /* rien à nettoyer */ }
+    }
+
+    // L'app tient sa base ouverte depuis son démarrage : elle doit repartir pour
+    // lire la nouvelle. L'hébergeur (ou le démarrage automatique) la relance seul.
+    setTimeout(() => process.exit(1), 400);
+    return { ok: true, message: 'Sauvegarde restaurée. La Chasse redémarre, recharge la page dans quelques secondes.' };
+  } finally {
+    try { fs.rmSync(dossier, { recursive: true, force: true }); } catch { /* rien à nettoyer */ }
+  }
 });
 route('POST', '/api/repertoire/scan', async (req) => {
   const b = await readBody(req);
