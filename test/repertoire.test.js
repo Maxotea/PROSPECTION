@@ -352,3 +352,27 @@ test('un accès refusé par macOS ne se dit jamais « pas installé »', () => {
     assert.ok(!/n'est pas installé/.test(horsMac), 'on n’accuse pas l’app d’être absente');
   }
 });
+
+test('une fiche au nom d’une société seule ne se duplique pas', () => {
+  // Prospection par compte : on crée « Sage France » avant de connaître
+  // l'interlocuteur. Réimporter la même liste ne doit pas créer un doublon.
+  const dbApi = require('../src/db');
+  dbApi.run("DELETE FROM contacts");
+
+  const a = dbApi.upsertContact({ company: 'Sage France', city: 'Puteaux', notes: 'Tour Hekla' });
+  assert.ok(a.created);
+  const b = dbApi.upsertContact({ company: 'sage france', icebreaker: 'Vous venez de vous installer dans Hekla.' });
+  assert.ok(!b.created, 'la même société est reconnue, casse indifférente');
+  assert.strictEqual(b.contact.id, a.contact.id);
+  assert.strictEqual(b.contact.icebreaker, 'Vous venez de vous installer dans Hekla.', 'les champs vides se remplissent');
+
+  // Mais une PERSONNE de cette société reste une fiche à part.
+  const c = dbApi.upsertContact({ first_name: 'Gregory', last_name: 'Desmot', company: 'Sage France' });
+  assert.ok(c.created, 'un décideur nommé ne fusionne pas avec la fiche société');
+  assert.notStrictEqual(c.contact.id, a.contact.id);
+
+  // Et deux personnes différentes de la même boîte restent distinctes.
+  const d = dbApi.upsertContact({ first_name: 'Sandrine', last_name: 'Perrien', company: 'Sage France' });
+  assert.ok(d.created);
+  assert.strictEqual(dbApi.all("SELECT id FROM contacts WHERE lower(company) = 'sage france'").length, 3);
+});

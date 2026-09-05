@@ -73,6 +73,9 @@ const FIELD_PATTERNS = {
   city: [/^city$/i, /^ville$/i, /^location$/i, /^localisation$/i],
   country: [/^country$/i, /^pays$/i],
   notes: [/^notes?$/i, /^commentaires?$/i],
+  icebreaker: [/^accroche$/i, /^icebreaker$/i, /^ice[ _-]?breaker$/i],
+  next_action: [/^prochaine[ _-]?action$/i, /^next[ _-]?action$/i, /^t[âa]che$/i],
+  next_action_at: [/^date[ _-]?(de[ _-]?)?prochaine[ _-]?action$/i, /^next[ _-]?action[ _-]?(at|date)$/i, /^[ée]ch[ée]ance$/i],
 };
 
 function autoMap(headers) {

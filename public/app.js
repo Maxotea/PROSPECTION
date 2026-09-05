@@ -2054,6 +2054,7 @@ function renderCsvMap(view) {
     ['first_name', 'Prénom'], ['last_name', 'Nom'], ['email', 'Email'], ['phone', 'Téléphone'],
     ['company', 'Entreprise'], ['job_title', 'Poste'], ['linkedin_url', 'URL LinkedIn'],
     ['domain', 'Site web'], ['city', 'Ville'], ['notes', 'Notes'],
+    ['icebreaker', '💎 Accroche'], ['next_action', '📆 Prochaine action'], ['next_action_at', '📆 Date de prochaine action'],
   ];
   const d = csvData;
   $('#csv-map').innerHTML = `

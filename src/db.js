@@ -427,6 +427,16 @@ function findDuplicate(data) {
     );
     if (r) return r;
   }
+  // Fiche au nom d'une SOCIÉTÉ seule, avant d'avoir identifié un interlocuteur.
+  // On ne la rapproche que d'une autre fiche sans personne nommée : deux
+  // personnes différentes de la même boîte ne doivent jamais fusionner.
+  if (!fn && !ln && co) {
+    const r = get(
+      `SELECT * FROM contacts WHERE lower(company) = ? AND first_name = '' AND last_name = ''`,
+      co
+    );
+    if (r) return r;
+  }
   return null;
 }
 
