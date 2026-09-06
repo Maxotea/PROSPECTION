@@ -272,8 +272,10 @@ route('GET', '/api/contacts', async (req, params, query) => {
   const args = [];
   if (query.archived === '1') where.push('archived = 1'); else where.push('archived = 0');
   if (query.search) {
-    where.push(`(first_name LIKE ? OR last_name LIKE ? OR company LIKE ? OR email LIKE ?)`);
-    const s = `%${query.search}%`;
+    // « % » et « _ » sont des jokers pour LIKE : tapés dans la recherche, ils
+    // doivent chercher ces caractères, pas tout renvoyer.
+    where.push(`(first_name LIKE ? ESCAPE '\\' OR last_name LIKE ? ESCAPE '\\' OR company LIKE ? ESCAPE '\\' OR email LIKE ? ESCAPE '\\')`);
+    const s = `%${String(query.search).replace(/[\\%_]/g, (c) => '\\' + c)}%`;
     args.push(s, s, s, s);
   }
   if (query.segment) { where.push('segment = ?'); args.push(query.segment); }
@@ -848,9 +850,34 @@ route('POST', '/api/demo', async () => seedDemo(false));
 // ---------------------------------------------------------------- serveur
 function httpError(status, message) { const e = new Error(message); e.httpStatus = status; return e; }
 
+// Ce que le navigateur a le droit de charger dans La Chasse : ses propres
+// fichiers, et rien d'autre. Un script glissé dans une note ou un nom de
+// contact ne peut alors ni s'exécuter ni appeler l'extérieur, même si un
+// échappement venait à manquer un jour. Les styles en ligne restent permis :
+// l'interface en est faite.
+const ENTETES_SECURITE = {
+  'Content-Security-Policy': [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data:",
+    "connect-src 'self'",
+    "font-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join('; '),
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Referrer-Policy': 'no-referrer',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+};
+
 const server = http.createServer(async (req, res) => {
   const u = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const query = Object.fromEntries(u.searchParams.entries());
+  for (const [nom, valeur] of Object.entries(ENTETES_SECURITE)) res.setHeader(nom, valeur);
 
   // Contrôle de santé de l'hébergeur : il doit répondre sans mot de passe,
   // sinon l'hébergeur croit l'app en panne et la redémarre en boucle.
