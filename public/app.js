@@ -65,10 +65,13 @@ function modal(html) {
   const wrap = document.createElement('div');
   wrap.className = 'modal-backdrop';
   wrap.innerHTML = `<div class="modal">${html}</div>`;
-  wrap.addEventListener('click', (e) => { if (e.target === wrap) wrap.remove(); });
+  wrap.addEventListener('click', (e) => { if (e.target === wrap) fermerFenetre(wrap); });
   $('#modal-root').appendChild(wrap);
   return wrap;
 }
+// Fermer une fenêtre (clic à côté, Échap) : elle prévient d'abord ceux qui
+// l'écoutent (événement « fermer »), pour rafraîchir la vue derrière.
+function fermerFenetre(wrap) { wrap.dispatchEvent(new Event('fermer')); wrap.remove(); }
 
 // ---------------------------------------------------------------- état global
 let S = null;             // état de jeu global (GET /api/state)
@@ -710,7 +713,7 @@ async function vCampagnes(view) {
   // --- hero actions
   if (current) {
     $('#camp-import').onclick = () => { importCampaignId = current.id; location.hash = '#/import'; };
-    $('#camp-contacts').onclick = () => { cFilter.campaign = current.id; location.hash = '#/contacts'; };
+    $('#camp-contacts').onclick = () => { cFilter.campaign = current.id; cFilter.page = 0; location.hash = '#/contacts'; };
     $('#camp-enroll').onclick = async () => {
       try {
         const r = await api(`/campaigns/${current.id}/enroll`, { method: 'POST' });
@@ -841,12 +844,17 @@ async function vPipeline(view) {
 }
 
 // ================================================================ CONTACTS
-const cFilter = { search: '', segment: '', stage: '', origin: '', former: false, enrichable: false, sansIce: false, campaign: 0, sort: 'updated_at', dir: 'desc' };
+const cFilter = { search: '', segment: '', stage: '', origin: '', former: false, enrichable: false, sansIce: false, campaign: 0, sort: 'updated_at', dir: 'desc', page: 0 };
 const cSelected = new Set();
 let cSearchFocus = false; // la liste se redessine pendant qu'on tape : on rend le curseur au champ
+const PAGE_CONTACTS = 100; // au-delà, la page devient lourde à faire défiler
+
+// Changer un filtre ramène à la première page : sinon on peut se retrouver sur
+// une page 4 d'une liste qui n'en a plus que deux.
+function cSet(champ, valeur, view) { cFilter[champ] = valeur; cFilter.page = 0; vContacts(view); }
 
 async function vContacts(view) {
-  const params = new URLSearchParams({ limit: '300' });
+  const params = new URLSearchParams({ limit: String(PAGE_CONTACTS), offset: String(cFilter.page * PAGE_CONTACTS) });
   if (cFilter.search) params.set('search', cFilter.search);
   if (cFilter.segment) params.set('segment', cFilter.segment);
   if (cFilter.stage) params.set('stage', cFilter.stage);
@@ -857,12 +865,23 @@ async function vContacts(view) {
   if (cFilter.campaign) params.set('campaign', String(cFilter.campaign));
   params.set('sort', cFilter.sort);
   params.set('dir', cFilter.dir);
-  const { total, contacts } = await api('/contacts?' + params);
+  let { total, contacts } = await api('/contacts?' + params);
+  // Page au-delà de la fin (contacts supprimés, filtre changé) : on recule.
+  const pages = Math.max(1, Math.ceil(total / PAGE_CONTACTS));
+  if (cFilter.page >= pages && cFilter.page > 0) { cFilter.page = pages - 1; return vContacts(view); }
   const { campaigns: campList } = await api('/campaigns');
+  const debut = cFilter.page * PAGE_CONTACTS + 1;
+  const fin = Math.min(total, debut + contacts.length - 1);
+  const pagination = pages > 1 ? `
+    <div class="row pagination">
+      <button class="ghost" id="c-prev" ${cFilter.page === 0 ? 'disabled' : ''}>◀ Précédents</button>
+      <span class="muted small">${debut} à ${fin} sur ${total}</span>
+      <button class="ghost" id="c-next" ${cFilter.page >= pages - 1 ? 'disabled' : ''}>Suivants ▶</button>
+    </div>` : '';
 
   view.innerHTML = `
     <div class="view-header spread">
-      <div><h1>👥 Contacts</h1><div class="sub">${total} contact(s)${contacts.length < total ? ` · les ${contacts.length} plus récents affichés : affine avec la recherche ou les filtres` : ''}${cSelected.size ? ` · ${cSelected.size} sélectionné(s)` : ''}</div></div>
+      <div><h1>👥 Contacts</h1><div class="sub">${total} contact(s)${pages > 1 ? ` · page ${cFilter.page + 1}/${pages}` : ''}${cSelected.size ? ` · ${cSelected.size} sélectionné(s)` : ''}</div></div>
       <div class="row">
         <button id="c-new" class="primary">➕ Nouveau</button>
         <a href="/api/export.csv" download><button>📤 Export CSV</button></a>
@@ -909,24 +928,29 @@ async function vContacts(view) {
         </tbody>
       </table>
       ${contacts.length === 0 ? '<p class="muted" style="padding:14px">Aucun contact : passe par <a href="#/import">Imports</a> pour remplir ton terrain de chasse.</p>' : ''}
+      ${pagination}
     </div>`;
 
   let searchTimer = null;
-  $('#c-search').oninput = (e) => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { cFilter.search = e.target.value; cSearchFocus = true; vContacts(view); }, 300); };
+  $('#c-search').oninput = (e) => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { cSearchFocus = true; cSet('search', e.target.value, view); }, 300); };
   if (cSearchFocus) {
     cSearchFocus = false;
     const champ = $('#c-search');
     champ.focus();
     champ.setSelectionRange(champ.value.length, champ.value.length);
   }
-  $('#c-seg').onchange = (e) => { cFilter.segment = e.target.value; vContacts(view); };
-  $('#c-stage').onchange = (e) => { cFilter.stage = e.target.value; vContacts(view); };
-  $('#c-origin').onchange = (e) => { cFilter.origin = e.target.value; vContacts(view); };
+  $('#c-seg').onchange = (e) => cSet('segment', e.target.value, view);
+  $('#c-stage').onchange = (e) => cSet('stage', e.target.value, view);
+  $('#c-origin').onchange = (e) => cSet('origin', e.target.value, view);
   const campSel = $('#c-camp');
-  if (campSel) campSel.onchange = (e) => { cFilter.campaign = Number(e.target.value); vContacts(view); };
-  $('#c-former').onchange = (e) => { cFilter.former = e.target.checked; vContacts(view); };
-  $('#c-enrich').onchange = (e) => { cFilter.enrichable = e.target.checked; vContacts(view); };
-  $('#c-noice').onchange = (e) => { cFilter.sansIce = e.target.checked; vContacts(view); };
+  if (campSel) campSel.onchange = (e) => cSet('campaign', Number(e.target.value), view);
+  $('#c-former').onchange = (e) => cSet('former', e.target.checked, view);
+  $('#c-enrich').onchange = (e) => cSet('enrichable', e.target.checked, view);
+  $('#c-noice').onchange = (e) => cSet('sansIce', e.target.checked, view);
+  const prev = $('#c-prev'), next = $('#c-next');
+  const allerPage = (p) => { cFilter.page = p; vContacts(view).then(() => view.scrollIntoView({ block: 'start' })); };
+  if (prev) prev.onclick = () => allerPage(cFilter.page - 1);
+  if (next) next.onclick = () => allerPage(cFilter.page + 1);
   $('#c-all').onchange = (e) => {
     contacts.forEach((c) => e.target.checked ? cSelected.add(c.id) : cSelected.delete(c.id));
     vContacts(view);
@@ -944,6 +968,7 @@ async function vContacts(view) {
       const k = h.dataset.sortCol;
       if (cFilter.sort === k) cFilter.dir = cFilter.dir === 'asc' ? 'desc' : 'asc';
       else { cFilter.sort = k; cFilter.dir = k === 'next_action_at' ? 'asc' : 'desc'; }
+      cFilter.page = 0;
       vContacts(view);
     };
   });
@@ -1544,18 +1569,24 @@ async function vAutopilot(view) {
 
     ${awaiting.length ? `
     <div class="card" style="margin-top:14px;border-color:rgba(234,179,8,.45)">
-      <div class="spread"><h2>👀 À valider (${awaiting.length})</h2><button class="gold" id="ap-approve-all">✅ Tout approuver</button></div>
+      <div class="spread"><h2>👀 À valider (${awaiting.length})</h2>
+        <div class="row">
+          <button class="primary" id="ap-revue" title="Lire et valider chaque email l'un après l'autre, gros boutons, faisable d'une main">👀 Un par un</button>
+          <button class="gold" id="ap-approve-all">✅ Tout approuver</button>
+        </div>
+      </div>
+      <p class="muted small ob-mobile-hint">Sur téléphone, « Un par un » affiche chaque email en grand avec ses boutons sous le pouce.</p>
       ${awaiting.map((o) => `
         <div class="deal-line" style="flex-direction:column;align-items:stretch" data-ob="${o.id}">
           <div class="spread">
             <div><b>${esc(o.first_name || '')} ${esc(o.last_name || '')}</b> <span class="muted">&lt;${esc(o.to_email)}&gt; · ${esc(o.seq_name || '')} · étape ${o.step_index + 1}</span></div>
             <div class="row">
               <button class="primary" data-ob-approve="${o.id}">✅ Approuver</button>
-              <button class="ghost" data-ob-cancel="${o.id}">✖</button>
+              <button class="ghost" data-ob-cancel="${o.id}" title="Annuler cet envoi">✖</button>
             </div>
           </div>
-          <input data-ob-subject="${o.id}" value="${esc(o.subject)}" style="margin:6px 0">
-          <textarea data-ob-body="${o.id}" rows="5">${esc(o.body)}</textarea>
+          <input class="ob-edit" data-ob-subject="${o.id}" value="${esc(o.subject)}" style="margin:6px 0">
+          <textarea class="ob-edit" data-ob-body="${o.id}" rows="5">${esc(o.body)}</textarea>
         </div>`).join('')}
     </div>` : ''}
 
@@ -1648,6 +1679,8 @@ async function vAutopilot(view) {
     if (subject && body) await api(`/outbox/${id}`, { method: 'PATCH', body: { subject: subject.value, body: body.value } });
     await api(`/outbox/${id}/approve`, { method: 'POST' });
   };
+  const apRevue = $('#ap-revue');
+  if (apRevue) apRevue.onclick = () => revueModal(awaiting, () => vAutopilot(view));
   const apAll = $('#ap-approve-all');
   if (apAll) apAll.onclick = async () => {
     try {
@@ -1675,6 +1708,63 @@ async function vAutopilot(view) {
   $$('[data-seq-enroll]', view).forEach((b) => {
     b.onclick = () => enrollPickerModal(sequences.find((s) => String(s.id) === b.dataset.seqEnroll), () => vAutopilot(view));
   });
+}
+
+// Revue « une main » : chaque email à valider passe en grand, l'un après
+// l'autre, avec trois gros boutons en bas. Pensé pour l'iPhone dans le
+// train : lire, corriger un mot si besoin, approuver, suivant.
+function revueModal(items, after) {
+  let i = 0;
+  let approuves = 0;
+  const m = modal('');
+  const box = $('.modal', m);
+  box.classList.add('revue');
+  m.addEventListener('fermer', () => { if (after) after(); });
+  const finir = () => {
+    m.remove();
+    if (approuves) { fx.toast(`✅ ${approuves} email(s) approuvé(s) : envoi dans les minutes qui viennent`); fx.play('quest'); }
+    if (after) after();
+  };
+  const suivant = () => { i++; dessiner(); };
+  const dessiner = () => {
+    if (i >= items.length) { finir(); return; }
+    const o = items[i];
+    const nom = `${o.first_name || ''} ${o.last_name || ''}`.trim() || o.to_email;
+    box.innerHTML = `
+      <div class="spread">
+        <div><b>👀 Email ${i + 1}/${items.length}</b> <span class="muted small revue-seq">· ${esc(o.seq_name || '')} · étape ${o.step_index + 1}</span></div>
+        <button class="ghost" id="rv-close" title="Fermer la revue">✖</button>
+      </div>
+      <div class="bar hunt-progress" role="progressbar" aria-valuemin="0" aria-valuemax="${items.length}" aria-valuenow="${i}" aria-label="Emails passés en revue"><i style="width:${Math.round((i / items.length) * 100)}%"></i></div>
+      <div class="revue-to">À <b>${esc(nom)}</b>${o.company ? ` <span class="muted">· ${esc(o.company)}</span>` : ''}<div class="muted small">${esc(o.to_email)}</div></div>
+      <label class="field">Objet<input id="rv-subject" value="${esc(o.subject)}"></label>
+      <textarea id="rv-body" rows="9" aria-label="Corps de l'email">${esc(o.body)}</textarea>
+      <div class="revue-actions">
+        <button class="primary big" id="rv-ok">✅ Approuver et passer au suivant</button>
+        <div class="row">
+          <button id="rv-skip">⏭️ Décider plus tard</button>
+          <button class="danger" id="rv-cancel">✖ Ne pas envoyer</button>
+        </div>
+      </div>`;
+    $('#rv-close', box).onclick = finir;
+    $('#rv-ok', box).onclick = async () => {
+      const btn = $('#rv-ok', box); btn.disabled = true;
+      try {
+        const subject = $('#rv-subject', box).value, body = $('#rv-body', box).value;
+        if (subject !== o.subject || body !== o.body) await api(`/outbox/${o.id}`, { method: 'PATCH', body: { subject, body } });
+        await api(`/outbox/${o.id}/approve`, { method: 'POST' });
+        approuves++;
+        fx.play('pop');
+        suivant();
+      } catch (e) { fx.error(e.message); btn.disabled = false; }
+    };
+    $('#rv-skip', box).onclick = suivant;
+    $('#rv-cancel', box).onclick = async () => {
+      try { await api(`/outbox/${o.id}/cancel`, { method: 'POST' }); fx.toast('✖ Annulé (séquence en pause)'); suivant(); }
+      catch (e) { fx.error(e.message); }
+    };
+  };
+  dessiner();
 }
 
 // Choisir des contacts à enrôler dans une séquence donnée.
@@ -2407,7 +2497,7 @@ $('#sound-toggle').textContent = localStorage.getItem('chasse_sounds') === '0' ?
 addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   const fenetres = $$('#modal-root .modal-backdrop');
-  if (fenetres.length) { fenetres[fenetres.length - 1].remove(); return; }
+  if (fenetres.length) { fermerFenetre(fenetres[fenetres.length - 1]); return; }
   if (!$('#drawer').classList.contains('hidden')) closeDrawer();
 });
 

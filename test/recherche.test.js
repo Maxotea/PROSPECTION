@@ -73,6 +73,28 @@ test('la recherche ordinaire reste large : prénom, nom, boîte, sans tenir comp
   assert.strictEqual((await chercher('vidéo')).length, 2);
 });
 
+test('chaque réponse dit au navigateur de ne charger que La Chasse elle-même', async () => {
+  for (const chemin of ['/', '/app.js', '/api/state', '/api/contacts?search=x']) {
+    const r = await fetch(BASE + chemin);
+    const csp = r.headers.get('content-security-policy') || '';
+    assert.match(csp, /default-src 'self'/, `${chemin} : politique de contenu`);
+    assert.match(csp, /script-src 'self'(;|$)/, `${chemin} : aucun script extérieur ni en ligne`);
+    assert.match(csp, /frame-ancestors 'none'/, `${chemin} : impossible à encadrer dans un autre site`);
+    assert.strictEqual(r.headers.get('x-content-type-options'), 'nosniff', chemin);
+    assert.strictEqual(r.headers.get('referrer-policy'), 'no-referrer', chemin);
+  }
+});
+
+test('la liste des contacts se lit page par page', async () => {
+  const page1 = await (await fetch(`${BASE}/api/contacts?limit=2&offset=0&sort=name&dir=asc`)).json();
+  const page2 = await (await fetch(`${BASE}/api/contacts?limit=2&offset=2&sort=name&dir=asc`)).json();
+  assert.strictEqual(page1.total, 3);
+  assert.strictEqual(page1.contacts.length, 2);
+  assert.strictEqual(page2.contacts.length, 1);
+  const noms = [...page1.contacts, ...page2.contacts].map((c) => c.last_name);
+  assert.deepStrictEqual(noms, ['Arnaud', 'Pierre', 'Roux'], 'chaque contact apparaît une fois, dans l’ordre');
+});
+
 test('aucune étape ne porte deux fois son emoji', () => {
   // L'interface affiche toujours « emoji + libellé » : un emoji dans le libellé
   // se retrouve en double (« 🏆 Gagné 🏆 »).

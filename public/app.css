@@ -232,6 +232,7 @@ table.list tr.rowc:hover { background: rgba(139, 92, 246, .07); }
 .t-sub { font-size: 12px; color: var(--muted); }
 .presence { letter-spacing: 2px; }
 .table-scroll { overflow-x: auto; }
+.pagination { justify-content: center; padding: 12px 0 6px; }
 
 /* ---------------------------------------------------------------- drawer */
 #drawer-backdrop { position: fixed; inset: 0; background: rgba(4, 6, 14, .6); backdrop-filter: blur(2px); z-index: 40; }
@@ -258,6 +259,22 @@ table.list tr.rowc:hover { background: rgba(139, 92, 246, .07); }
 .modal.celebration .c-emoji { font-size: 74px; animation: bounce .6s ease infinite alternate; }
 @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-10px); } }
 .quote-lines .ql { display: grid; grid-template-columns: 1fr 70px 100px 110px 34px; gap: 7px; margin-bottom: 7px; align-items: center; }
+
+/* Revue des emails un par un : un seul email à l'écran, les décisions en bas. */
+.modal.revue { max-width: 560px; display: flex; flex-direction: column; }
+.modal.revue > .spread { flex-wrap: nowrap; }
+.modal.revue > .spread > div:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.modal.revue .hunt-progress { margin: 8px 0 12px; flex-shrink: 0; }
+.modal.revue .revue-to { margin-bottom: 10px; }
+.modal.revue label.field { margin-bottom: 8px; }
+/* Le corps de l'email prend la place qui reste : les boutons de décision
+   restent toujours visibles, sans faire défiler la fenêtre. */
+.modal.revue textarea { flex: 1 1 160px; min-height: 140px; }
+.revue-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.revue-actions .big { width: 100%; justify-content: center; }
+.revue-actions .row { flex-wrap: nowrap; }
+.revue-actions .row button { flex: 1; justify-content: center; }
+.ob-mobile-hint { display: none; }
 
 /* ---------------------------------------------------------------- toasts & fx */
 #toasts { position: fixed; right: 22px; bottom: 22px; z-index: 80; display: flex; flex-direction: column; gap: 9px; align-items: flex-end; pointer-events: none; }
@@ -403,7 +420,15 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offs
   table.contacts td:nth-child(6) br { display: none; }
   table.contacts td:nth-child(6) .muted::before { content: ' · '; }
   table.contacts td:nth-child(6) button { min-height: 0; padding: 3px 8px; vertical-align: middle; }
-  table.contacts .cell-mini { max-width: 100%; width: 100%; }
+  table.contacts select.cell-mini { max-width: 100%; width: 100%; }
+
+  /* Autopilote : la liste « à valider » ne déroule plus chaque email en entier,
+     c'est la revue un par un qui sert à lire. */
+  .ob-edit { display: none; }
+  .ob-mobile-hint { display: block; }
+  .modal.revue { height: 88vh; }
+  .modal.revue .revue-seq { display: none; }
+  .revue-actions .row button { padding-left: 8px; padding-right: 8px; }
 
   /* Mode Chasse : l'XP de session est déjà dans les notifications, on garde
      l'en-tête sur une ligne. La fiche contact garde sa croix à côté du nom. */

@@ -74,7 +74,9 @@ les mêmes variables : `CODE_ACCES`, `DATA_DIR=/data`, `EN_LIGNE=1`.
 
 **Sécurité de la version en ligne :** mot de passe obligatoire (l'app refuse de démarrer
 sans, ou avec moins de 8 caractères), cookie qui ne contient jamais le mot de passe,
-connexion chiffrée exigée, et pause de 15 minutes après 5 essais ratés.
+connexion chiffrée exigée, et pause de 15 minutes après 5 essais ratés. Le navigateur
+reçoit aussi la consigne de ne charger que les fichiers de La Chasse elle-même (aucun
+script extérieur, impossible d'encadrer l'app dans un autre site).
 
 **Déménager tes données du Mac vers la version en ligne :**
 
@@ -184,7 +186,7 @@ Le rythme : **chaque lundi, un nouveau terrain de chasse.** Semaine 1 la grande 
 
 ### Deux modes
 
-- **👀 Revue** (défaut) : chaque email attend ta validation dans la vue Autopilote : tu peux l'éditer, l'approuver, ou tout approuver d'un clic.
+- **👀 Revue** (défaut) : chaque email attend ta validation dans la vue Autopilote : tu peux l'éditer, l'approuver, ou tout approuver d'un clic. Le bouton **« Un par un »** passe les emails en revue l'un après l'autre, en grand, avec les décisions sous le pouce : c'est la façon de valider depuis l'iPhone, dans le train.
 - **🚀 Auto** : envoi sans validation. À activer quand tu fais confiance aux séquences.
 
 ### Séquences fournies (modifiables, + création libre)
@@ -343,7 +345,7 @@ Les clés sont stockées en local (ou via un fichier `.env` : `PENNYLANE_API_KEY
 - `server.js` : serveur HTTP + API REST (`/api/*`) + boucle Autopilote (10 min) · `src/autopilot.js` : séquences, enrôlements, file d'envoi, détection des réponses · `src/db.js` : schéma + upsert/dédoublonnage · `src/gamification.js` : XP, niveaux, quêtes, streak, badges, boss · `src/playbooks.js` : segments, cadences, templates, séquences · `src/integrations/` : Pennylane, FullEnrich, HubSpot, Claude · `src/importers/` : répertoire chaud (appels macOS, WhatsApp, scoring des relations) · `public/` : l'app.
 - API Pennylane **v2** (`/api/external/v2` : `customers`, `customer_invoices`, `quotes`, `create_from_quote`) ; FullEnrich **v2** (`/api/v2/contact/enrich/bulk`, fallback v1 automatique) ; HubSpot **v3** ; Gmail en **SMTP/IMAP standard** (mot de passe d'application, aucun projet Google Cloud à créer).
 - Les réponses d'API inattendues remontent **verbatim** dans l'interface pour diagnostiquer vite.
-- **Tests** : `npm test` : 73 tests. Moteur Autopilote contre des serveurs SMTP/IMAP factices (envoi, threading, réponses, bounces, cap, scan), campagnes hebdo, et répertoire chaud contre de fausses bases d'appels/WhatsApp et de vrais formats d'export.
+- **Tests** : `npm test` : 75 tests. Moteur Autopilote contre des serveurs SMTP/IMAP factices (envoi, threading, réponses, bounces, cap, scan), campagnes hebdo, et répertoire chaud contre de fausses bases d'appels/WhatsApp et de vrais formats d'export.
 
 ## 🗺️ Pistes pour la suite
 
