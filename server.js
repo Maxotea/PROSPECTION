@@ -983,9 +983,33 @@ async function autopilotLoop() {
     ticking = false;
   }
 }
+
+// Les enrichissements FullEnrich mettent quelques minutes. Sans cette boucle,
+// les résultats n'arrivaient que si la vue Imports restait ouverte : on lançait
+// un enrichissement, on fermait l'app, et rien ne redescendait jamais.
+let enriching = false;
+async function enrichLoop() {
+  if (enriching) return;
+  if (!dbApi.getSetting('fullenrich_api_key')) return;
+  const attente = get(`SELECT COUNT(*) AS n FROM enrich_jobs WHERE status = 'pending'`);
+  if (!attente || !Number(attente.n)) return;
+  enriching = true;
+  try {
+    for (const r of await fullenrich.pollPending()) {
+      if (r.status === 'FINISHED') console.log(`[fullenrich] job ${r.job_id} terminé : ${r.enriched}/${r.total} enrichi(s)`);
+      if (r.status === 'ERROR') console.error(`[fullenrich] job ${r.job_id} : ${r.error}`);
+    }
+  } catch (e) {
+    console.error('[fullenrich]', e.message);
+  } finally {
+    enriching = false;
+  }
+}
 if (process.env.NODE_ENV !== 'test') {
   setInterval(autopilotLoop, 10 * 60 * 1000);
   setTimeout(autopilotLoop, 20 * 1000); // premier passage peu après le démarrage
+  setInterval(enrichLoop, 2 * 60 * 1000); // les résultats FullEnrich arrivent en quelques minutes
+  setTimeout(enrichLoop, 30 * 1000);
 }
 
 server.listen(PORT, HOST, () => {

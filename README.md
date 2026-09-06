@@ -313,7 +313,11 @@ L'import Pennylane **segmente automatiquement** : CA historique ≥ seuil (5 000
 3. `Imports → CSV` : mapping des colonnes **auto-détecté** (exports LinkedIn `Connections.csv`, FullEnrich, HubSpot…), doublons fusionnés automatiquement.
 
 ### Enrichissement : FullEnrich
-`Imports → FullEnrich` : enrichit les contacts sans email/téléphone (cascade de fournisseurs, par lots de 100). ⚠️ consomme des crédits FullEnrich → confirmation systématique. Les résultats reviennent en quelques minutes (bouton « Vérifier », polling automatique).
+`Imports → FullEnrich` : enrichit les contacts sans email/téléphone (cascade de fournisseurs, par lots de 100). ⚠️ consomme des crédits FullEnrich → confirmation systématique.
+
+L'enrichissement est asynchrone : FullEnrich met quelques minutes. **Le serveur va chercher les résultats tout seul, toutes les deux minutes, même si tu as fermé l'app.** Le bouton « Vérifier » de la vue Imports force juste un passage immédiat. Quand un lot revient sans rien, l'app te le dit au lieu de faire la fête : c'est en général qu'il manque l'entreprise ou l'URL LinkedIn sur les fiches envoyées.
+
+Les résultats sont rattachés à leur fiche par l'identifiant renvoyé, sinon par l'URL LinkedIn, sinon par le nom, sinon par la position dans le lot. Et rien n'est jamais écrasé : l'enrichissement ne remplit que les cases vides.
 
 ### CRM hybride : HubSpot
 Import des contacts HubSpot dans la Chasse, et **push** vers HubSpot (fiche contact ou sélection dans Contacts). Philosophie : **la Chasse pilote la prospection au quotidien, HubSpot reste la base « officielle »** que tu synchronises quand tu veux.
@@ -342,7 +346,7 @@ Les clés sont stockées en local (ou via un fichier `.env` : `PENNYLANE_API_KEY
 ## 🧱 Sous le capot
 
 - **Zéro dépendance** : Node ≥ 22.13, SQLite natif (`node:sqlite`), frontend vanilla, clients **SMTP et IMAP écrits maison** (`src/mail/`). `git clone` → `node server.js`, c'est tout.
-- `server.js` : serveur HTTP + API REST (`/api/*`) + boucle Autopilote (10 min) · `src/autopilot.js` : séquences, enrôlements, file d'envoi, détection des réponses · `src/db.js` : schéma + upsert/dédoublonnage · `src/gamification.js` : XP, niveaux, quêtes, streak, badges, boss · `src/playbooks.js` : segments, cadences, templates, séquences · `src/integrations/` : Pennylane, FullEnrich, HubSpot, Claude · `src/importers/` : répertoire chaud (appels macOS, WhatsApp, scoring des relations) · `public/` : l'app.
+- `server.js` : serveur HTTP + API REST (`/api/*`) + boucle Autopilote (10 min) + relève des enrichissements FullEnrich (2 min) · `src/autopilot.js` : séquences, enrôlements, file d'envoi, détection des réponses · `src/db.js` : schéma + upsert/dédoublonnage · `src/gamification.js` : XP, niveaux, quêtes, streak, badges, boss · `src/playbooks.js` : segments, cadences, templates, séquences · `src/integrations/` : Pennylane, FullEnrich, HubSpot, Claude · `src/importers/` : répertoire chaud (appels macOS, WhatsApp, scoring des relations) · `public/` : l'app.
 - API Pennylane **v2** (`/api/external/v2` : `customers`, `customer_invoices`, `quotes`, `create_from_quote`) ; FullEnrich **v2** (`/api/v2/contact/enrich/bulk`, fallback v1 automatique) ; HubSpot **v3** ; Gmail en **SMTP/IMAP standard** (mot de passe d'application, aucun projet Google Cloud à créer).
 - Les réponses d'API inattendues remontent **verbatim** dans l'interface pour diagnostiquer vite.
 - **Tests** : `npm test` : 75 tests. Moteur Autopilote contre des serveurs SMTP/IMAP factices (envoi, threading, réponses, bounces, cap, scan), campagnes hebdo, et répertoire chaud contre de fausses bases d'appels/WhatsApp et de vrais formats d'export.

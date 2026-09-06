@@ -102,24 +102,82 @@ async function startEnrich(contactIds) {
   return { job_id: lastId, external_id: externalId, count: batch.length, skipped: contacts.length - batch.length };
 }
 
+// FullEnrich renvoie chaque email et chaque téléphone sous forme d'objet
+// { email, status }, rangés dans `contact_info`, et le reste du profil dans
+// `profile`. Ces deux helpers acceptent aussi la forme plate des anciennes
+// versions de l'API : une chaîne nue au lieu de l'objet.
+function valeurEmail(v) {
+  if (!v) return { email: '', status: '' };
+  if (typeof v === 'string') return { email: v, status: '' };
+  return { email: String(v.email || ''), status: String(v.status || '') };
+}
+function valeurTelephone(v) {
+  if (!v) return '';
+  if (typeof v === 'string') return v;
+  return String(v.number || v.phone || v.phone_number || v.value || '');
+}
+const premier = (liste) => (Array.isArray(liste) && liste.length ? liste[0] : null);
+
 function extractContactData(entry) {
-  const c = entry.contact || entry;
-  const email =
-    c.most_probable_email ||
-    (Array.isArray(c.work_emails) && c.work_emails[0] && (c.work_emails[0].email || c.work_emails[0])) ||
-    (Array.isArray(c.emails) && c.emails[0] && (c.emails[0].email || c.emails[0])) ||
-    (Array.isArray(c.personal_emails) && c.personal_emails[0] && (c.personal_emails[0].email || c.personal_emails[0])) || '';
-  const phone =
-    c.most_probable_phone ||
-    (Array.isArray(c.phones) && c.phones[0] && (c.phones[0].number || c.phones[0].phone || c.phones[0])) || '';
+  const info = entry.contact_info || entry.contact || entry;
+  const prof = entry.profile || {};
+  const poste = (prof.employment && prof.employment.current) || {};
+
+  const mail = valeurEmail(
+    info.most_probable_work_email ||
+    info.most_probable_email ||
+    premier(info.work_emails) ||
+    premier(info.emails) ||
+    premier(info.personal_emails)
+  );
+  const phone = valeurTelephone(
+    info.most_probable_phone ||
+    premier(info.phones) ||
+    premier(info.mobile_phones)
+  );
+
+  const societe = poste.company || prof.company || {};
+  const reseau = (prof.social_profiles && prof.social_profiles.professional_network) || {};
+
   return {
-    email: typeof email === 'string' ? email : '',
-    email_status: c.most_probable_email_status || '',
-    phone: typeof phone === 'string' ? phone : '',
-    job_title: c.job_title || c.title || '',
-    company: (c.company && (c.company.name || c.company.company_name)) || '',
-    linkedin_url: c.linkedin_url || '',
+    email: mail.email,
+    email_status: mail.status || info.most_probable_email_status || '',
+    phone,
+    job_title: poste.title || prof.job_title || prof.title || prof.headline || '',
+    company: (typeof societe === 'string' ? societe : (societe.name || societe.company_name)) || '',
+    linkedin_url: reseau.url || prof.linkedin_url || info.linkedin_url || '',
+    city: (prof.location && (prof.location.city || prof.location.name)) || '',
   };
+}
+
+// Retrouver À QUI appartient une ligne de résultat. FullEnrich ne renvoie pas
+// toujours le `custom` qu'on lui a passé : on essaie dans l'ordre l'identifiant
+// qu'on avait glissé, l'URL LinkedIn, le nom, puis à défaut la position dans le
+// lot (les résultats reviennent dans l'ordre d'envoi).
+function retrouverContact(entry, index, fiches) {
+  const entree = entry.input || entry.custom_data || {};
+  const custom = entry.custom || entree.custom || {};
+  const id = Number(custom.contact_id || entree.contact_id || 0);
+  if (id && fiches.some((f) => f.id === id)) return id;
+
+  const url = String(
+    (entry.profile && entry.profile.social_profiles && entry.profile.social_profiles.professional_network
+      && entry.profile.social_profiles.professional_network.url)
+    || entree.professional_network_url || entree.linkedin_url || ''
+  ).toLowerCase().replace(/\/+$/, '');
+  if (url) {
+    const parUrl = fiches.find((f) => f.linkedin_url && String(f.linkedin_url).toLowerCase().replace(/\/+$/, '') === url);
+    if (parUrl) return parUrl.id;
+  }
+
+  const nom = (o) => `${o.first_name || ''} ${o.last_name || ''}`.trim().toLowerCase();
+  const cherche = nom(entree) || String(entree.full_name || '').trim().toLowerCase();
+  if (cherche) {
+    const parNom = fiches.find((f) => nom(f) === cherche);
+    if (parNom) return parNom.id;
+  }
+
+  return fiches[index] ? fiches[index].id : 0;
 }
 
 // Interroge un job en attente et écrit les résultats sur les contacts.
@@ -134,17 +192,22 @@ async function pollJob(job) {
   }
 
   const entries = (res && (res.datas || res.data || res.results)) || [];
+  // Les fiches envoyées dans ce lot, dans l'ordre : elles servent à rattacher
+  // chaque résultat à son contact même sans identifiant renvoyé.
+  let ids = [];
+  try { ids = JSON.parse(job.contact_ids || '[]'); } catch { ids = []; }
+  const fiches = ids.map((id) => get('SELECT * FROM contacts WHERE id = ?', id)).filter(Boolean);
+
   let enriched = 0;
-  for (const entry of entries) {
-    const custom = entry.custom || {};
-    const cid = Number(custom.contact_id || 0);
-    if (!cid) continue;
-    const contact = get('SELECT * FROM contacts WHERE id = ?', cid);
-    if (!contact) continue;
+  let orphelins = 0;
+  entries.forEach((entry, index) => {
+    const cid = retrouverContact(entry, index, fiches);
+    const contact = cid ? get('SELECT * FROM contacts WHERE id = ?', cid) : null;
+    if (!contact) { orphelins++; return; }
     const data = extractContactData(entry);
     const patch = { enrich_status: (data.email || data.phone) ? 'done' : 'not_found' };
     // Profil brut conservé pour la recherche d'icebreakers (parcours, ville, entreprise…).
-    try { patch.profile = JSON.stringify(entry.contact || entry).slice(0, 8000); } catch { /* données non sérialisables */ }
+    try { patch.profile = JSON.stringify(entry.profile || entry.contact || entry).slice(0, 8000); } catch { /* données non sérialisables */ }
     // On ne remplit que les trous : on n'écrase jamais une donnée existante.
     if (data.email && !contact.email) patch.email = data.email;
     if (data.email_status) patch.email_status = data.email_status;
@@ -152,16 +215,17 @@ async function pollJob(job) {
     if (data.job_title && !contact.job_title) patch.job_title = data.job_title;
     if (data.company && !contact.company) patch.company = data.company;
     if (data.linkedin_url && !contact.linkedin_url) patch.linkedin_url = data.linkedin_url;
+    if (data.city && !contact.city) patch.city = data.city;
     dbApi.updateContact(cid, patch);
     if (data.email || data.phone) enriched++;
-  }
+  });
 
-  run('UPDATE enrich_jobs SET status = ?, result = ?, updated_at = ? WHERE id = ?', 'done', JSON.stringify({ enriched, total: entries.length }), nowIso(), job.id);
+  run('UPDATE enrich_jobs SET status = ?, result = ?, updated_at = ? WHERE id = ?', 'done', JSON.stringify({ enriched, total: entries.length, orphelins }), nowIso(), job.id);
   if (enriched > 0) {
     game.insertActivity({ type: 'enrich', xp: Math.min(enriched * 3, 60), note: `FullEnrich : ${enriched} contact(s) enrichi(s)`, meta: { count: enriched } });
     game.checkBadges();
   }
-  return { job_id: job.id, status: 'FINISHED', enriched, total: entries.length, pending: false };
+  return { job_id: job.id, status: 'FINISHED', enriched, total: entries.length, orphelins, pending: false };
 }
 
 // Poll tous les jobs en attente (appelé par le front tant qu'il en reste).
