@@ -1007,7 +1007,7 @@ async function launchEnrich(ids, after) {
   if (!confirm(`Enrichir ${Math.min(ids.length, 100)} contact(s) via FullEnrich ?\n⚠️ Consomme des crédits FullEnrich (email + téléphone en cascade).`)) return;
   try {
     const r = await api('/fullenrich/enrich', { method: 'POST', body: { contact_ids: ids } });
-    fx.toast(`🧪 Enrichissement lancé (${r.count} contacts). Résultats dans quelques minutes : vois la vue Imports.`);
+    fx.toast(`🧪 Enrichissement lancé (${r.count} contacts). Les résultats arrivent tout seuls dans quelques minutes, même si tu fermes l'app.`);
     if (after) after();
   } catch (e) { fx.error(e.message); }
 }
@@ -2042,9 +2042,20 @@ async function vImport(view) {
     try {
       const { results } = await api('/fullenrich/poll', { method: 'POST' });
       const done = results.filter((r) => r.status === 'FINISHED');
+      const rate = results.filter((r) => r.status === 'ERROR');
       if (done.length) {
-        fx.toast(`🧪 Enrichissement terminé : ${done.reduce((s, r) => s + r.enriched, 0)} contact(s) complété(s) !`);
-        fx.play('quest');
+        const n = done.reduce((s, r) => s + r.enriched, 0);
+        const vus = done.reduce((s, r) => s + (r.total || 0), 0);
+        if (n > 0) {
+          fx.toast(`🧪 Enrichissement terminé : ${n} contact(s) complété(s) sur ${vus} !`);
+          fx.play('quest');
+        } else {
+          // Ne jamais faire la fête sur zéro : ça avait masqué un vrai bug.
+          fx.toast(`🧪 Enrichissement terminé, mais FullEnrich n'a trouvé ni email ni téléphone sur ces ${vus || 'quelques'} contact(s). Vérifie l'entreprise et l'URL LinkedIn de leurs fiches.`);
+        }
+        vImport(view);
+      } else if (rate.length) {
+        fx.error(`Enrichissement en échec : ${rate[0].error}`);
         vImport(view);
       } else if (!silent) fx.toast('⏳ Toujours en cours : FullEnrich prend quelques minutes.');
     } catch (e) { if (!silent) fx.error(e.message); }

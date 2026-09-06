@@ -1,0 +1,154 @@
+{
+  "enrichment_name": "test",
+  "status": "FINISHED",
+  "total_results": 2,
+  "datas": [
+    {
+      "input": {
+        "professional_network_url": "https://www.linkedin.com/in/camille-roux-demo",
+        "first_name": "Camille",
+        "last_name": "Roux",
+        "full_name": "Camille Roux",
+        "company_name": "Studio Nord",
+        "company_domain": "studionord.fr"
+      },
+      "contact_info": {
+        "most_probable_work_email": {
+          "email": "camille.roux@studionord.fr",
+          "status": "DELIVERABLE"
+        },
+        "most_probable_phone": {
+          "number": "+33612345678"
+        },
+        "work_emails": [
+          {
+            "email": "camille.roux@studionord.fr",
+            "status": "DELIVERABLE"
+          }
+        ]
+      },
+      "profile": {
+        "id": "1ab21165-5a02-5678-91f2-b4ec80dbc44c",
+        "full_name": "Camille Roux",
+        "first_name": "Camille",
+        "last_name": "Roux",
+        "headline": "Directrice de la communication chez Studio Nord",
+        "location": {
+          "country": "France",
+          "country_code": "FR",
+          "city": "Puteaux",
+          "region": "Ile-de-France"
+        },
+        "employment": {
+          "current": {
+            "title": "DIRECTRICE COMMUNICATION",
+            "seniority": "Director",
+            "company": {
+              "name": "Studio Nord",
+              "domain": "studionord.fr"
+            },
+            "is_current": true,
+            "start_at": "2002-09-01T00:00:00Z"
+          },
+          "all": []
+        },
+        "social_profiles": {
+          "professional_network": {
+            "id": 1000,
+            "url": "https://www.linkedin.com/in/camille-roux-demo",
+            "handle": "camille-roux-demo"
+          }
+        },
+        "educations": []
+      }
+    },
+    {
+      "input": {
+        "professional_network_url": "https://www.linkedin.com/in/yanis-belkacem-demo",
+        "first_name": "Yanis",
+        "last_name": "Belkacem",
+        "full_name": "Yanis Belkacem",
+        "company_name": "Atelier Sud",
+        "company_domain": "ateliersud.fr"
+      },
+      "contact_info": {
+        "most_probable_work_email": {
+          "email": "yanis.belkacem@ateliersud.fr",
+          "status": "DELIVERABLE"
+        },
+        "most_probable_phone": null,
+        "work_emails": [
+          {
+            "email": "yanis.belkacem@ateliersud.fr",
+            "status": "DELIVERABLE"
+          }
+        ]
+      },
+      "profile": {
+        "id": "6ef7cfee-2d99-5dc4-8dd2-0edae550b96d",
+        "full_name": "Yanis Belkacem",
+        "first_name": "Yanis",
+        "last_name": "Belkacem",
+        "headline": "Directrice de la communication chez Atelier Sud",
+        "description": "Premier courtier d’assurance en France depuis 1992, Gras Savoye dispose du premier réseau de courtage en France à travers une présence dans une trentaine de villes dans l’Hexagone et cinq bureaux et filiales Outre-mer. \n\nLe groupe est également un acteur majeur au plan international grâce à ses nombreuses implantations. Directement présent en Europe, en Afrique, au Moyen-Orient et en Asie, Gras Savoye appartient au Groupe Willis Towers Watson, présent dans plus de 140 pays avec plus de 40 000 collaborateurs.\n\n\nEn charge des cadres dirigeants au sein du Groupe de Gras Savoye, nous recherchons régulièrement des profils à haut potentiel sur l'ensemble de nos expertises.\n\nNous offrons également de nombreuses opportunités de postes, que vous soyez jeunes diplômés (niveau Bac + 2 à Bac + 5) ou plus expérimentés :\n\n\nN’hésitez pas à me contacter : sandrine.perrien@grassavoye.com\n\nNotre site carrière : http://www.grassavoye.fr/carrieres/la-politique-rh-20003.html\nNos offres d’emploi : http://www.grassavoye.fr/carrieres/opportunites-60762.html",
+        "location": {
+          "country": "France",
+          "country_code": "FR",
+          "city": "Puteaux",
+          "region": "Ile-de-France"
+        },
+        "employment": {
+          "current": {
+            "title": "DIRECTRICE COMMUNICATION",
+            "seniority": "Director",
+            "company": {
+              "name": "Atelier Sud",
+              "domain": "ateliersud.fr"
+            },
+            "is_current": true,
+            "start_at": "2022-07-01T00:00:00Z"
+          },
+          "all": []
+        },
+        "social_profiles": {
+          "professional_network": {
+            "id": 1001,
+            "url": "https://www.linkedin.com/in/yanis-belkacem-demo",
+            "handle": "yanis-belkacem-demo"
+          }
+        },
+        "educations": [],
+        "languages": [
+          {
+            "language": "english",
+            "proficiency": "PROFESSIONAL_WORKING"
+          },
+          {
+            "language": "italian",
+            "proficiency": "PROFESSIONAL_WORKING"
+          }
+        ],
+        "skills": [
+          "Accompagnement du changement",
+          "Anglais",
+          "Change Management",
+          "Evaluation de potentiel",
+          "Formation",
+          "GPEC",
+          "Gestion d'équipe",
+          "Gestion de carrière",
+          "Gestion de projet",
+          "Gestion des talents",
+          "Management",
+          "Management de projet",
+          "Négociation sociale",
+          "Négociations",
+          "Politique de rémunération",
+          "Recrutement",
+          "Ressources humaines",
+          "Stratégie RH"
+        ]
+      }
+    }
+  ]
+}
