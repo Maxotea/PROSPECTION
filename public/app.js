@@ -7,12 +7,20 @@ const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+const HORS_LIGNE = "La Chasse ne répond pas. Sur ton Mac : vérifie que la fenêtre noire est encore ouverte (sinon relance demarrer.command). En ligne : vérifie ta connexion, puis recharge la page.";
+
 async function api(path, { method = 'GET', body } = {}) {
-  const res = await fetch('/api' + path, {
-    method,
-    headers: body ? { 'Content-Type': 'application/json' } : {},
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  let res;
+  try {
+    res = await fetch('/api' + path, {
+      method,
+      headers: body ? { 'Content-Type': 'application/json' } : {},
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    // « Failed to fetch » ne dit rien à personne : on explique ce qui se passe et quoi faire.
+    throw new Error(HORS_LIGNE);
+  }
   let data = {};
   try { data = await res.json(); } catch { /* réponses non-JSON (export) */ }
   if (!res.ok) throw new Error(data.error || `Erreur ${res.status}`);
@@ -120,6 +128,9 @@ async function render() {
   const hash = location.hash.replace('#/', '') || 'qg';
   const name = VIEWS[hash] ? hash : 'qg';
   $$('#sidebar a').forEach((a) => a.classList.toggle('active', a.dataset.view === name));
+  // Sur téléphone la barre du bas défile : l'onglet courant doit toujours être sous les yeux.
+  const actif = $('#sidebar a.active');
+  if (actif && matchMedia('(max-width: 700px)').matches) actif.scrollIntoView({ inline: 'center', block: 'nearest' });
   const view = $('#view');
   view.innerHTML = '<p class="muted">Chargement…</p>';
   try {
@@ -238,7 +249,7 @@ async function vQG(view) {
           ${S.quests.map((q) => `
             <div class="quest ${q.done ? 'done' : ''}">
               <div class="q-emoji">${q.emoji}</div>
-              <div style="flex:1.2"><div class="q-label">${esc(q.label)}</div></div>
+              <div class="q-text"><div class="q-label">${esc(q.label)}</div></div>
               <div class="q-bar bar"><i style="width:${Math.round((q.progress / q.target) * 100)}%"></i></div>
               <div class="q-count">${q.progress}/${q.target}</div>
               <div class="q-bonus">${q.done ? '✅' : `+${q.bonus}`}</div>
@@ -368,10 +379,11 @@ async function vChasse(view) {
   const tpls = await getTemplates();
   view.innerHTML = `
     <div class="hunt-top">
-      <div><b>${hunt.mode === 'calls' ? '📞 Appel' : '🎯 Cible'} ${hunt.idx + 1}/${hunt.queue.length}</b> <span class="muted">· session +${hunt.xp} XP</span></div>
+      <div><b>${hunt.mode === 'calls' ? '📞 Appel' : '🎯 Cible'} ${hunt.idx + 1}/${hunt.queue.length}</b> <span class="muted hunt-session-xp">· session +${hunt.xp} XP</span></div>
       <div class="combo-meter">${hunt.combo >= 2 ? `🔥 COMBO x${hunt.combo}` : ''}</div>
       <button class="ghost" id="hunt-quit">✖ Quitter</button>
     </div>
+    <div class="bar hunt-progress" role="progressbar" aria-valuemin="0" aria-valuemax="${hunt.queue.length}" aria-valuenow="${hunt.idx}" aria-label="Avancement de la session"><i style="width:${Math.round((hunt.idx / hunt.queue.length) * 100)}%"></i></div>
     <div class="card hunt-card">
       <div class="hunt-id">
         <div>
@@ -385,7 +397,7 @@ async function vChasse(view) {
           </div>
           ${hunt.mode === 'calls' && c.phone ? `<div style="font-size:28px;font-weight:900;margin-top:10px"><a href="tel:${esc(c.phone)}">☎️ ${esc(c.phone)}</a></div>` : ''}
         </div>
-        <div style="text-align:right" class="small muted">Priorité<br><b style="font-size:22px;color:var(--gold2)">${c.score}</b></div>
+        <div style="text-align:right" class="small muted hunt-prio" title="Score de priorité : ancien client, typologie, étape, CA, données disponibles">Priorité<br><b style="font-size:22px;color:var(--gold2)">${c.score}</b></div>
       </div>
       ${c.notes ? `<div class="hunt-note">📝 ${esc(c.notes)}</div>` : ''}
       ${c.icebreaker
@@ -407,8 +419,8 @@ async function vChasse(view) {
         <button id="hunt-open-fiche" class="ghost">👤 Fiche complète</button>
       </div>
       <div class="hunt-msg">
-        <div class="spread" style="margin-bottom:6px">
-          <label class="field" style="flex:1">Template
+        <div class="hunt-tpl-row">
+          <label class="field">Template
             <select id="hunt-tpl">${tpls.map((t) => `<option value="${t.id}" ${t.code === c.suggested_template ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select>
           </label>
           <button id="hunt-ai" title="Rédiger avec l'IA">✨ IA</button>
@@ -519,6 +531,7 @@ async function vChasse(view) {
     // Envoi RÉEL depuis ta boîte (compté dans le cap quotidien, comme l'autopilote).
     sendreal: async () => {
       const btn = $('[data-act="sendreal"]', view);
+      const libelle = btn.innerHTML;
       btn.disabled = true; btn.textContent = '📤 Envoi en cours…';
       try {
         const r = await api('/mail/send_one', { method: 'POST', body: { contact_id: c.id, subject: $('#hunt-subject').value, body: $('#hunt-body').value } });
@@ -527,7 +540,7 @@ async function vChasse(view) {
         advance();
       } catch (e) {
         fx.error(e.message);
-        btn.disabled = false; btn.textContent = '📤 ENVOYER l\'email';
+        btn.disabled = false; btn.innerHTML = libelle;
       }
     },
     send: async () => { await copyText($('#hunt-body').value); act(c.touches > 0 ? 'relance' : 'message_envoye', { note: tplName() }); },
@@ -828,8 +841,9 @@ async function vPipeline(view) {
 }
 
 // ================================================================ CONTACTS
-const cFilter = { search: '', segment: '', stage: '', origin: '', former: false, enrichable: false, campaign: 0, sort: 'updated_at', dir: 'desc' };
+const cFilter = { search: '', segment: '', stage: '', origin: '', former: false, enrichable: false, sansIce: false, campaign: 0, sort: 'updated_at', dir: 'desc' };
 const cSelected = new Set();
+let cSearchFocus = false; // la liste se redessine pendant qu'on tape : on rend le curseur au champ
 
 async function vContacts(view) {
   const params = new URLSearchParams({ limit: '300' });
@@ -848,7 +862,7 @@ async function vContacts(view) {
 
   view.innerHTML = `
     <div class="view-header spread">
-      <div><h1>👥 Contacts</h1><div class="sub">${total} contact(s)${cSelected.size ? ` · ${cSelected.size} sélectionné(s)` : ''}</div></div>
+      <div><h1>👥 Contacts</h1><div class="sub">${total} contact(s)${contacts.length < total ? ` · les ${contacts.length} plus récents affichés : affine avec la recherche ou les filtres` : ''}${cSelected.size ? ` · ${cSelected.size} sélectionné(s)` : ''}</div></div>
       <div class="row">
         <button id="c-new" class="primary">➕ Nouveau</button>
         <a href="/api/export.csv" download><button>📤 Export CSV</button></a>
@@ -874,9 +888,9 @@ async function vContacts(view) {
       <button id="b-clear" class="ghost">✖ Désélectionner</button>
     </div>` : ''}
     <div class="card table-scroll" style="padding:6px 10px">
-      <table class="list">
+      <table class="list contacts">
         <thead><tr>
-          <th><input type="checkbox" id="c-all"></th>
+          <th><input type="checkbox" id="c-all" title="Tout sélectionner"></th>
           ${[['name', 'Contact'], ['segment', 'Typologie'], ['stage', 'Étape'], ['', 'Data'], ['next_action_at', 'Prochaine action'], ['revenue', 'CA hist.']]
             .map(([k, label]) => k
               ? `<th data-sort-col="${k}" style="cursor:pointer" title="Trier">${label} ${cFilter.sort === k ? (cFilter.dir === 'asc' ? '▲' : '▼') : '<span class="faint">↕</span>'}</th>`
@@ -898,7 +912,13 @@ async function vContacts(view) {
     </div>`;
 
   let searchTimer = null;
-  $('#c-search').oninput = (e) => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { cFilter.search = e.target.value; vContacts(view); }, 300); };
+  $('#c-search').oninput = (e) => { clearTimeout(searchTimer); searchTimer = setTimeout(() => { cFilter.search = e.target.value; cSearchFocus = true; vContacts(view); }, 300); };
+  if (cSearchFocus) {
+    cSearchFocus = false;
+    const champ = $('#c-search');
+    champ.focus();
+    champ.setSelectionRange(champ.value.length, champ.value.length);
+  }
   $('#c-seg').onchange = (e) => { cFilter.segment = e.target.value; vContacts(view); };
   $('#c-stage').onchange = (e) => { cFilter.stage = e.target.value; vContacts(view); };
   $('#c-origin').onchange = (e) => { cFilter.origin = e.target.value; vContacts(view); };
@@ -2373,6 +2393,32 @@ $('#sound-toggle').onclick = () => {
   if (!on) fx.play('pop');
 };
 $('#sound-toggle').textContent = localStorage.getItem('chasse_sounds') === '0' ? '🔇' : '🔊';
+
+// Barre du bas (téléphone) : le fondu du bord droit disparaît quand on est au bout.
+{
+  const barre = $('#sidebar');
+  const auBout = () => barre.classList.toggle('fin', barre.scrollLeft + barre.clientWidth >= barre.scrollWidth - 2);
+  barre.addEventListener('scroll', auBout, { passive: true });
+  addEventListener('resize', auBout);
+  auBout();
+}
+
+// Échap ferme ce qui est ouvert : d'abord la fenêtre du dessus, sinon la fiche contact.
+addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  const fenetres = $$('#modal-root .modal-backdrop');
+  if (fenetres.length) { fenetres[fenetres.length - 1].remove(); return; }
+  if (!$('#drawer').classList.contains('hidden')) closeDrawer();
+});
+
+// Un bouton qui ne montre qu'une icône (🗑, ✏️, ✖) doit quand même avoir un nom
+// pour la synthèse vocale : on reprend son info-bulle. Vaut pour tout ce qui
+// s'affiche, fiches et fenêtres comprises, sans y penser à chaque vue.
+{
+  const nommer = (racine) => $$('button[title]:not([aria-label])', racine).forEach((b) => b.setAttribute('aria-label', b.title));
+  new MutationObserver(() => nommer(document)).observe(document.body, { childList: true, subtree: true });
+  nommer(document);
+}
 
 refreshState().then(render).catch((e) => {
   $('#view').innerHTML = `<div class="card"><h2>💥 Impossible de joindre le serveur</h2><p>${esc(e.message)}</p></div>`;

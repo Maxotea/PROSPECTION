@@ -255,7 +255,13 @@ La même app s'adapte à l'écran. Sur téléphone, la navigation passe **en bas
 de pouce, avec des libellés courts. Les textes grandissent, les champs passent à 16 px
 (en dessous, Safari zoome tout seul dès qu'on tape), et les boutons font au moins 44 px
 de haut. Les tableaux et le kanban défilent dans leur propre cadre : la page, elle, ne
-part jamais de travers.
+part jamais de travers. La liste des contacts, elle, se présente en cartes (nom, typologie,
+étape, prochaine action) plutôt qu'en tableau à sept colonnes, et la barre du bas
+s'estompe sur la droite tant qu'il reste des onglets à faire défiler.
+
+Au clavier : `Échap` ferme la fiche contact ou la fenêtre ouverte, et `Tab` montre
+toujours où l'on est. Le réglage système « réduire les animations » coupe les confettis
+et les glissements.
 
 ## 🎮 La boucle de jeu
 
@@ -337,7 +343,7 @@ Les clés sont stockées en local (ou via un fichier `.env` : `PENNYLANE_API_KEY
 - `server.js` : serveur HTTP + API REST (`/api/*`) + boucle Autopilote (10 min) · `src/autopilot.js` : séquences, enrôlements, file d'envoi, détection des réponses · `src/db.js` : schéma + upsert/dédoublonnage · `src/gamification.js` : XP, niveaux, quêtes, streak, badges, boss · `src/playbooks.js` : segments, cadences, templates, séquences · `src/integrations/` : Pennylane, FullEnrich, HubSpot, Claude · `src/importers/` : répertoire chaud (appels macOS, WhatsApp, scoring des relations) · `public/` : l'app.
 - API Pennylane **v2** (`/api/external/v2` : `customers`, `customer_invoices`, `quotes`, `create_from_quote`) ; FullEnrich **v2** (`/api/v2/contact/enrich/bulk`, fallback v1 automatique) ; HubSpot **v3** ; Gmail en **SMTP/IMAP standard** (mot de passe d'application, aucun projet Google Cloud à créer).
 - Les réponses d'API inattendues remontent **verbatim** dans l'interface pour diagnostiquer vite.
-- **Tests** : `npm test` : 69 tests. Moteur Autopilote contre des serveurs SMTP/IMAP factices (envoi, threading, réponses, bounces, cap, scan), campagnes hebdo, et répertoire chaud contre de fausses bases d'appels/WhatsApp et de vrais formats d'export.
+- **Tests** : `npm test` : 73 tests. Moteur Autopilote contre des serveurs SMTP/IMAP factices (envoi, threading, réponses, bounces, cap, scan), campagnes hebdo, et répertoire chaud contre de fausses bases d'appels/WhatsApp et de vrais formats d'export.
 
 ## 🗺️ Pistes pour la suite
 

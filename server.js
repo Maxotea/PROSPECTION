@@ -272,8 +272,10 @@ route('GET', '/api/contacts', async (req, params, query) => {
   const args = [];
   if (query.archived === '1') where.push('archived = 1'); else where.push('archived = 0');
   if (query.search) {
-    where.push(`(first_name LIKE ? OR last_name LIKE ? OR company LIKE ? OR email LIKE ?)`);
-    const s = `%${query.search}%`;
+    // « % » et « _ » sont des jokers pour LIKE : tapés dans la recherche, ils
+    // doivent chercher ces caractères, pas tout renvoyer.
+    where.push(`(first_name LIKE ? ESCAPE '\\' OR last_name LIKE ? ESCAPE '\\' OR company LIKE ? ESCAPE '\\' OR email LIKE ? ESCAPE '\\')`);
+    const s = `%${String(query.search).replace(/[\\%_]/g, (c) => '\\' + c)}%`;
     args.push(s, s, s, s);
   }
   if (query.segment) { where.push('segment = ?'); args.push(query.segment); }

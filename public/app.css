@@ -146,7 +146,9 @@ label.field > input, label.field > select { width: 100%; }
 .quest .q-emoji { font-size: 20px; width: 28px; text-align: center; }
 .quest .q-label { font-weight: 700; }
 .quest.done .q-label { color: var(--green2); text-decoration: line-through; text-decoration-thickness: 1px; }
-.quest .q-bar { flex: 1; min-width: 80px; }
+.quest .q-text { flex: 1; min-width: 0; }
+.quest .q-label { font-size: 15px; }
+.quest .q-bar { flex: 0 0 72px; }
 .quest .q-count { font-size: 12.5px; color: var(--muted); font-weight: 700; min-width: 34px; text-align: right; }
 .quest .q-bonus { font-size: 12px; color: var(--gold2); font-weight: 800; }
 
@@ -178,12 +180,21 @@ label.field > input, label.field > select { width: 100%; }
 .onboarding li { margin: 8px 0; }
 
 /* ---------------------------------------------------------------- Mode Chasse */
-.hunt-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.hunt-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.hunt-top > div:first-child { white-space: nowrap; }
+.hunt-top #hunt-quit { white-space: nowrap; margin-left: auto; }
 .combo-meter { font-weight: 900; color: var(--gold2); font-size: 18px; }
+/* Où en est la session : une barre fine sous l'en-tête, qui avance à chaque cible. */
+.hunt-progress { height: 5px; margin-bottom: 14px; }
+.hunt-progress > i { transition: width .35s cubic-bezier(.2, .8, .2, 1); }
 .hunt-card { max-width: 780px; margin: 0 auto; animation: card-in .25s cubic-bezier(.2, .8, .2, 1); }
 @keyframes card-in { from { opacity: 0; transform: translateY(14px) scale(.98); } }
 .hunt-id { display: flex; justify-content: space-between; gap: 14px; align-items: flex-start; }
-.hunt-name { font-size: 24px; font-weight: 900; }
+.hunt-id > div:first-child { flex: 1; min-width: 0; }
+.hunt-id .hunt-prio { flex-shrink: 0; }
+.hunt-name { font-size: 24px; font-weight: 900; overflow-wrap: anywhere; }
+.hunt-tpl-row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 6px; }
+.hunt-tpl-row label.field { flex: 1; min-width: 0; }
 .hunt-links { display: flex; gap: 8px; margin: 10px 0; flex-wrap: wrap; }
 .hunt-msg { margin-top: 14px; }
 .hunt-msg textarea { min-height: 170px; background: var(--bg2); }
@@ -265,6 +276,18 @@ table.list tr.rowc:hover { background: rgba(139, 92, 246, .07); }
 
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
+/* Au clavier (Tab), on doit voir où l'on est. À la souris, rien ne change. */
+button:focus-visible, .btn:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, .kcard:focus-visible {
+  outline: 2px solid var(--accent2); outline-offset: 2px;
+}
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offset: 0; }
+
+/* Quelqu'un qui a coupé les animations dans son système ne veut ni confettis
+   qui tombent ni cartes qui glissent : tout s'affiche directement. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
 /* ---------------------------------------------------------------- tablette */
 @media (max-width: 900px) {
   #sidebar { width: 64px; }
@@ -297,6 +320,12 @@ table.list tr.rowc:hover { background: rgba(139, 92, 246, .07); }
     z-index: 30;
   }
   #sidebar::-webkit-scrollbar { display: none; }
+  /* Neuf onglets ne tiennent pas sur 390 px : le bord droit s'estompe pour dire
+     « il y en a d'autres », et redevient net une fois arrivé au bout. */
+  #sidebar:not(.fin) {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent);
+  }
   #sidebar .logo, #sidebar .sidebar-footer { display: none; }
   #sidebar a {
     flex-direction: column; gap: 3px; justify-content: center;
@@ -352,8 +381,48 @@ table.list tr.rowc:hover { background: rgba(139, 92, 246, .07); }
   .table-scroll { -webkit-overflow-scrolling: touch; }
   table.list { font-size: 14.5px; }
   table.list th, table.list td { padding: 11px 8px; }
+
+  /* La liste des contacts : sur 390 px, un tableau à 7 colonnes se lit en
+     tournant la tête. Chaque ligne devient une carte : nom et CA en tête,
+     typologie et étape dessous, puis les données et la prochaine action. */
+  table.contacts, table.contacts tbody { display: block; width: 100%; }
+  table.contacts thead { display: none; }
+  table.contacts tr.rowc {
+    display: grid; grid-template-columns: auto 1fr 1fr; gap: 8px 10px; align-items: center;
+    padding: 12px 4px; border-bottom: 1px solid var(--border);
+  }
+  table.contacts tr.rowc:last-child { border-bottom: 0; }
+  table.contacts td { display: block; padding: 0; border: 0; min-width: 0; }
+  table.contacts td:nth-child(1) { grid-row: 1; grid-column: 1; align-self: start; }
+  table.contacts td:nth-child(2) { grid-row: 1; grid-column: 2 / -1; }
+  table.contacts td:nth-child(3) { grid-row: 2; grid-column: 2; }
+  table.contacts td:nth-child(4) { grid-row: 2; grid-column: 3; }
+  table.contacts td:nth-child(5) { grid-row: 3; grid-column: 2; }
+  table.contacts td:nth-child(7) { grid-row: 3; grid-column: 3; text-align: right; font-weight: 700; }
+  table.contacts td:nth-child(6) { grid-row: 4; grid-column: 2 / -1; }
+  table.contacts td:nth-child(6) br { display: none; }
+  table.contacts td:nth-child(6) .muted::before { content: ' · '; }
+  table.contacts td:nth-child(6) button { min-height: 0; padding: 3px 8px; vertical-align: middle; }
+  table.contacts .cell-mini { max-width: 100%; width: 100%; }
+
+  /* Mode Chasse : l'XP de session est déjà dans les notifications, on garde
+     l'en-tête sur une ligne. La fiche contact garde sa croix à côté du nom. */
+  .hunt-session-xp { display: none; }
+  #drawer > .spread:first-child { flex-wrap: nowrap; }
+  #drawer > .spread:first-child > div:first-child { min-width: 0; }
   .kanban { scroll-snap-type: x proximity; }
   .kanban .kcol { scroll-snap-align: start; }
+
+  /* Mode Chasse au pouce : la priorité reste dans le cadre, le choix du template
+     prend toute la largeur et les boutons IA / Copier passent dessous. */
+  .hunt-id { flex-wrap: wrap; }
+  .hunt-id .hunt-prio { text-align: left !important; display: flex; gap: 8px; align-items: baseline; width: 100%; }
+  .hunt-id .hunt-prio br { display: none; }
+  .hunt-tpl-row { flex-wrap: wrap; }
+  .hunt-tpl-row label.field { flex: 1 1 100%; }
+  .hunt-tpl-row button { flex: 1; justify-content: center; }
+  .hunt-links button { width: 100%; justify-content: center; }
+  .hunt-links > a, .hunt-links > button { flex: 1 1 45%; }
 
   /* Fiche contact et fenêtres : plein écran, c'est plus lisible qu'un cadre. */
   #drawer { width: 100%; max-width: 100%; }

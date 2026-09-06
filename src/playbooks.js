@@ -19,7 +19,7 @@ const STAGES = [
   { code: 'rdv', label: 'RDV pris', emoji: '📅' },
   { code: 'devis_envoye', label: 'Devis envoyé', emoji: '📄' },
   { code: 'negociation', label: 'Négociation', emoji: '🤝' },
-  { code: 'gagne', label: 'Gagné 🏆', emoji: '🏆' },
+  { code: 'gagne', label: 'Gagné', emoji: '🏆' },
   { code: 'perdu', label: 'Perdu', emoji: '🪦' },
 ];
 

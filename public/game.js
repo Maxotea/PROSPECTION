@@ -53,7 +53,9 @@ const fx = (() => {
   function resize() { canvas.width = innerWidth; canvas.height = innerHeight; }
   addEventListener('resize', resize); resize();
   const COLORS = ['#eab308', '#8b5cf6', '#34d399', '#f87171', '#60a5fa', '#facc15'];
+  const sansAnimation = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
   function confetti(count = 120, { spread = 1 } = {}) {
+    if (sansAnimation()) return; // réglage système « réduire les animations » respecté
     for (let i = 0; i < count; i++) {
       particles.push({
         x: canvas.width / 2 + (Math.random() - 0.5) * canvas.width * 0.6 * spread,
