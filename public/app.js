@@ -423,7 +423,7 @@ async function vChasse(view) {
         <button data-act="replied">💬 A répondu <span class="kbd"></span></button>
         <button class="gold" data-act="meeting">📅 RDV pris <span class="kbd"></span></button>
         ${S.autopilot.configured && c.email ? `<button data-act="sendreal">📤 Envoyer l'email à la place <span class="kbd"></span></button>` : ''}
-        <button data-act="skip">⏭️ Plus tard <span class="kbd"></span></button>
+        <button data-act="skip">⏭️ Pas maintenant <span class="kbd"></span></button>
         <button class="danger" data-act="disqualify">🪦 Disqualifier <span class="kbd"></span></button>
         ` : `
         ${S.autopilot.configured && c.email
@@ -434,7 +434,7 @@ async function vChasse(view) {
         <button data-act="call">📞 Appelé <span class="kbd"></span></button>
         <button data-act="replied">💬 A répondu <span class="kbd"></span></button>
         <button class="gold" data-act="meeting">📅 RDV pris <span class="kbd"></span></button>
-        <button data-act="skip">⏭️ Plus tard <span class="kbd"></span></button>
+        <button data-act="skip">⏭️ Pas maintenant <span class="kbd"></span></button>
         <button class="danger" data-act="disqualify">🪦 Disqualifier <span class="kbd"></span></button>
         `}
       </div>
@@ -536,7 +536,11 @@ async function vChasse(view) {
     replied: () => act('reponse_recue'),
     meeting: () => act('rdv_pris'),
     skip: async () => {
-      try { await api(`/contacts/${c.id}`, { method: 'PATCH', body: { next_action_at: addDaysStr(today(), 1), next_action: c.next_action || 'Reprendre contact' } }); } catch { /* pas bloquant */ }
+      try {
+        const r = await api('/actions', { method: 'POST', body: { contact_id: c.id, type: 'reporte' } });
+        const d = r.contact && r.contact.next_action_at;
+        fx.toast(d ? `⏭️ Reporté : il revient le ${fmtDay(d)}` : '⏭️ Reporté');
+      } catch { /* pas bloquant : on passe quand même au suivant */ }
       advance();
     },
     disqualify: () => act('disqualifie'),

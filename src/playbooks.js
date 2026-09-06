@@ -71,8 +71,31 @@ function suggestedTemplateCode(contact, touches) {
   return 'pme_relance_1';
 }
 
+// Une fois la cadence épuisée, on N'ENCHAÎNE PAS le dernier intervalle en boucle :
+// quelqu'un qui n'a jamais répondu après toute la séquence ne mérite pas un rappel
+// tous les six jours à vie. On espace, puis on met en veille longue. C'est ce qui
+// libère la place dans la liste du jour pour les gens jamais appelés.
+const ESPACEMENT_APRES_CADENCE = [14, 30, 60, 90];
+const VEILLE_LONGUE = 180;
+
+// « Plus tard » : chaque report repousse plus loin que le précédent. Sinon on
+// retombe sur la même personne le lendemain, et le surlendemain, sans fin.
+const REPORTS = [3, 7, 14, 30, 60];
+
+function etapeDeCadence(contact, touches) {
+  const cad = CADENCES[contact.segment] || CADENCES.inconnu;
+  const rang = Math.max(touches - 1, 0);
+  if (rang < cad.length) return cad[rang];
+  const apres = rang - cad.length;
+  if (apres < ESPACEMENT_APRES_CADENCE.length) {
+    return { gap: ESPACEMENT_APRES_CADENCE[apres], label: 'Relance espacée (aucune réponse jusqu’ici)' };
+  }
+  return { gap: VEILLE_LONGUE, label: 'En veille : relancer seulement si tu as une vraie raison' };
+}
+
 // Prochaine action planifiée après une action loggée.
-function nextStepAfter(contact, actionType, touches, helpers) {
+// `reports` = nombre de fois où ce contact a déjà été mis à « plus tard ».
+function nextStepAfter(contact, actionType, touches, helpers, reports = 0) {
   const { addDays, localDay } = helpers;
   const today = localDay();
   if (['gagne', 'perdu'].includes(contact.stage)) return { next_action: '', next_action_at: '' };
@@ -80,9 +103,15 @@ function nextStepAfter(contact, actionType, touches, helpers) {
   if (actionType === 'rdv_pris') return { next_action: 'Préparer le RDV + le devis', next_action_at: addDays(today, 1) };
   if (actionType === 'devis_envoye') return { next_action: 'Relancer le devis', next_action_at: addDays(today, 4) };
   if (actionType === 'devis_accepte') return { next_action: 'Facturer 💰', next_action_at: today };
+  if (actionType === 'reporte') {
+    const jours = REPORTS[Math.min(Math.max(reports - 1, 0), REPORTS.length - 1)];
+    return {
+      next_action: contact.next_action || 'Reprendre contact',
+      next_action_at: addDays(today, jours),
+    };
+  }
   if (['message_envoye', 'relance', 'appel', 'connexion_linkedin', 'reponse_envoyee'].includes(actionType)) {
-    const cad = CADENCES[contact.segment] || CADENCES.inconnu;
-    const step = cad[Math.min(Math.max(touches - 1, 0), cad.length - 1)];
+    const step = etapeDeCadence(contact, touches);
     return { next_action: step.label, next_action_at: addDays(today, step.gap) };
   }
   return null; // pas de changement
@@ -398,4 +427,4 @@ function renderTemplate(tpl, contact, settings) {
   return { subject: fill(tpl.subject), body: fill(tpl.body), channel: tpl.channel, name: tpl.name, code: tpl.code };
 }
 
-module.exports = { SEGMENTS, STAGES, CADENCES, FIRST_TOUCH, TEMPLATE_SEED, SEQUENCE_SEED, seedTemplates, seedSequences, renderTemplate, suggestedTemplateCode, nextStepAfter, icebreakerHints };
+module.exports = { SEGMENTS, STAGES, CADENCES, REPORTS, ESPACEMENT_APRES_CADENCE, FIRST_TOUCH, TEMPLATE_SEED, SEQUENCE_SEED, seedTemplates, seedSequences, renderTemplate, suggestedTemplateCode, nextStepAfter, icebreakerHints };

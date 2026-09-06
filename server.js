@@ -261,7 +261,7 @@ function route(method, pattern, handler) {
   routes.push({ method, rx, names, handler });
 }
 
-const USER_ACTIONS = ['note', 'connexion_linkedin', 'message_envoye', 'relance', 'appel', 'reponse_envoyee', 'reponse_recue', 'rdv_pris', 'devis_envoye', 'devis_accepte', 'facture', 'disqualifie'];
+const USER_ACTIONS = ['note', 'connexion_linkedin', 'message_envoye', 'relance', 'appel', 'reponse_envoyee', 'reponse_recue', 'rdv_pris', 'devis_envoye', 'devis_accepte', 'facture', 'disqualifie', 'reporte'];
 
 // ---- état global (dashboard)
 route('GET', '/api/state', async () => ({ ...game.fullState(), autopilot: autopilot.state(), campaign: campaigns.currentCampaign() }));

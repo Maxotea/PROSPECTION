@@ -264,7 +264,23 @@ part jamais de travers.
 3. Chaque action rapporte de l'XP : message +10, réponse reçue +25, RDV +50, devis +75, **facture +250**. Les quêtes et badges tombent tout seuls.
 4. Un deal marqué **« Facturée ! »** remplit un segment du boss. À 5 → 🏆.
 
-Raccourcis clavier en Mode Chasse : `1` message envoyé · `2` connexion LinkedIn · `3` appelé · `4` a répondu · `5` RDV pris · `6` plus tard · `7` disqualifier.
+Raccourcis clavier en Mode Chasse : `1` message envoyé · `2` connexion LinkedIn · `3` appelé · `4` a répondu · `5` RDV pris · `6` pas maintenant · `7` disqualifier.
+
+### Pourquoi la liste ne te ressert pas toujours les mêmes têtes
+
+Trois règles empêchent la file du jour de tourner en rond :
+
+- **« Pas maintenant » repousse de plus en plus loin** : 3 jours, puis 7, 14, 30, 60.
+  Passer quelqu'un une fois ne le ramène pas dès le lendemain.
+- **Un prospect froid relancé sans réponse redescend** dans le classement : jusqu'à
+  40 points de moins après cinq tentatives. Un devis ou un RDV en cours, lui, ne perd
+  rien : là, les relances sont un bon signe.
+- **La moitié des places est réservée à des gens jamais présentés.** Sinon les
+  relances dues mangent toute la liste chaque matin et un fichier de 200 prospects se
+  travaille par les 20 mêmes.
+
+Et une fois la cadence du segment épuisée, les relances s'espacent (14, 30, 60, 90 jours)
+au lieu de repartir en boucle, puis le contact passe en veille.
 
 ## 🐘🏪🏃 Typologies de clients
 
@@ -321,7 +337,7 @@ Les clés sont stockées en local (ou via un fichier `.env` : `PENNYLANE_API_KEY
 - `server.js` : serveur HTTP + API REST (`/api/*`) + boucle Autopilote (10 min) · `src/autopilot.js` : séquences, enrôlements, file d'envoi, détection des réponses · `src/db.js` : schéma + upsert/dédoublonnage · `src/gamification.js` : XP, niveaux, quêtes, streak, badges, boss · `src/playbooks.js` : segments, cadences, templates, séquences · `src/integrations/` : Pennylane, FullEnrich, HubSpot, Claude · `src/importers/` : répertoire chaud (appels macOS, WhatsApp, scoring des relations) · `public/` : l'app.
 - API Pennylane **v2** (`/api/external/v2` : `customers`, `customer_invoices`, `quotes`, `create_from_quote`) ; FullEnrich **v2** (`/api/v2/contact/enrich/bulk`, fallback v1 automatique) ; HubSpot **v3** ; Gmail en **SMTP/IMAP standard** (mot de passe d'application, aucun projet Google Cloud à créer).
 - Les réponses d'API inattendues remontent **verbatim** dans l'interface pour diagnostiquer vite.
-- **Tests** : `npm test` : 36 tests. Moteur Autopilote contre des serveurs SMTP/IMAP factices (envoi, threading, réponses, bounces, cap, scan), campagnes hebdo, et répertoire chaud contre de fausses bases d'appels/WhatsApp et de vrais formats d'export.
+- **Tests** : `npm test` : 69 tests. Moteur Autopilote contre des serveurs SMTP/IMAP factices (envoi, threading, réponses, bounces, cap, scan), campagnes hebdo, et répertoire chaud contre de fausses bases d'appels/WhatsApp et de vrais formats d'export.
 
 ## 🗺️ Pistes pour la suite
 

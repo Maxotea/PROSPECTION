@@ -23,6 +23,7 @@ const ACTIONS = {
   devis_accepte: { xp: 100, label: 'Devis accepté', effort: true, emoji: '🤝' },
   facture: { xp: 250, label: 'FACTURE ÉMISE 💰', effort: true, emoji: '💰' },
   disqualifie: { xp: 3, label: 'Prospect disqualifié', effort: false, emoji: '🪦' },
+  reporte: { xp: 0, label: 'Reporté à plus tard', effort: false, emoji: '⏭️' },
   quest_bonus: { xp: 0, label: 'Quête accomplie', effort: false, emoji: '✅' },
   badge_bonus: { xp: 0, label: 'Badge débloqué', effort: false, emoji: '🏅' },
 };
@@ -243,8 +244,9 @@ function logAction({ contact_id = null, deal_id = null, type, note = '', meta = 
     if (ACTIONS[type].effort) patch.last_touch_at = nowIso();
 
     const touches = Number(get(`SELECT COUNT(*) AS n FROM activities WHERE contact_id = ? AND type IN (${TOUCH_TYPES.map(() => '?').join(',')})`, contact_id, ...TOUCH_TYPES).n);
+    const reports = Number(get(`SELECT COUNT(*) AS n FROM activities WHERE contact_id = ? AND type = 'reporte'`, contact_id).n);
     const merged = { ...contact, ...patch };
-    const next = playbooks.nextStepAfter(merged, type, touches, dbApi);
+    const next = playbooks.nextStepAfter(merged, type, touches, dbApi, reports);
     if (next) { patch.next_action = next.next_action; patch.next_action_at = next.next_action_at; }
     if (Object.keys(patch).length) contact = dbApi.updateContact(contact_id, patch);
   }
@@ -330,7 +332,16 @@ function fullState() {
 }
 
 // Score de priorité d'un prospect pour la file du Mode Chasse.
-function contactScore(c) {
+// Combien de sollicitations sans réponse fait-on baisser un contact, et jusqu'où.
+const FATIGUE_PAR_TENTATIVE = 8;
+const FATIGUE_MAX = 40;
+
+// `tentatives` = nombre de fois où tu l'as déjà sollicité. Un prospect froid
+// relancé six fois sans réponse doit passer DERRIÈRE quelqu'un que tu n'as
+// jamais appelé : sinon la liste du jour sert toujours les mêmes têtes et le
+// reste du fichier n'est jamais travaillé. La fatigue ne s'applique qu'aux
+// étapes froides : sur un devis ou un RDV, les relances sont un bon signe.
+function contactScore(c, tentatives = 0) {
   let s = 0;
   if (c.is_former_client) s += 30;
   if (c.email) s += 15;
@@ -343,7 +354,53 @@ function contactScore(c) {
   if (c.stage === 'rdv') s += 30;
   if (c.stage === 'devis_envoye' || c.stage === 'negociation') s += 35;
   if (c.revenue_history > 0) s += Math.min(20, Math.round(c.revenue_history / 500));
+  if (['a_contacter', 'contacte'].includes(c.stage)) {
+    s -= Math.min(FATIGUE_MAX, tentatives * FATIGUE_PAR_TENTATIVE);
+  }
   return s;
+}
+
+// Deux notions à ne pas confondre, en une seule requête :
+// - tentatives : les sollicitations réelles (appel, message, relance). C'est ce
+//   qui fatigue un contact et le fait redescendre.
+// - presentations : tout ce qui lui a déjà été servi dans une liste, y compris
+//   les « pas maintenant ». C'est ce qui décide s'il compte comme nouvelle tête :
+//   quelqu'un que tu as déjà eu sous les yeux et passé n'est pas du sang neuf.
+function historiqueParContact() {
+  const m = new Map();
+  const types = [...TOUCH_TYPES, 'reporte'];
+  const rows = all(
+    `SELECT contact_id, type, COUNT(*) AS n FROM activities
+     WHERE contact_id IS NOT NULL AND type IN (${types.map(() => '?').join(',')})
+     GROUP BY contact_id, type`, ...types);
+  for (const r of rows) {
+    const e = m.get(r.contact_id) || { tentatives: 0, presentations: 0 };
+    if (r.type !== 'reporte') e.tentatives += Number(r.n);
+    e.presentations += Number(r.n);
+    m.set(r.contact_id, e);
+  }
+  return m;
+}
+
+const VIERGE = { tentatives: 0, presentations: 0 };
+const histo = (m, id) => m.get(id) || VIERGE;
+
+// Sur une liste triée, on réserve une part des places aux gens jamais sollicités.
+// Sans cette garantie, les relances dues mangent toute la liste chaque matin et
+// un fichier de 200 prospects se travaille par les 20 mêmes.
+const PART_NOUVEAUX = 0.5;
+
+function melangerNouveaux(tries, limit, hist) {
+  const jamais = tries.filter((c) => !histo(hist, c.id).presentations);
+  const deja = tries.filter((c) => histo(hist, c.id).presentations);
+  const quota = Math.min(jamais.length, Math.round(limit * PART_NOUVEAUX));
+  const choisis = [...jamais.slice(0, quota), ...deja].slice(0, limit);
+  // On complète avec des nouveaux si les relances dues ne suffisent pas.
+  for (const c of jamais.slice(quota)) {
+    if (choisis.length >= limit) break;
+    choisis.push(c);
+  }
+  return choisis.sort((a, b) => b.score - a.score);
 }
 
 // File du Mode Chasse : les actions dues aujourd'hui, puis les jamais-contactés, triés par score.
@@ -356,11 +413,11 @@ function huntQueue(limit = 15) {
      AND id NOT IN (SELECT contact_id FROM enrollments WHERE status = 'active')`,
     today
   );
-  const scored = due.map((c) => ({ ...c, score: contactScore(c) }));
+  const hist = historiqueParContact();
+  const scored = due.map((c) => ({ ...c, score: contactScore(c, histo(hist, c.id).tentatives) }));
   scored.sort((a, b) => b.score - a.score || String(a.last_touch_at).localeCompare(String(b.last_touch_at)));
-  const touchesStmt = `SELECT COUNT(*) AS n FROM activities WHERE contact_id = ? AND type IN (${TOUCH_TYPES.map(() => '?').join(',')})`;
-  return scored.slice(0, limit).map((c) => {
-    const touches = Number(get(touchesStmt, c.id, ...TOUCH_TYPES).n);
+  return melangerNouveaux(scored, limit, hist).map((c) => {
+    const touches = histo(hist, c.id).tentatives;
     return { ...c, touches, suggested_template: playbooks.suggestedTemplateCode(c, touches) };
   });
 }
@@ -380,13 +437,13 @@ function callQueue(limit = 10) {
      AND ((next_action_at != '' AND next_action_at <= ?) OR (next_action_at = '' AND stage = 'a_contacter'))`,
     today
   );
+  const hist = historiqueParContact();
   const scored = rows
     .filter((c) => !called.has(c.id))
-    .map((c) => ({ ...c, score: contactScore(c) + (['en_discussion', 'rdv', 'devis_envoye', 'negociation'].includes(c.stage) ? 15 : 0) }));
+    .map((c) => ({ ...c, score: contactScore(c, histo(hist, c.id).tentatives) + (['en_discussion', 'rdv', 'devis_envoye', 'negociation'].includes(c.stage) ? 15 : 0) }));
   scored.sort((a, b) => b.score - a.score || String(a.last_touch_at).localeCompare(String(b.last_touch_at)));
-  const touchesStmt = `SELECT COUNT(*) AS n FROM activities WHERE contact_id = ? AND type IN (${TOUCH_TYPES.map(() => '?').join(',')})`;
-  return scored.slice(0, limit).map((c) => {
-    const touches = Number(get(touchesStmt, c.id, ...TOUCH_TYPES).n);
+  return melangerNouveaux(scored, limit, hist).map((c) => {
+    const touches = histo(hist, c.id).tentatives;
     return { ...c, touches, suggested_template: playbooks.suggestedTemplateCode(c, touches) };
   });
 }
@@ -407,5 +464,6 @@ module.exports = {
   ACTIONS, BADGES, LEVELS, TOUCH_TYPES, EFFORT_TYPES,
   logAction, insertActivity, checkBadges, awardQuests,
   totalXp, levelForXp, computeStreak, todayQuests, bossState, weeklyXp, kpis, fullState, huntQueue, contactScore,
+  historiqueParContact,
   callQueue, callsState,
 };
