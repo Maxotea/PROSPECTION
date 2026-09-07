@@ -398,6 +398,12 @@ function updateContact(id, data) {
 }
 
 // Trouve un doublon potentiel pour des données entrantes.
+// Clé de comparaison d'un nom de société : minuscules et sans accents, pour que
+// « CCI Paris Île-de-France » et « cci paris ile-de-france » soient la même boîte.
+function clefSociete(v) {
+  return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
 function findDuplicate(data) {
   const email = normEmail(data.email);
   const li = normLinkedin(data.linkedin_url);
@@ -417,12 +423,15 @@ function findDuplicate(data) {
     const r = get(`SELECT * FROM contacts WHERE linkedin_url = ? AND linkedin_url != ''`, li);
     if (r) return r;
   }
-  const fn = String(data.first_name || '').trim().toLowerCase();
-  const ln = String(data.last_name || '').trim().toLowerCase();
-  const co = String(data.company || '').trim().toLowerCase();
+  const fn = String(data.first_name || '').trim();
+  const ln = String(data.last_name || '').trim();
+  const co = String(data.company || '').trim();
   if ((fn || ln) && co) {
+    // lower() de SQLite ne connaît que l'ASCII : il laisse « Élodie » tel quel.
+    // On passe donc les DEUX côtés par la même fonction, sinon une majuscule
+    // accentuée empêchait de retrouver la fiche et créait un doublon.
     const r = get(
-      'SELECT * FROM contacts WHERE lower(first_name) = ? AND lower(last_name) = ? AND lower(company) = ?',
+      'SELECT * FROM contacts WHERE lower(first_name) = lower(?) AND lower(last_name) = lower(?) AND lower(company) = lower(?)',
       fn, ln, co
     );
     if (r) return r;
@@ -430,12 +439,13 @@ function findDuplicate(data) {
   // Fiche au nom d'une SOCIÉTÉ seule, avant d'avoir identifié un interlocuteur.
   // On ne la rapproche que d'une autre fiche sans personne nommée : deux
   // personnes différentes de la même boîte ne doivent jamais fusionner.
+  // Ces fiches-là sont peu nombreuses : on compare en JavaScript, ce qui permet
+  // d'ignorer aussi les accents (« CCI Ile-de-France » = « CCI Île-de-France »).
   if (!fn && !ln && co) {
-    const r = get(
-      `SELECT * FROM contacts WHERE lower(company) = ? AND first_name = '' AND last_name = ''`,
-      co
-    );
-    if (r) return r;
+    const cle = clefSociete(co);
+    for (const r of all(`SELECT * FROM contacts WHERE first_name = '' AND last_name = '' AND company != ''`)) {
+      if (clefSociete(r.company) === cle) return r;
+    }
   }
   return null;
 }
