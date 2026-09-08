@@ -1,7 +1,7 @@
 'use strict';
 // Intégration HubSpot (CRM hybride) :
-//  - import des contacts HubSpot → la Chasse
-//  - push : créer/mettre à jour un contact dans HubSpot depuis la Chasse
+//  - import des contacts HubSpot → OTEA Moteur
+//  - push : créer/mettre à jour un contact dans HubSpot depuis OTEA Moteur
 // Auth : token d'application privée (Réglages → HubSpot).
 // Créer le token : HubSpot → Paramètres → Intégrations → Applications privées
 // (scopes : crm.objects.contacts.read + crm.objects.contacts.write).

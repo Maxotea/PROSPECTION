@@ -122,7 +122,7 @@ test('la migration reprend la base puis se tait', () => {
 test.after(() => { try { fs.rmSync(process.env.DATA_DIR, { recursive: true, force: true }); } catch { /* ignore */ } });
 
 test('la migration ne casse jamais le démarrage sur une base incomplète', () => {
-  // Le bug qui a empêché La Chasse de s'ouvrir : une base créée par une version
+  // Le bug qui a empêché OTEA Moteur de s'ouvrir : une base créée par une version
   // antérieure n'a pas toutes les colonnes d'aujourd'hui. Une retouche de texte
   // ne doit jamais valoir un plantage au lancement.
   const { DatabaseSync } = require('node:sqlite');

@@ -1,6 +1,8 @@
-# ⚔️ La Chasse · CRM de prospection gamifié + Autopilote (OTEA Production)
+# ⚙️ OTEA Moteur · ta journée, ta prospection, ton autopilote (OTEA Production)
 
-Un outil de prospection **local, zéro dépendance**, pensé pour un seul objectif : **déclencher 5 factures**.
+Un outil de travail **local, zéro dépendance**, sur une seule adresse : le matin, **☀️ Ma journée** dit quoi faire ; le reste du temps, **⚔️ La Chasse** (le Mode Chasse, les campagnes, l'Autopilote, le CRM) fait rentrer les factures. Objectif : **déclencher 5 factures**.
+
+*L'app s'appelait « La Chasse ». Elle a grandi : La Chasse est devenue son moteur de prospection, OTEA Moteur est l'ensemble.*
 
 Quatre moteurs :
 
@@ -21,7 +23,7 @@ Prérequis : **Node.js ≥ 22.13** (aucun `npm install`, aucune dépendance) : i
 
 Le navigateur s'ouvre tout seul sur l'app. **Laisse la petite fenêtre noire ouverte** : c'est elle qui fait tourner l'Autopilote.
 
-**📱 Depuis un iPad / iPhone (même Wi-Fi)** : lance **`demarrer-reseau.command`** (Mac) ou **`demarrer-reseau.bat`** (Windows) au lieu du lanceur normal. La fenêtre noire affiche l'adresse à ouvrir sur l'iPad (`http://IP-de-l'ordinateur:1337`) et un **code d'accès à 6 caractères** (demandé une fois par appareil : l'app reste verrouillée pour le reste du réseau). L'ordinateur doit rester allumé : c'est lui qui fait tourner l'app et l'Autopilote, l'iPad n'est qu'un écran. Astuce : sur l'iPad, Safari → Partager → « Sur l'écran d'accueil » pour avoir La Chasse comme une app. Pour y accéder **hors de chez toi** (4G, autre lieu), installe [Tailscale](https://tailscale.com) (gratuit) sur l'ordinateur et l'iPad : même adresse, où que tu sois, sans rien exposer sur internet.
+**📱 Depuis un iPad / iPhone (même Wi-Fi)** : lance **`demarrer-reseau.command`** (Mac) ou **`demarrer-reseau.bat`** (Windows) au lieu du lanceur normal. La fenêtre noire affiche l'adresse à ouvrir sur l'iPad (`http://IP-de-l'ordinateur:1337`) et un **code d'accès à 6 caractères** (demandé une fois par appareil : l'app reste verrouillée pour le reste du réseau). L'ordinateur doit rester allumé : c'est lui qui fait tourner l'app et l'Autopilote, l'iPad n'est qu'un écran. Astuce : sur l'iPad, Safari → Partager → « Sur l'écran d'accueil » pour avoir OTEA Moteur comme une app. Pour y accéder **hors de chez toi** (4G, autre lieu), installe [Tailscale](https://tailscale.com) (gratuit) sur l'ordinateur et l'iPad : même adresse, où que tu sois, sans rien exposer sur internet.
 
 **Avec terminal** :
 
@@ -37,7 +39,7 @@ Pour essayer avec des données fictives : `npm run demo` (et `npm run reset` pou
 
 Toutes tes données (contacts, clés API, historique) restent **sur ta machine**, dans `data/prospection.db` (gitignoré). Le serveur n'écoute que sur `127.0.0.1`.
 
-### ☁️ Mettre La Chasse en ligne (comme Make)
+### ☁️ Mettre OTEA Moteur en ligne (comme Make)
 
 Une adresse à ouvrir de n'importe où, sur n'importe quel appareil, sans rien lancer :
 l'app tourne sur un serveur au lieu de ton Mac.
@@ -76,18 +78,18 @@ les mêmes variables : `CODE_ACCES`, `DATA_DIR=/data`, `EN_LIGNE=1`.
 **Sécurité de la version en ligne :** mot de passe obligatoire (l'app refuse de démarrer
 sans, ou avec moins de 8 caractères), cookie qui ne contient jamais le mot de passe,
 connexion chiffrée exigée, et pause de 15 minutes après 5 essais ratés. Le navigateur
-reçoit aussi la consigne de ne charger que les fichiers de La Chasse elle-même (aucun
+reçoit aussi la consigne de ne charger que les fichiers d'OTEA Moteur lui-même (aucun
 script extérieur, impossible d'encadrer l'app dans un autre site).
 
 **Déménager tes données du Mac vers la version en ligne :**
 
-1. Sur ta Chasse actuelle : Réglages → **Télécharger ma sauvegarde**.
+1. Sur ton OTEA Moteur actuel : Réglages → **Télécharger ma sauvegarde**.
 2. Sur la version en ligne : Réglages → **Remettre une sauvegarde**, choisis le fichier.
 3. Elle remplace tout et redémarre, la page se recharge seule. Tes contacts, ton
    historique, ton XP et tes réglages sont là.
 
 L'ancienne base est mise de côté (`prospection.db.avant-restauration`) avant d'être
-remplacée, et un fichier qui n'est pas une sauvegarde de La Chasse est refusé sans rien
+remplacée, et un fichier qui n'est pas une sauvegarde d'OTEA Moteur est refusé sans rien
 toucher.
 
 **Sauvegarde régulière :** le même bouton, de temps en temps. Un hébergeur peut perdre
@@ -95,7 +97,7 @@ un disque, pas toi.
 
 ### 🌉 Garder WhatsApp et les appels branchés quand l'app est en ligne
 
-**La Chasse ne se connecte pas à WhatsApp, et ne le peut pas.** Il n'existe aucune
+**OTEA Moteur ne se connecte pas à WhatsApp, et ne le peut pas.** Il n'existe aucune
 connexion officielle donnant accès à tes conversations personnelles : l'API WhatsApp
 Business sert à écrire à des clients qui ont donné leur accord, elle ne lit pas ton
 historique. Les bibliothèques qui se font passer pour un appareil lié existent, mais
@@ -106,10 +108,10 @@ Ce que l'app fait à la place : elle **lit les fichiers de l'app WhatsApp instal
 ton Mac**, en lecture seule. Pas de connexion, donc rien à maintenir connecté. Il suffit
 que WhatsApp pour Mac reste ouvert et lié à ton téléphone, comme d'habitude.
 
-Quand La Chasse est hébergée en ligne, elle n'a plus accès à ces fichiers. D'où le pont :
+Quand OTEA Moteur est hébergé en ligne, il n'a plus accès à ces fichiers. D'où le pont :
 
 1. Double-clique **`pont-mac.command`** sur ton Mac, une seule fois.
-2. Il demande l'adresse de ta Chasse en ligne et ton mot de passe.
+2. Il demande l'adresse de ton OTEA Moteur en ligne et ton mot de passe.
 3. Chaque matin à 8h30, ton Mac lit tes appels et tes discussions, et **envoie
    seulement le résultat** : des compteurs, les mots de travail repérés, un court
    extrait du dernier message. Jamais tes conversations.
@@ -121,7 +123,7 @@ Pour tout arrêter : double-clique à nouveau sur le même fichier.
 
 ### ♾️ Ne plus jamais avoir à la lancer
 
-Double-clique **une fois** sur `demarrer-toujours.command`. La Chasse démarre alors
+Double-clique **une fois** sur `demarrer-toujours.command`. OTEA Moteur démarre alors
 toute seule à chaque ouverture de session, se relance si elle s'arrête, et tourne sans
 fenêtre noire à garder ouverte. C'est aussi ce qui permet à **l'Autopilote d'envoyer tes
 relances toute la journée** : sans ça, il ne tourne que pendant que la fenêtre est ouverte.
@@ -133,7 +135,7 @@ retirer le démarrage automatique.
 
 **« Ce site est inaccessible » / ERR_CONNECTION_REFUSED dans le navigateur** veut dire
 une seule chose : l'app ne tourne pas. Le navigateur n'est qu'une fenêtre ouverte sur
-elle. **La Chasse ne tourne que pendant que la fenêtre noire est ouverte** : si tu la
+lui. **OTEA Moteur ne tourne que pendant que la fenêtre noire est ouverte** : si tu la
 fermes (ou si tu redémarres le Mac), l'adresse ne répond plus tant que tu n'as pas
 relancé `demarrer.command`.
 
@@ -228,7 +230,7 @@ Le rythme : **chaque lundi, un nouveau terrain de chasse.** Semaine 1 la grande 
 ### Brancher ton Gmail (2 minutes, sans projet Google Cloud)
 
 1. Active la **validation en 2 étapes** sur ton compte Google ;
-2. Va sur [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords) → crée un mot de passe d'application « La Chasse » ;
+2. Va sur [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords) → crée un mot de passe d'application « OTEA Moteur » ;
 3. Colle-le dans **Réglages → Gmail & Autopilote** avec ton adresse → **Tester SMTP** + **Tester IMAP** → « 📤 M'envoyer un email de test ».
 
 ### La boucle (toutes les 10 minutes quand l'Autopilote est actif)
@@ -279,7 +281,7 @@ Le gisement le plus rentable n'est pas sur LinkedIn : ce sont les gens que tu as
 | 📞 Appels | l'historique que ton Mac synchronise avec ton iPhone | iPhone → Réglages → Téléphone → **Appels sur d'autres appareils** → coche ton Mac |
 | 💬 WhatsApp | les discussions de l'app WhatsApp pour Mac | installe **WhatsApp pour Mac** et connecte-le à ton téléphone |
 
-**Si macOS bloque la lecture** (message « Accès complet au disque ») : Réglages Système → Confidentialité et sécurité → **Accès complet au disque** → active **Terminal**, puis relance la Chasse. Le message reste affiché à l'écran tant que ce n'est pas fait : il ne disparaît pas tout seul.
+**Si macOS bloque la lecture** (message « Accès complet au disque ») : Réglages Système → Confidentialité et sécurité → **Accès complet au disque** → active **Terminal**, puis relance OTEA Moteur. Le message reste affiché à l'écran tant que ce n'est pas fait : il ne disparaît pas tout seul.
 
 **Plans B, sans rien installer :**
 - **WhatsApp** : sur ton téléphone, ouvre une discussion → tape le nom du contact en haut → **Exporter la discussion** → **Sans les médias** → envoie-toi le .txt → dépose-le dans la carte. Formats iPhone et Android, français et anglais, reconnus.
@@ -373,7 +375,7 @@ L'enrichissement est asynchrone : FullEnrich met quelques minutes. **Le serveur 
 Les résultats sont rattachés à leur fiche par l'identifiant renvoyé, sinon par l'URL LinkedIn, sinon par le nom, sinon par la position dans le lot. Et rien n'est jamais écrasé : l'enrichissement ne remplit que les cases vides.
 
 ### CRM hybride : HubSpot
-Import des contacts HubSpot dans la Chasse, et **push** vers HubSpot (fiche contact ou sélection dans Contacts). Philosophie : **la Chasse pilote la prospection au quotidien, HubSpot reste la base « officielle »** que tu synchronises quand tu veux.
+Import des contacts HubSpot dans OTEA Moteur, et **push** vers HubSpot (fiche contact ou sélection dans Contacts). Philosophie : **OTEA Moteur pilote la prospection au quotidien, HubSpot reste la base « officielle »** que tu synchronises quand tu veux.
 
 ## 📄 Devis Pennylane en 2 clics
 

@@ -754,7 +754,7 @@ function mailBrief(p) {
     }
     lignes.push('');
   }
-  lignes.push('Coche, remets à plus tard ou ignore chaque ligne dans La Chasse → ☀️ Ma journée.');
+  lignes.push('Coche, remets à plus tard ou ignore chaque ligne dans OTEA Moteur → ☀️ Ma journée.');
   return {
     subject: `☀️ Ta journée du ${p.jour_long} : ${p.total} chose${p.total > 1 ? 's' : ''}${p.vitaux ? `, ${p.vitaux} vitale${p.vitaux > 1 ? 's' : ''}` : ''}`,
     body: lignes.join('\n'),
@@ -779,7 +779,7 @@ async function briefDuMatin({ envoyer = getSetting('journee_brief_mail') === '1'
     try {
       const cfg = autopilot.mailCfg();
       const m = mailBrief(p);
-      await smtp.sendMail({ ...cfg.smtp, from: cfg.from, fromName: 'La Chasse', to: cfg.from, subject: m.subject, body: m.body });
+      await smtp.sendMail({ ...cfg.smtp, from: cfg.from, fromName: 'OTEA Moteur', to: cfg.from, subject: m.subject, body: m.body });
       run('UPDATE journee_briefs SET envoye_le = ? WHERE jour = ?', nowIso(), today);
       envoye = true;
     } catch (e) { erreur = e.message; }

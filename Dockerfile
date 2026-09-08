@@ -1,4 +1,4 @@
-# La Chasse : image de déploiement.
+# OTEA Moteur : image de déploiement.
 # Zéro dépendance à installer, donc pas de npm install : on copie et on lance.
 FROM node:22-alpine
 

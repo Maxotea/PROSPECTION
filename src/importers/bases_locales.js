@@ -1,7 +1,7 @@
 'use strict';
 // 💾 BASES LOCALES : lecture des historiques stockés sur le Mac de Maxime.
 // Rien ne sort de la machine : on ouvre les fichiers en LECTURE SEULE, on agrège,
-// on jette le reste. Aucun message n'est recopié dans la base de la Chasse
+// on jette le reste. Aucun message n'est recopié dans la base d'OTEA Moteur
 // (seul un court extrait sert d'accroche, et seulement si tu importes le contact).
 //
 // Deux difficultés traitées ici :
@@ -59,7 +59,7 @@ function trouverFichier(chemins) {
 function expliquerAbsence(etat, quoi, conseilMac) {
   if (etat === 'refuse') return ERREUR_ACCES;
   if (process.platform !== 'darwin') {
-    return `La Chasse tourne sur un serveur en ligne, pas sur ton Mac : elle ne peut donc pas lire ${quoi} directement, même s'ils sont bien là. Installe le pont sur ton Mac (double-clic sur pont-mac.command) pour qu'il les envoie chaque matin, ou dépose un fichier ici.`;
+    return `OTEA Moteur tourne sur un serveur en ligne, pas sur ton Mac : il ne peut donc pas lire ${quoi} directement, même s'ils sont bien là. Installe le pont sur ton Mac (double-clic sur pont-mac.command) pour qu'il les envoie chaque matin, ou dépose un fichier ici.`;
   }
   return conseilMac;
 }
@@ -70,7 +70,7 @@ function estRefusMacos(err) {
   return !!err && (err.code === 'EPERM' || err.code === 'EACCES' || /operation not permitted/i.test(err.message || ''));
 }
 
-const ERREUR_ACCES = 'macOS bloque la lecture de ce fichier. Ouvre Réglages Système → Confidentialité et sécurité → Accès complet au disque, active « Terminal » (ou l’app qui lance la Chasse), puis relance la Chasse.';
+const ERREUR_ACCES = 'macOS bloque la lecture de ce fichier. Ouvre Réglages Système → Confidentialité et sécurité → Accès complet au disque, active « Terminal » (ou l’app qui lance OTEA Moteur), puis relance OTEA Moteur.';
 
 // Copie du fichier + de son journal WAL : indispensable, la base d'origine est
 // ouverte en écriture par le système et une lecture directe renvoie des données tronquées.

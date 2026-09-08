@@ -1,5 +1,5 @@
 @echo off
-rem La Chasse - MODE RESEAU (Windows) : accessible depuis iPad/telephone sur le meme Wi-Fi.
+rem OTEA Moteur - MODE RESEAU (Windows) : accessible depuis iPad/telephone sur le meme Wi-Fi.
 cd /d "%~dp0"
 
 where node >nul 2>nul
@@ -11,7 +11,7 @@ if errorlevel 1 (
 )
 
 echo.
-echo La Chasse - MODE RESEAU
+echo OTEA Moteur - MODE RESEAU
 echo Ton iPad/telephone doit etre sur LE MEME Wi-Fi que ce PC.
 echo L'adresse a ouvrir sur l'iPad s'affiche au demarrage ci-dessous (http://...:1337),
 echo ainsi que le CODE D'ACCES a saisir (une fois par appareil).

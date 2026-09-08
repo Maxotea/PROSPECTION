@@ -380,8 +380,8 @@ async function sendTestEmail() {
   const cfg = mailCfg();
   const { messageId } = await smtp.sendMail({
     ...cfg.smtp, from: cfg.from, fromName: getSetting('user_name') || '', to: cfg.from,
-    subject: '⚔️ Test La Chasse : ton autopilote fonctionne',
-    body: `Si tu lis ceci dans ta boîte, l'envoi SMTP marche parfaitement.\n\nProchaine étape : enrôle tes anciens clients dans la séquence « Réactivation » et laisse tourner. 🎯\n\nLa Chasse`,
+    subject: '⚙️ Test OTEA Moteur : ton autopilote fonctionne',
+    body: `Si tu lis ceci dans ta boîte, l'envoi SMTP marche parfaitement.\n\nProchaine étape : enrôle tes anciens clients dans la séquence « Réactivation » et laisse tourner. 🎯\n\nOTEA Moteur`,
   });
   return { ok: true, message: `Email de test envoyé à ${cfg.from}`, message_id: messageId };
 }

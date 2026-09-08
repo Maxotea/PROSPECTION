@@ -1,5 +1,5 @@
 #!/bin/bash
-# ⚔️ La Chasse : MODE RÉSEAU (macOS) : accessible depuis ton iPad/iPhone sur le même Wi-Fi.
+# ⚙️ OTEA Moteur : MODE RÉSEAU (macOS) : accessible depuis ton iPad/iPhone sur le même Wi-Fi.
 # Premier lancement bloqué par Apple ? Réglages Système → Confidentialité et sécurité → « Ouvrir quand même ».
 cd "$(dirname "$0")"
 
@@ -12,7 +12,7 @@ fi
 
 IP=$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null)
 echo ""
-echo "⚔️  La Chasse : MODE RÉSEAU"
+echo "⚙️  OTEA Moteur : MODE RÉSEAU"
 echo "    Ton iPad/iPhone doit être sur LE MÊME Wi-Fi que ce Mac."
 [ -n "$IP" ] && echo "    ➜ Sur l'iPad, ouvre Safari et va sur :  http://$IP:1337"
 echo "    Le CODE D'ACCÈS s'affiche juste en dessous : saisis-le sur l'iPad (une fois par appareil)."
@@ -22,6 +22,6 @@ HOST=0.0.0.0 node --disable-warning=ExperimentalWarning server.js
 CODE=$?
 if [ "$CODE" -ne 0 ]; then
   echo ""
-  echo "La Chasse s'est arrêtée. Le message ci-dessus explique pourquoi."
+  echo "OTEA Moteur s'est arrêté. Le message ci-dessus explique pourquoi."
   read -r -p "Appuie sur Entrée pour fermer cette fenêtre… "
 fi
