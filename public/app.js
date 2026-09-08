@@ -1,5 +1,5 @@
 'use strict';
-/* ⚔️ La Chasse : SPA vanilla (aucune dépendance, aucun build).
+/* ⚙️ OTEA Moteur : SPA vanilla (aucune dépendance, aucun build).
    Vues : QG, Mode Chasse, Pipeline, Contacts, Réponses, Imports, Réglages. */
 
 // ---------------------------------------------------------------- helpers
@@ -7,7 +7,7 @@ const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-const HORS_LIGNE = "La Chasse ne répond pas. Sur ton Mac : vérifie que la fenêtre noire est encore ouverte (sinon relance demarrer.command). En ligne : vérifie ta connexion, puis recharge la page.";
+const HORS_LIGNE = "OTEA Moteur ne répond pas. Sur ton Mac : vérifie que la fenêtre noire est encore ouverte (sinon relance demarrer.command). En ligne : vérifie ta connexion, puis recharge la page.";
 
 async function api(path, { method = 'GET', body } = {}) {
   let res;
@@ -124,12 +124,13 @@ async function celebrate(res) {
 }
 
 // ---------------------------------------------------------------- routeur
-const VIEWS = { qg: vQG, chasse: vChasse, autopilot: vAutopilot, campagnes: vCampagnes, pipeline: vPipeline, contacts: vContacts, inbox: vInbox, import: vImport, reglages: vReglages };
+const VIEWS = { journee: vJournee, qg: vQG, chasse: vChasse, autopilot: vAutopilot, campagnes: vCampagnes, pipeline: vPipeline, contacts: vContacts, inbox: vInbox, import: vImport, reglages: vReglages };
 
 async function render() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
-  const hash = location.hash.replace('#/', '') || 'qg';
-  const name = VIEWS[hash] ? hash : 'qg';
+  // La page d'accueil est la journée : c'est elle qu'on ouvre le matin.
+  const hash = location.hash.replace('#/', '') || 'journee';
+  const name = VIEWS[hash] ? hash : 'journee';
   $$('#sidebar a').forEach((a) => a.classList.toggle('active', a.dataset.view === name));
   // Sur téléphone la barre du bas défile : l'onglet courant doit toujours être sous les yeux.
   const actif = $('#sidebar a.active');
@@ -153,7 +154,7 @@ async function vQG(view) {
   const segments = Array.from({ length: boss.goal }, (_, i) => `<div class="boss-seg ${i < boss.count ? 'full' : ''}"></div>`).join('');
   const onboarding = k.contacts_total === 0 ? `
     <div class="card onboarding" style="border-color:rgba(234,179,8,.4)">
-      <h2>👋 Bienvenue dans la Chasse</h2>
+      <h2>👋 Bienvenue dans OTEA Moteur</h2>
       <p class="muted">3 étapes pour lancer la machine :</p>
       <ol>
         <li><b>📦 Importe tes anciens clients</b> : bouton Pennylane dans <a href="#/import">Imports</a> (ou un CSV) : ce sont tes prospects les plus chauds.</li>
@@ -171,6 +172,17 @@ async function vQG(view) {
     ${onboarding}
     <div class="grid" style="grid-template-columns: 1.4fr 1fr; align-items:start">
       <div class="grid">
+        <div class="card" style="border-color:${S.journee && S.journee.vitaux ? 'rgba(220,38,38,.5)' : 'rgba(234,179,8,.4)'}">
+          <div class="spread">
+            <div>
+              <h2 style="margin-bottom:2px">☀️ Ma journée</h2>
+              <div class="muted small">${S.journee && S.journee.total
+                ? `${S.journee.total} chose${S.journee.total > 1 ? 's' : ''} à faire${S.journee.vitaux ? ` · <b style="color:var(--red2)">${S.journee.vitaux} vitale${S.journee.vitaux > 1 ? 's' : ''}</b>` : ''} · ⚡ ${S.journee.matin} courte${S.journee.matin > 1 ? 's' : ''} ce matin${S.journee.pierre ? ` · 🏔️ ${S.journee.pierre} grosse${S.journee.pierre > 1 ? 's' : ''} pierre${S.journee.pierre > 1 ? 's' : ''}` : ''}${S.journee.faits ? ` · ✅ ${S.journee.faits} fait${S.journee.faits > 1 ? 's' : ''}` : ''}`
+                : 'Rien qui attend. Mails, WhatsApp, appels et CRM sont lus en continu.'}</div>
+            </div>
+            <a href="#/journee"><button class="${S.journee && S.journee.vitaux ? 'gold' : ''}">Ouvrir</button></a>
+          </div>
+        </div>
         <div class="card boss-card">
           <div class="spread">
             <div>
@@ -1537,7 +1549,7 @@ async function vAutopilot(view) {
       <h2>🔌 Branche ton Gmail (2 minutes)</h2>
       <ol>
         <li>Active la <b>validation en 2 étapes</b> sur ton compte Google (si pas déjà fait) ;</li>
-        <li>Va sur <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">myaccount.google.com/apppasswords</a> → crée un mot de passe d'application « La Chasse » ;</li>
+        <li>Va sur <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">myaccount.google.com/apppasswords</a> → crée un mot de passe d'application « OTEA Moteur » ;</li>
         <li>Colle-le dans <a href="#/reglages">Réglages → Gmail</a> avec ton adresse, puis teste SMTP + IMAP.</li>
       </ol>
       <p class="muted small">L'autopilote enverra depuis TON adresse Gmail (réponses naturelles, délivrabilité maximale), gardera chaque relance dans le même fil, et lira ta boîte pour détecter les réponses : jamais les contenus, seulement les en-têtes.</p>
@@ -1914,7 +1926,7 @@ async function vImport(view) {
       </div>
       <div class="card">
         <h2>🗂️ Répertoire chaud : tes appels & WhatsApp</h2>
-        <p class="muted small">Les gens que tu as déjà eus au téléphone ou sur WhatsApp te connaissent : ce sont tes leads les plus faciles. La Chasse lit l'historique <b>en local sur ce Mac</b>, note chaque relation, écarte le bruit (banques, colis, codes) et te propose une liste à valider. <b>Rien n'entre dans le CRM sans ton clic.</b></p>
+        <p class="muted small">Les gens que tu as déjà eus au téléphone ou sur WhatsApp te connaissent : ce sont tes leads les plus faciles. OTEA Moteur lit l'historique <b>en local sur ce Mac</b>, note chaque relation, écarte le bruit (banques, colis, codes) et te propose une liste à valider. <b>Rien n'entre dans le CRM sans ton clic.</b></p>
         <div class="row">
           <select id="rep-days">
             <option value="365">12 derniers mois</option>
@@ -1945,7 +1957,7 @@ async function vImport(view) {
         </div>
         <div class="card">
           <h2>🟠 HubSpot : CRM hybride</h2>
-          <p class="muted small">Import des contacts HubSpot ici, et push des contacts de la Chasse vers HubSpot (bouton ⬆️ sur les fiches / la vue Contacts). La Chasse pilote la prospection, HubSpot reste ta base "officielle".</p>
+          <p class="muted small">Import des contacts HubSpot ici, et push des contacts d'OTEA Moteur vers HubSpot (bouton ⬆️ sur les fiches / la vue Contacts). OTEA Moteur pilote la prospection, HubSpot reste ta base "officielle".</p>
           <div class="row"><button id="hs-test">🔌 Tester</button><button class="primary" id="hs-import">📥 Importer les contacts</button><span id="hs-status" class="small muted"></span></div>
         </div>
         <div class="card">
@@ -2114,7 +2126,7 @@ async function vImport(view) {
     ];
     el.innerHTML = esc(bouts.join(' · ')) + attente;
     if (etat.appels_etat === 'refuse' || etat.whatsapp_etat === 'refuse') {
-      repAvertir([{ source: 'appels', message: "macOS bloque la lecture, ce n'est pas que tes apps sont absentes. Réglages Système → Confidentialité et sécurité → Accès complet au disque → active « Terminal », puis relance La Chasse." }]);
+      repAvertir([{ source: 'appels', message: "macOS bloque la lecture, ce n'est pas que tes apps sont absentes. Réglages Système → Confidentialité et sécurité → Accès complet au disque → active « Terminal », puis relance OTEA Moteur." }]);
     }
   }).catch(() => {});
 
@@ -2285,6 +2297,17 @@ async function vReglages(view) {
       </div>
       <div class="grid">
       <div class="card">
+        <h2>☀️ Ma journée</h2>
+        <p class="muted small">La to-do du matin, lue dans ta boîte Gmail (compte ci-dessous), WhatsApp et les appels du Mac, et le CRM. Le brief est calculé chaque matin et peut t'être envoyé par mail, à toi-même.</p>
+        <div class="form-grid">
+          <label class="field">Heure du brief<input id="s-jheure" type="time" value="${esc(s.journee_brief_heure)}"></label>
+          <label class="field">Mails lus sur <span class="faint">(jours)</span><input id="s-jmail" type="number" min="1" max="60" value="${esc(s.journee_jours_mail)}"></label>
+          <label class="field">WhatsApp et appels sur <span class="faint">(jours)</span><input id="s-jwa" type="number" min="1" max="90" value="${esc(s.journee_jours_whatsapp)}"></label>
+          <label class="field">Relancer un devis après <span class="faint">(jours sans nouvelle)</span><input id="s-jdevis" type="number" min="1" max="60" value="${esc(s.journee_delai_devis)}"></label>
+          <label class="chip wide" style="cursor:pointer"><input type="checkbox" id="s-jbriefmail" ${s.journee_brief_mail !== '0' ? 'checked' : ''}> m'envoyer le brief par mail chaque matin</label>
+        </div>
+      </div>
+      <div class="card">
         <h2>📧 Email & Autopilote</h2>
         <p class="muted small">L'autopilote envoie depuis TA boîte et lit les en-têtes pour détecter les réponses. <b>Gmail / Google Workspace</b> : crée un <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">mot de passe d'application</a> (nécessite la <a href="https://myaccount.google.com/security" target="_blank" rel="noopener">validation en 2 étapes</a>). <b>OVH, Ionos, Infomaniak…</b> : ton mot de passe email normal suffit.</p>
         <div class="form-grid">
@@ -2325,9 +2348,9 @@ async function vReglages(view) {
       </div>
       <div class="card">
         <h2>💾 Sauvegarde</h2>
-        <p class="muted small">Télécharge toute ta Chasse dans un seul fichier : contacts, historique, réglages, campagnes. À faire de temps en temps, et surtout si l'app est hébergée en ligne : un hébergeur peut perdre un disque, pas toi.</p>
+        <p class="muted small">Télécharge tout ton OTEA Moteur dans un seul fichier : contacts, historique, réglages, campagnes. À faire de temps en temps, et surtout si l'app est hébergée en ligne : un hébergeur peut perdre un disque, pas toi.</p>
         <a class="btn primary" id="s-backup" href="/api/sauvegarde" download>💾 Télécharger ma sauvegarde</a>
-        <p class="muted small" style="margin-top:14px"><b>Remettre une sauvegarde</b> : c'est ainsi qu'on déménage La Chasse d'un ordinateur vers la version en ligne. L'app remplace tout par le fichier et redémarre. L'ancienne base est mise de côté avant, au cas où.</p>
+        <p class="muted small" style="margin-top:14px"><b>Remettre une sauvegarde</b> : c'est ainsi qu'on déménage OTEA Moteur d'un ordinateur vers la version en ligne. L'app remplace tout par le fichier et redémarre. L'ancienne base est mise de côté avant, au cas où.</p>
         <input type="file" id="s-restore-file" accept=".db">
         <div id="s-restore-msg" class="small muted" style="margin-top:6px"></div>
       </div>
@@ -2404,6 +2427,9 @@ async function vReglages(view) {
       booking_url: $('#s-booking').value,
       smtp_host: $('#s-smtph').value, smtp_port: $('#s-smtpp').value,
       imap_host: $('#s-imaph').value, imap_port: $('#s-imapp').value,
+      journee_brief_heure: $('#s-jheure').value || '08:00', journee_jours_mail: $('#s-jmail').value,
+      journee_jours_whatsapp: $('#s-jwa').value, journee_delai_devis: $('#s-jdevis').value,
+      journee_brief_mail: $('#s-jbriefmail').checked ? '1' : '0',
     } });
   };
 

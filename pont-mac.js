@@ -1,7 +1,7 @@
 'use strict';
 // 🌉 LE PONT : le petit agent qui tourne sur le Mac de Maxime.
 //
-// Pourquoi il existe : La Chasse hébergée en ligne n'a aucun moyen de voir les
+// Pourquoi il existe : OTEA Moteur hébergé en ligne n'a aucun moyen de voir les
 // appels et les conversations WhatsApp, qui vivent dans des fichiers du Mac.
 // Cet agent les lit sur place, en lecture seule, et n'envoie que le résultat :
 // des compteurs, les mots de travail repérés, et un court extrait pour
@@ -28,7 +28,7 @@ function config() {
   const jours = Number(process.env.CHASSE_JOURS || depuisFichier.jours || 1095);
   if (!url || !code) {
     throw new Error(
-      "Le pont n'est pas configuré. Lance pont-mac.command pour indiquer l'adresse de ta Chasse en ligne et ton mot de passe."
+      "Le pont n'est pas configuré. Lance pont-mac.command pour indiquer l'adresse de ton OTEA Moteur en ligne et ton mot de passe."
     );
   }
   return { url, code, jours };
@@ -54,7 +54,7 @@ async function envoyer({ url, code }, entrees) {
   });
   if (reponse.status === 401) throw new Error('Mot de passe refusé : relance pont-mac.command pour le corriger.');
   if (reponse.status === 429) throw new Error('Trop de tentatives : attends quinze minutes.');
-  if (!reponse.ok) throw new Error(`La Chasse a répondu ${reponse.status}. Est-elle bien en ligne à cette adresse ?`);
+  if (!reponse.ok) throw new Error(`OTEA Moteur a répondu ${reponse.status}. Est-il bien en ligne à cette adresse ?`);
   return reponse.json();
 }
 

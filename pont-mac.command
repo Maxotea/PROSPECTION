@@ -1,8 +1,8 @@
 #!/bin/bash
-# 🌉 Relier ton Mac à La Chasse en ligne.
+# 🌉 Relier ton Mac à OTEA Moteur en ligne.
 #
 # À faire une fois. Ensuite, chaque matin, ton Mac lit tes appels et tes
-# discussions WhatsApp et envoie à La Chasse les relations trouvées. Elles
+# discussions WhatsApp et envoie à OTEA Moteur les relations trouvées. Elles
 # t'attendent dans Imports : rien n'entre dans le CRM sans ton clic.
 #
 # Ce qui part en ligne : des compteurs, les mots de travail repérés, un court
@@ -16,7 +16,7 @@ JOURNAL="$HOME/Library/Logs/la-chasse-pont.log"
 CONFIG="$DOSSIER/pont.config.json"
 
 echo ""
-echo "🌉  RELIER TON MAC À LA CHASSE EN LIGNE"
+echo "🌉  RELIER TON MAC À OTEA MOTEUR EN LIGNE"
 echo "────────────────────────────────────────────"
 echo ""
 
@@ -43,7 +43,7 @@ if [ -f "$PLIST" ]; then
     launchctl bootout "gui/$(id -u)/$ETIQUETTE" 2>/dev/null || launchctl unload "$PLIST" 2>/dev/null
     rm -f "$PLIST" "$CONFIG"
     echo ""
-    echo "✅ Retiré. Ton Mac n'envoie plus rien à La Chasse."
+    echo "✅ Retiré. Ton Mac n'envoie plus rien à OTEA Moteur."
   else
     echo ""
     echo "Rien n'a été changé."
@@ -56,7 +56,7 @@ fi
 # ---------------------------------------------------------------- réglages
 echo "Deux informations à saisir."
 echo ""
-printf "1. L'adresse de ta Chasse en ligne (ex : https://la-chasse.onrender.com) : "
+printf "1. L'adresse de ton OTEA Moteur en ligne (ex : https://otea-moteur.onrender.com) : "
 read -r URL
 printf "2. Ton mot de passe (celui que tu as mis dans CODE_ACCES) : "
 read -rs CODE
@@ -122,7 +122,7 @@ launchctl bootout "gui/$(id -u)/$ETIQUETTE" 2>/dev/null
 if launchctl bootstrap "gui/$(id -u)" "$PLIST" 2>/dev/null || launchctl load "$PLIST" 2>/dev/null; then
   echo "✅ LE PONT EST EN PLACE."
   echo ""
-  echo "   Chaque matin à 8h30, ton Mac enverra à La Chasse les nouvelles"
+  echo "   Chaque matin à 8h30, ton Mac enverra à OTEA Moteur les nouvelles"
   echo "   relations trouvées dans tes appels et tes discussions WhatsApp."
   echo "   Tu les valides dans Imports, sur n'importe quel appareil."
   echo ""

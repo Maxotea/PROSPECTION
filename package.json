@@ -1,7 +1,7 @@
 {
-  "name": "la-chasse",
+  "name": "otea-moteur",
   "version": "1.0.0",
-  "description": "CRM de prospection gamifié d'OTEA Production : anciens clients, nouveaux prospects, devis Pennylane, objectif : 5 factures.",
+  "description": "OTEA Moteur : la journée du matin, la prospection gamifiée (OTEA Moteur), l'autopilote et le CRM d'OTEA Production.",
   "private": true,
   "engines": {
     "node": ">=22.13"

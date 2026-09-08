@@ -110,6 +110,9 @@ function lireBase({ days = 1095 } = {}) {
       let last = bl.dateCoreData(s.last_raw);
       let messages = Math.max(0, Number(s.compteur) || 0);
       let incoming = 0, outgoing = 0, texteAnalyse = '', dernierEntrant = '';
+      // Pour « Ma journée » : si le dernier message n'est pas de Maxime, la
+      // conversation attend sa réponse. On garde aussi la date de ce message.
+      let dernierDeMoi = null, dernierEntrantLe = null;
 
       if (stmtMsg) {
         const msgs = stmtMsg.all(s.pk);
@@ -118,9 +121,11 @@ function lireBase({ days = 1095 } = {}) {
           const d = bl.dateCoreData(m.date_raw);
           if (d && (!last || d > last)) last = d;
           const t = bl.texte(m.texte);
+          if (dernierDeMoi === null) dernierDeMoi = Number(m.from_me) === 1; // messages triés du + récent au + ancien
           if (Number(m.from_me) === 1) outgoing++; else {
             incoming++;
-            if (!dernierEntrant && t) dernierEntrant = t; // messages triés du + récent au + ancien
+            if (!dernierEntrant && t) dernierEntrant = t;
+            if (!dernierEntrantLe && d) dernierEntrantLe = d;
           }
           if (t && texteAnalyse.length < MAX_TEXTE_ANALYSE) texteAnalyse += ' ' + t;
         }
@@ -138,6 +143,8 @@ function lireBase({ days = 1095 } = {}) {
         last_at: last, first_at: null,
         signaux: sig.motsBusinessTrouves(texteAnalyse),
         excerpt: extrait(dernierEntrant),
+        dernier_de_moi: dernierDeMoi === null ? null : dernierDeMoi,
+        dernier_entrant_le: dernierEntrantLe,
       });
     }
     return { entries: sorties, groupes };
@@ -232,6 +239,10 @@ function parseExport(texteBrut, { moi = '', days = 3650 } = {}) {
     const last = dates[dates.length - 1] || null;
     if (!last || new Date(last).getTime() < limite) continue;
 
+    // Le tout dernier message de la conversation : de Maxime, ou de l'autre ?
+    const toutDernier = messages[messages.length - 1];
+    const dernierDeMoi = monNom ? toutDernier.auteur === monNom : null;
+
     // Dans un tête-à-tête, on analyse LES DEUX CÔTÉS : si c'est toi qui as écrit
     // « je te prépare un devis », le signal commercial compte quand même.
     // Dans un groupe, surtout pas : tes messages seraient attribués à chacun et
@@ -254,6 +265,8 @@ function parseExport(texteBrut, { moi = '', days = 3650 } = {}) {
       last_at: last, first_at: dates[0] || null,
       signaux: sig.motsBusinessTrouves(texteAnalyse),
       excerpt: extrait(liste[liste.length - 1] && liste[liste.length - 1].texte),
+      dernier_de_moi: dernierDeMoi,
+      dernier_entrant_le: last,
     });
   }
   return { entries, auteurs, monNom: monNom || '' };

@@ -1,5 +1,5 @@
 #!/bin/bash
-# ⚔️ La Chasse : démarrage en double-clic (macOS).
+# ⚙️ OTEA Moteur : démarrage en double-clic (macOS).
 # Premier lancement bloqué par Apple ? C'est normal (fichier téléchargé d'internet) :
 #   Réglages Système → Confidentialité et sécurité → tout en bas → « Ouvrir quand même »,
 #   puis re-double-clique. Une seule fois.
@@ -28,7 +28,7 @@ fi
 
 ( sleep 2 && open "http://localhost:1337" ) &
 echo ""
-echo "⚔️  La Chasse démarre… ton navigateur va s'ouvrir tout seul."
+echo "⚙️  OTEA Moteur démarre… ton navigateur va s'ouvrir tout seul."
 echo "⚠️  LAISSE CETTE FENÊTRE OUVERTE : c'est elle qui fait tourner l'Autopilote."
 echo "    (Pour arrêter : ferme simplement cette fenêtre.)"
 echo ""
@@ -36,6 +36,6 @@ node --disable-warning=ExperimentalWarning server.js
 CODE=$?
 if [ "$CODE" -ne 0 ]; then
   echo ""
-  echo "La Chasse s'est arrêtée. Le message ci-dessus explique pourquoi."
+  echo "OTEA Moteur s'est arrêté. Le message ci-dessus explique pourquoi."
   read -r -p "Appuie sur Entrée pour fermer cette fenêtre… "
 fi

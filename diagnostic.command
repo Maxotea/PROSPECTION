@@ -1,5 +1,5 @@
 #!/bin/bash
-# 🩺 La Chasse : diagnostic en double-clic.
+# 🩺 OTEA Moteur : diagnostic en double-clic.
 # À lancer quand l'app ne s'ouvre pas. Ce fichier ne répare rien et ne touche à
 # aucune donnée : il regarde ce qui se passe et écrit un rapport à m'envoyer.
 
@@ -10,7 +10,7 @@ RAPPORT="diagnostic-la-chasse.txt"
 dire() { echo "$1"; echo "$1" >> "$RAPPORT"; }
 
 dire ""
-dire "🩺 DIAGNOSTIC DE LA CHASSE"
+dire "🩺 DIAGNOSTIC DE OTEA MOTEUR"
 dire "   $(date '+%d/%m/%Y à %H:%M')"
 dire "   Dossier : $(pwd)"
 dire "──────────────────────────────────────────────"
@@ -21,7 +21,7 @@ VERDICT=""
 # 1. Node.js est-il là, et assez récent ?
 if ! command -v node >/dev/null 2>&1; then
   dire "❌ Node.js n'est pas installé sur cet ordinateur."
-  dire "   C'est le moteur qui fait tourner La Chasse."
+  dire "   C'est le moteur qui fait tourner OTEA Moteur."
   dire "   → Installe la version LTS depuis nodejs.org, puis relance demarrer.command."
   VERDICT="Node.js manquant"
 else
@@ -61,13 +61,13 @@ else
   dire "   depuis l'ancien dossier. Tes contacts sont toujours dans l'ancien."
 fi
 
-# 4. Une autre fenêtre de La Chasse tourne-t-elle déjà ?
+# 4. Une autre fenêtre d'OTEA Moteur tourne-t-elle déjà ?
 OCCUPE=""
 if command -v lsof >/dev/null 2>&1; then
   OCCUPE=$(lsof -ti tcp:1337 2>/dev/null | head -1)
 fi
 if [ -n "$OCCUPE" ]; then
-  dire "ℹ️  La Chasse tourne déjà (une autre fenêtre est ouverte)."
+  dire "ℹ️  OTEA Moteur tourne déjà (une autre fenêtre est ouverte)."
   dire "   → Va simplement sur http://localhost:1337"
 else
   dire "ℹ️  Aucune Chasse en cours : le port 1337 est libre."
@@ -76,7 +76,7 @@ fi
 # 5. Le démarrage automatique est-il en place ?
 PLIST="$HOME/Library/LaunchAgents/com.oteaproduction.lachasse.plist"
 if [ -f "$PLIST" ]; then
-  dire "✅ Démarrage automatique installé : La Chasse se lance seule à l'ouverture de session."
+  dire "✅ Démarrage automatique installé : OTEA Moteur se lance seul à l'ouverture de session."
   if [ -f "$HOME/Library/Logs/la-chasse.log" ]; then
     dire "   Ses dernières lignes de journal :"
     while IFS= read -r ligne; do dire "   | $ligne"; done < <(tail -12 "$HOME/Library/Logs/la-chasse.log" 2>/dev/null)

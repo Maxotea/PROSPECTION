@@ -1,4 +1,4 @@
-# La Chasse — consignes de travail
+# OTEA Moteur (ex-La Chasse) — consignes de travail
 
 ## ✍️ Règle d'écriture absolue : jamais de tiret cadratin
 

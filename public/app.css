@@ -1,4 +1,4 @@
-/* ⚔️ La Chasse : design system "game HUD" sombre.
+/* ⚙️ OTEA Moteur : design system "game HUD" sombre.
    Segments : violet #8b5cf6 / ambre #d97706 / émeraude #059669 (palette validée daltonisme,
    toujours accompagnée d'un emoji + libellé). */
 
@@ -459,4 +459,34 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offs
 @media (max-width: 380px) {
   #sidebar a { min-width: 44px; padding: 6px 6px; font-size: 20px; }
   #sidebar a span { font-size: 9.5px; }
+}
+
+/* ---------------- ☀️ Ma journée ---------------- */
+.j-blocs { display: grid; grid-template-columns: 1.35fr 1fr; gap: 14px; align-items: start; }
+.j-col { display: grid; gap: 14px; }
+.j-bloc.j-matin { border-color: rgba(139, 92, 246, .45); }
+.j-bloc.j-pierre { border-color: rgba(234, 179, 8, .5); }
+.j-bloc .j-aide { margin: -4px 0 8px; }
+.j-item { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px dashed var(--border); }
+.j-item:last-child { border-bottom: 0; }
+.j-imp { font-size: 13px; padding-top: 4px; flex: none; }
+.j-main { flex: 1; min-width: 0; }
+.j-titre { font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+.j-titre .chip { margin-left: 6px; font-weight: 500; vertical-align: middle; }
+.j-why { margin-top: 2px; overflow-wrap: anywhere; }
+.j-actions { margin-top: 6px; gap: 6px; flex-wrap: wrap; }
+.j-actions button, .j-actions .btn { padding: 4px 9px; font-size: 12.5px; }
+.j-decide { display: flex; gap: 3px; align-items: flex-start; flex: none; }
+.j-decide button { padding: 4px 7px; font-size: 14px; line-height: 1; }
+.j-brief { white-space: pre-wrap; background: var(--bg2); border-radius: 10px; padding: 12px 14px; font-size: 14px; line-height: 1.55; }
+.j-radar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.j-radar .chip { cursor: default; }
+.j-vide { padding: 8px 0; }
+.j-capture { display: flex; gap: 8px; }
+.j-capture input { flex: 1; }
+.j-mail-recu { white-space: pre-wrap; background: var(--bg2); border-radius: 9px; padding: 10px 12px; font-size: 13px; max-height: 220px; overflow: auto; }
+@media (max-width: 900px) { .j-blocs { grid-template-columns: 1fr; } }
+@media (max-width: 700px) {
+  .j-item { flex-wrap: wrap; }
+  .j-decide { width: 100%; justify-content: flex-end; }
 }
