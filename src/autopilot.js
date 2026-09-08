@@ -387,6 +387,6 @@ async function sendTestEmail() {
 }
 
 module.exports = {
-  isConfigured, enroll, stopForContact, pollReplies, processDue, approve, approveAll,
+  isConfigured, mailCfg, enroll, stopForContact, pollReplies, processDue, approve, approveAll,
   flushOutbox, tick, state, scanSent, importScanned, testSmtp, testImap, sendTestEmail, sendOneOff,
 };

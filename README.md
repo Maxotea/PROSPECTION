@@ -2,8 +2,9 @@
 
 Un outil de prospection **local, zéro dépendance**, pensé pour un seul objectif : **déclencher 5 factures**.
 
-Trois moteurs :
+Quatre moteurs :
 
+0. **☀️ Ma journée** : la to-do du matin, faite par la machine au lieu de la tête. Elle lit **Gmail** (les mails sans réponse), **WhatsApp** et **les appels** du Mac (les conversations où le dernier mot n'est pas de toi, les appels manqués jamais rappelés), et le **CRM** (relances dues, devis à relancer ou à faire, factures à émettre), classe chaque chose par **importance** et par **durée**, et la place dans la journée : les courtes ce matin, la grosse pierre, les moyennes cet après-midi. Le brief part par mail chaque matin.
 1. **📅 Les Campagnes hebdo** : la stratégie : une semaine = un secteur (grande distribution, aéronautique, agriculture, hôtellerie, agences de voyage…) et un persona cible. Chaque campagne se crée en 2 clics avec sa **recette Sales Navigator** prête à copier, sa **séquence email** citant tes vraies références (le Galec, La Poste, Pullman…), son **post LinkedIn** et son **script DM** : pour qu'on voie OTEA partout, partout, partout.
 2. **🤖 L'Autopilote** : la machine qui prospecte à ta place : elle enrôle tes contacts (anciens clients Pennylane, HubSpot, ta boîte Gmail) dans des **séquences email**, envoie depuis **ton Gmail** (chaque relance reste dans le même fil), respecte un cap quotidien et des horaires ouvrés, **détecte les réponses dans ta boîte** et stoppe la séquence dès qu'on te répond : il ne te reste qu'à transformer la réponse en call.
 3. **🎮 Le CRM gamifié** : import Pennylane / LinkedIn / HubSpot, enrichissement FullEnrich, typologies de clients, Mode Chasse, devis Pennylane en 2 clics, XP, quêtes, streak, badges, boss final « 5 factures ».
@@ -154,6 +155,58 @@ Tes contacts, tes clés API et ton historique vivent dans le dossier **`data/`**
 > Le blocage macOS (« Apple n'a pas pu confirmer… ») revient à chaque nouveau dossier : même manip que la première fois, **Réglages Système → Confidentialité et sécurité → « Ouvrir quand même »**.
 
 ---
+
+## ☀️ Ma journée : la to-do du matin, lue dans tes boîtes
+
+C'est la page d'accueil. Avant, la liste du matin se faisait de tête, classée par
+importance et par durée, et il en manquait toujours une : le mail qu'on voulait
+envoyer, le devis promis au téléphone, le montage qu'on repousse. Maintenant la
+liste se fait toute seule, à partir de ce qui se passe vraiment.
+
+**Ce qu'elle lit** (et relit toutes les 15 minutes tant que l'app tourne) :
+
+| Source | Ce qui devient une chose à faire |
+|---|---|
+| 📧 **Gmail** (onglet Principale) | un mail reçu, d'un humain, auquel tu n'as pas répondu (ni depuis Gmail, ni depuis l'app, ni en lui écrivant depuis) |
+| 💬 **WhatsApp** (Mac) | une conversation où le dernier message n'est pas de toi |
+| 📞 **Appels** (Mac) | un appel manqué d'une personne que tu connais, jamais rappelé |
+| 🗂️ **CRM** | relance arrivée à échéance, devis envoyé sans nouvelle depuis N jours, devis accepté pas facturé, RDV pris sans devis, demande entrante pas traitée, emails de l'Autopilote à valider, post de campagne pas publié, session d'appels du jour |
+| 🧠 **Ton cerveau** | ce que tu tapes dans le vide-cerveau, en une ligne |
+
+Sur téléphone ou en ligne, WhatsApp et les appels passent par le pont du Mac
+(`pont-mac.command`), comme pour le répertoire chaud : le Mac lit, envoie le
+résultat, rien de plus.
+
+**Comment elle classe.** Chaque chose reçoit une importance (🔴 vitale, 🟠
+importante, 🟢 normale) et une durée (⚡ court, 15 min ou moins ; 🧱 moyen ;
+🏔️ long, plus d'1h30). L'argent pèse lourd : un devis, une facture, un mot comme
+« budget » ou « acompte » dans un objet de mail montent d'un cran. Un mail sans
+réponse depuis deux jours aussi. Puis chaque chose prend sa place, exactement
+comme avant :
+
+- **⚡ Ce matin** : toutes les courtes, les plus importantes d'abord (douze au plus).
+- **🏔️ La grosse pierre** : une ou deux longues et importantes. Bloque le créneau.
+- **🧱 Cet après-midi** : les moyennes.
+- **💤 Peut attendre** : ni urgent ni vital.
+
+**Le vide-cerveau.** Une ligne suffit : `monter la vidéo du Loft 3h !! avant le 12/09`.
+Un `!` rend la chose importante, `!!` vitale ; `2h`, `1h30`, `30 min` donnent
+la durée ; `demain`, `vendredi`, `avant le 12/09` l'échéance. Sans indication,
+l'app devine à partir des mots (montage, tournage = long ; devis, réunion,
+stories = moyen ; mail, appel, relance = court) et tu corriges d'un clic.
+
+**Sur chaque ligne** : ✅ fait, ⏰ plus tard (demain, lundi, dans une semaine…),
+🙈 ignorer. Ce que tu décides ne revient pas le lendemain ; un nouveau message de
+la même personne, si. Un « fait » sur une relance compte comme une relance dans
+le jeu (XP, prochaine relance programmée). Pour un mail, **✨ Rédiger la réponse**
+lit le message, propose un brouillon (IA si tu as une clé, template sinon), et
+**📤 Envoyer depuis mon Gmail** répond dans le même fil. Rien ne part sans ton clic.
+
+**Le brief du matin.** À l'heure choisie dans Réglages (8h par défaut), l'app
+calcule la journée et te l'envoie par mail, à toi-même, depuis ton Gmail :
+« 9 choses à faire, dont 3 vitales, 4 800 € en jeu. Ce matin (≈ 1h10) :
+répondre à Claire, rappeler Le Loft… La grosse pierre : monter la vidéo du
+Loft (≈ 3h). » Le bouton **📨 Le brief** l'affiche et le renvoie à la demande.
 
 ## 📅 Les Campagnes hebdo : une semaine, un secteur, tes références partout
 
@@ -346,10 +399,10 @@ Les clés sont stockées en local (ou via un fichier `.env` : `PENNYLANE_API_KEY
 ## 🧱 Sous le capot
 
 - **Zéro dépendance** : Node ≥ 22.13, SQLite natif (`node:sqlite`), frontend vanilla, clients **SMTP et IMAP écrits maison** (`src/mail/`). `git clone` → `node server.js`, c'est tout.
-- `server.js` : serveur HTTP + API REST (`/api/*`) + boucle Autopilote (10 min) + relève des enrichissements FullEnrich (2 min) · `src/autopilot.js` : séquences, enrôlements, file d'envoi, détection des réponses · `src/db.js` : schéma + upsert/dédoublonnage · `src/gamification.js` : XP, niveaux, quêtes, streak, badges, boss · `src/playbooks.js` : segments, cadences, templates, séquences · `src/integrations/` : Pennylane, FullEnrich, HubSpot, Claude · `src/importers/` : répertoire chaud (appels macOS, WhatsApp, scoring des relations) · `public/` : l'app.
+- `server.js` : serveur HTTP + API REST (`/api/*`) + boucle Autopilote (10 min) + radar de la journée (5 min) + relève des enrichissements FullEnrich (2 min) · `src/journee.js` : Ma journée (signaux Gmail / WhatsApp / appels / CRM, classement, placement, brief) · `src/autopilot.js` : séquences, enrôlements, file d'envoi, détection des réponses · `src/db.js` : schéma + upsert/dédoublonnage · `src/gamification.js` : XP, niveaux, quêtes, streak, badges, boss · `src/playbooks.js` : segments, cadences, templates, séquences · `src/integrations/` : Pennylane, FullEnrich, HubSpot, Claude · `src/importers/` : répertoire chaud (appels macOS, WhatsApp, scoring des relations) · `public/` : l'app.
 - API Pennylane **v2** (`/api/external/v2` : `customers`, `customer_invoices`, `quotes`, `create_from_quote`) ; FullEnrich **v2** (`/api/v2/contact/enrich/bulk`, fallback v1 automatique) ; HubSpot **v3** ; Gmail en **SMTP/IMAP standard** (mot de passe d'application, aucun projet Google Cloud à créer).
 - Les réponses d'API inattendues remontent **verbatim** dans l'interface pour diagnostiquer vite.
-- **Tests** : `npm test` : 86 tests. Moteur Autopilote contre des serveurs SMTP/IMAP factices (envoi, threading, réponses, bounces, cap, scan), campagnes hebdo, et répertoire chaud contre de fausses bases d'appels/WhatsApp et de vrais formats d'export.
+- **Tests** : `npm test` : 105 tests. Ma journée (analyse du vide-cerveau, placement, signaux CRM / Gmail / WhatsApp / appels contre un IMAP factice, décisions, brief), moteur Autopilote contre des serveurs SMTP/IMAP factices (envoi, threading, réponses, bounces, cap, scan), campagnes hebdo, et répertoire chaud contre de fausses bases d'appels/WhatsApp et de vrais formats d'export.
 
 ## 🗺️ Pistes pour la suite
 

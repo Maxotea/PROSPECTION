@@ -81,6 +81,7 @@ const campaigns = require('./src/campaigns');
 const repertoire = require('./src/importers/repertoire');
 const { seedDemo } = require('./seed');
 const migrationTirets = require('./src/migrations/tirets');
+const journee = require('./src/journee');
 
 playbooks.seedTemplates(dbApi);
 playbooks.seedSequences(dbApi);
@@ -264,7 +265,43 @@ function route(method, pattern, handler) {
 const USER_ACTIONS = ['note', 'connexion_linkedin', 'message_envoye', 'relance', 'appel', 'reponse_envoyee', 'reponse_recue', 'rdv_pris', 'devis_envoye', 'devis_accepte', 'facture', 'disqualifie', 'reporte'];
 
 // ---- état global (dashboard)
-route('GET', '/api/state', async () => ({ ...game.fullState(), autopilot: autopilot.state(), campaign: campaigns.currentCampaign() }));
+route('GET', '/api/state', async () => {
+  const p = journee.plan();
+  return {
+    ...game.fullState(), autopilot: autopilot.state(), campaign: campaigns.currentCampaign(),
+    journee: { total: p.total, vitaux: p.vitaux, matin: p.blocs.matin.length, pierre: p.blocs.pierre.length, faits: p.faits_aujourdhui },
+  };
+});
+
+// ---- ☀️ Ma journée : la to-do du matin, lue dans Gmail, WhatsApp, les appels et le CRM
+route('GET', '/api/journee', async () => journee.plan());
+route('POST', '/api/journee/scan', async (req) => {
+  const b = await readBody(req);
+  const bilan = await journee.rafraichir(Array.isArray(b.sources) && b.sources.length ? { sources: b.sources } : {});
+  return { bilan, plan: journee.plan() };
+});
+route('GET', '/api/journee/brief', async () => ({ brief: journee.briefDuJour(), texte: journee.texteBrief(journee.plan()) }));
+route('POST', '/api/journee/brief', async (req) => {
+  const b = await readBody(req);
+  return journee.briefDuMatin({ envoyer: !!b.envoyer, force: true });
+});
+route('POST', '/api/journee/taches', async (req) => {
+  const b = await readBody(req);
+  if (!String(b.texte || '').trim()) throw httpError(400, 'Écris ce que tu dois faire, en une ligne.');
+  return { tache: journee.ajouterTache(b.texte, b) };
+});
+route('PATCH', '/api/journee/taches/:id', async (req, params) => ({ tache: journee.modifierTache(Number(params.id), await readBody(req)) }));
+route('DELETE', '/api/journee/taches/:id', async (req, params) => journee.supprimerTache(Number(params.id)));
+route('POST', '/api/journee/decision', async (req) => {
+  const b = await readBody(req);
+  if (!b.cle) throw httpError(400, 'Signal inconnu.');
+  return journee.decider(String(b.cle), String(b.statut || ''), { jours: b.jours, titre: b.titre });
+});
+route('POST', '/api/journee/mail/:uid/reponse', async (req, params) => {
+  const b = await readBody(req);
+  return journee.preparerReponseMail(Number(params.uid), { instructions: b.instructions || '' });
+});
+route('POST', '/api/journee/mail/envoyer', async (req) => journee.envoyerReponseMail(await readBody(req)));
 
 // ---- contacts
 route('GET', '/api/contacts', async (req, params, query) => {
@@ -1005,7 +1042,27 @@ async function enrichLoop() {
     enriching = false;
   }
 }
+// ☀️ Ma journée : relit Gmail, WhatsApp et les appels quand ça date, et
+// fabrique le brief du matin une fois par jour à l'heure choisie.
+let journeeEnCours = false;
+async function journeeLoop() {
+  if (journeeEnCours) return;
+  journeeEnCours = true;
+  try {
+    const r = await journee.boucle();
+    if (r && r.brief && !r.brief.deja_fait) {
+      console.log(`[journée] brief du ${r.brief.jour} : ${r.brief.total} chose(s)${r.brief.envoye ? ' · envoyé par mail' : ''}${r.brief.erreur ? ` · mail non envoyé : ${r.brief.erreur}` : ''}`);
+    }
+  } catch (e) {
+    console.error('[journée]', e.message);
+  } finally {
+    journeeEnCours = false;
+  }
+}
+
 if (process.env.NODE_ENV !== 'test') {
+  setInterval(journeeLoop, 5 * 60 * 1000);
+  setTimeout(journeeLoop, 10 * 1000);
   setInterval(autopilotLoop, 10 * 60 * 1000);
   setTimeout(autopilotLoop, 20 * 1000); // premier passage peu après le démarrage
   setInterval(enrichLoop, 2 * 60 * 1000); // les résultats FullEnrich arrivent en quelques minutes

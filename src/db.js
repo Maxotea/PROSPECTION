@@ -246,6 +246,51 @@ CREATE TABLE IF NOT EXISTS repertoire_attente (
 );
 `);
 
+// ---------------- ☀️ Ma journée : la to-do du matin, lue dans Gmail, WhatsApp et le CRM ----------------
+db.exec(`
+-- Ce que Maxime ajoute lui-même (vide-cerveau) : une ligne, une chose à faire.
+CREATE TABLE IF NOT EXISTS journee_taches (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  texte TEXT NOT NULL,
+  duree TEXT DEFAULT 'court',        -- court | moyen | long
+  minutes INTEGER DEFAULT 0,         -- estimation en minutes (0 = valeur par défaut de la durée)
+  importance INTEGER DEFAULT 1,      -- 1 normal | 2 important | 3 vital
+  echeance TEXT DEFAULT '',          -- jour (YYYY-MM-DD) ou vide
+  contact_id INTEGER,
+  statut TEXT DEFAULT 'a_faire',     -- a_faire | fait
+  fait_le TEXT DEFAULT '',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_journee_taches_statut ON journee_taches(statut, echeance);
+
+-- Ce que Maxime a décidé pour un signal détecté (mail, WhatsApp, relance...) :
+-- fait, remis à plus tard, ou ignoré. Sans ça, un mail traité reviendrait chaque matin.
+CREATE TABLE IF NOT EXISTS journee_decisions (
+  cle TEXT PRIMARY KEY,
+  statut TEXT NOT NULL,              -- fait | plus_tard | ignore
+  jusqu_au TEXT DEFAULT '',          -- pour plus_tard : jour à partir duquel le signal revient
+  titre TEXT DEFAULT '',
+  decide_le TEXT NOT NULL
+);
+
+-- Dernière lecture de chaque source (Gmail, WhatsApp, appels) : le radar.
+CREATE TABLE IF NOT EXISTS journee_radar (
+  source TEXT PRIMARY KEY,
+  charge TEXT DEFAULT '[]',
+  lu_le TEXT DEFAULT '',
+  erreur TEXT DEFAULT ''
+);
+
+-- Le brief du matin, tel qu'il a été calculé (et envoyé) ce jour-là.
+CREATE TABLE IF NOT EXISTS journee_briefs (
+  jour TEXT PRIMARY KEY,
+  charge TEXT NOT NULL,
+  envoye_le TEXT DEFAULT '',
+  created_at TEXT NOT NULL
+);
+`);
+
 // Migrations douces : colonnes ajoutées après coup sur des bases existantes.
 function ensureColumn(table, col, ddl) {
   const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((r) => r.name);
@@ -314,6 +359,13 @@ const SETTINGS_DEFAULTS = {
   autopilot_weekdays_only: '1',
   autopilot_last_uid: '0',
   booking_url: '',
+  // ☀️ Ma journée
+  journee_brief_heure: '08:00',   // heure à laquelle le brief du matin est calculé
+  journee_brief_mail: '1',        // '1' : le brief part aussi par mail (à toi-même, via ton Gmail)
+  journee_jours_mail: '10',       // fenêtre de lecture de la boîte Gmail, en jours
+  journee_jours_whatsapp: '14',   // fenêtre de lecture WhatsApp et appels, en jours
+  journee_delai_devis: '5',       // jours sans nouvelle après un devis avant de relancer
+  journee_dernier_brief: '',      // jour du dernier brief calculé automatiquement
 };
 
 // Variables d'environnement prioritaires sur la base (pratique pour .env).

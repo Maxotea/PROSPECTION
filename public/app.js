@@ -124,12 +124,13 @@ async function celebrate(res) {
 }
 
 // ---------------------------------------------------------------- routeur
-const VIEWS = { qg: vQG, chasse: vChasse, autopilot: vAutopilot, campagnes: vCampagnes, pipeline: vPipeline, contacts: vContacts, inbox: vInbox, import: vImport, reglages: vReglages };
+const VIEWS = { journee: vJournee, qg: vQG, chasse: vChasse, autopilot: vAutopilot, campagnes: vCampagnes, pipeline: vPipeline, contacts: vContacts, inbox: vInbox, import: vImport, reglages: vReglages };
 
 async function render() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
-  const hash = location.hash.replace('#/', '') || 'qg';
-  const name = VIEWS[hash] ? hash : 'qg';
+  // La page d'accueil est la journée : c'est elle qu'on ouvre le matin.
+  const hash = location.hash.replace('#/', '') || 'journee';
+  const name = VIEWS[hash] ? hash : 'journee';
   $$('#sidebar a').forEach((a) => a.classList.toggle('active', a.dataset.view === name));
   // Sur téléphone la barre du bas défile : l'onglet courant doit toujours être sous les yeux.
   const actif = $('#sidebar a.active');
@@ -171,6 +172,17 @@ async function vQG(view) {
     ${onboarding}
     <div class="grid" style="grid-template-columns: 1.4fr 1fr; align-items:start">
       <div class="grid">
+        <div class="card" style="border-color:${S.journee && S.journee.vitaux ? 'rgba(220,38,38,.5)' : 'rgba(234,179,8,.4)'}">
+          <div class="spread">
+            <div>
+              <h2 style="margin-bottom:2px">☀️ Ma journée</h2>
+              <div class="muted small">${S.journee && S.journee.total
+                ? `${S.journee.total} chose${S.journee.total > 1 ? 's' : ''} à faire${S.journee.vitaux ? ` · <b style="color:var(--red2)">${S.journee.vitaux} vitale${S.journee.vitaux > 1 ? 's' : ''}</b>` : ''} · ⚡ ${S.journee.matin} courte${S.journee.matin > 1 ? 's' : ''} ce matin${S.journee.pierre ? ` · 🏔️ ${S.journee.pierre} grosse${S.journee.pierre > 1 ? 's' : ''} pierre${S.journee.pierre > 1 ? 's' : ''}` : ''}${S.journee.faits ? ` · ✅ ${S.journee.faits} fait${S.journee.faits > 1 ? 's' : ''}` : ''}`
+                : 'Rien qui attend. Mails, WhatsApp, appels et CRM sont lus en continu.'}</div>
+            </div>
+            <a href="#/journee"><button class="${S.journee && S.journee.vitaux ? 'gold' : ''}">Ouvrir</button></a>
+          </div>
+        </div>
         <div class="card boss-card">
           <div class="spread">
             <div>
@@ -2285,6 +2297,17 @@ async function vReglages(view) {
       </div>
       <div class="grid">
       <div class="card">
+        <h2>☀️ Ma journée</h2>
+        <p class="muted small">La to-do du matin, lue dans ta boîte Gmail (compte ci-dessous), WhatsApp et les appels du Mac, et le CRM. Le brief est calculé chaque matin et peut t'être envoyé par mail, à toi-même.</p>
+        <div class="form-grid">
+          <label class="field">Heure du brief<input id="s-jheure" type="time" value="${esc(s.journee_brief_heure)}"></label>
+          <label class="field">Mails lus sur <span class="faint">(jours)</span><input id="s-jmail" type="number" min="1" max="60" value="${esc(s.journee_jours_mail)}"></label>
+          <label class="field">WhatsApp et appels sur <span class="faint">(jours)</span><input id="s-jwa" type="number" min="1" max="90" value="${esc(s.journee_jours_whatsapp)}"></label>
+          <label class="field">Relancer un devis après <span class="faint">(jours sans nouvelle)</span><input id="s-jdevis" type="number" min="1" max="60" value="${esc(s.journee_delai_devis)}"></label>
+          <label class="chip wide" style="cursor:pointer"><input type="checkbox" id="s-jbriefmail" ${s.journee_brief_mail !== '0' ? 'checked' : ''}> m'envoyer le brief par mail chaque matin</label>
+        </div>
+      </div>
+      <div class="card">
         <h2>📧 Email & Autopilote</h2>
         <p class="muted small">L'autopilote envoie depuis TA boîte et lit les en-têtes pour détecter les réponses. <b>Gmail / Google Workspace</b> : crée un <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">mot de passe d'application</a> (nécessite la <a href="https://myaccount.google.com/security" target="_blank" rel="noopener">validation en 2 étapes</a>). <b>OVH, Ionos, Infomaniak…</b> : ton mot de passe email normal suffit.</p>
         <div class="form-grid">
@@ -2404,6 +2427,9 @@ async function vReglages(view) {
       booking_url: $('#s-booking').value,
       smtp_host: $('#s-smtph').value, smtp_port: $('#s-smtpp').value,
       imap_host: $('#s-imaph').value, imap_port: $('#s-imapp').value,
+      journee_brief_heure: $('#s-jheure').value || '08:00', journee_jours_mail: $('#s-jmail').value,
+      journee_jours_whatsapp: $('#s-jwa').value, journee_delai_devis: $('#s-jdevis').value,
+      journee_brief_mail: $('#s-jbriefmail').checked ? '1' : '0',
     } });
   };
 
