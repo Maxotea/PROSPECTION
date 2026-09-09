@@ -274,7 +274,9 @@ test('appels : un appel manqué jamais rappelé devient « Rappeler »', () => {
 });
 
 test('agrégation des appels : les appels manqués sont comptés sans devenir des relations', () => {
-  const t = (h) => il_y_a(h);
+  // Horodatages figés une fois : les recalculer plus bas donnerait une milliseconde de décalage.
+  const t100 = il_y_a(100), t5 = il_y_a(5), t3 = il_y_a(3);
+  const t = (h) => ({ 100: t100, 5: t5, 3: t3 })[h];
   const lignes = [
     { address: '+33611111111', date: t(100), duration: 120, originated: 0, name: 'Claire' },
     { address: '+33611111111', date: t(5), duration: 0, originated: 0, name: 'Claire' },
@@ -510,6 +512,8 @@ test('le brief du matin : lisible, sans tiret cadratin, mémorisé une fois par 
   const b2 = await journee.briefDuMatin({ envoyer: false });
   assert.strictEqual(b2.deja_fait, true, 'une fois par jour');
   assert.ok(journee.briefDuJour().texte.includes('4 choses'));
+  assert.strictEqual(journee.plan().brief.calcule_le !== '', true);
+  assert.strictEqual(journee.plan().brief.envoye_le, '');
 
   // Boîtes vides : le brief le dit, sans inventer.
   nettoyer();
@@ -517,6 +521,37 @@ test('le brief du matin : lisible, sans tiret cadratin, mémorisé une fois par 
   journee.ecrireRadar('whatsapp', { conversations: [], via: 'mac' });
   journee.ecrireRadar('appels', { manques: [], via: 'mac' });
   assert.match(journee.texteBrief(journee.plan()), /Rien qui attend/);
+});
+
+test('le mail du brief ne part pas : on le dit, et on réessaie au lieu d’attendre demain', async () => {
+  nettoyer();
+  run('DELETE FROM journee_briefs');
+  // Un port fermé : Gmail « injoignable ».
+  const libre = await new Promise((res) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => res(p)); }); });
+  setSetting('gmail_user', 'maxime@otea.fr'); setSetting('gmail_app_password', 'x');
+  setSetting('smtp_host', '127.0.0.1'); setSetting('smtp_port', String(libre)); setSetting('smtp_secure', '0');
+  setSetting('journee_dernier_brief', '');
+  try {
+    const b1 = await journee.briefDuMatin({ envoyer: true });
+    assert.strictEqual(b1.envoye, false);
+    assert.match(b1.erreur, /Le mail du brief n'est pas parti/);
+    assert.strictEqual(dbApi.getSetting('journee_dernier_brief'), '', 'pas marqué fait : la boucle réessaiera');
+    const etat = journee.plan().brief;
+    assert.match(etat.erreur, /n'est pas parti/);
+    assert.strictEqual(etat.envoye_le, '');
+
+    const b2 = await journee.briefDuMatin({ envoyer: true });
+    assert.strictEqual(b2.deja_fait, undefined, 'deuxième passage : nouvel essai, pas « déjà fait »');
+    assert.strictEqual(b2.envoye, false);
+
+    // Mail désactivé : le brief du jour existe, on n'insiste pas.
+    const b3 = await journee.briefDuMatin({ envoyer: false });
+    assert.strictEqual(b3.deja_fait, true);
+  } finally {
+    setSetting('gmail_user', ''); setSetting('gmail_app_password', '');
+    setSetting('smtp_host', 'smtp.gmail.com'); setSetting('smtp_port', '465'); setSetting('smtp_secure', '1');
+    setSetting('journee_brief_erreur', '');
+  }
 });
 
 test('la boucle : relit quand ça date, et fabrique le brief une fois l’heure passée', async () => {
@@ -529,11 +564,13 @@ test('la boucle : relit quand ça date, et fabrique le brief une fois l’heure 
   assert.ok(r1.radar, 'le radar est relu : rien n’avait jamais été lu');
   assert.strictEqual(r1.brief, undefined, '7h30 : pas encore l’heure');
   const tard = new Date(); tard.setHours(8, 5, 0, 0);
-  const r2 = await journee.boucle({ now: tard });
+  // « now » est une heure fictive : la fraîcheur du radar se juge sur l'horloge réelle,
+  // on la rend donc très large pour que ce test ne dépende pas de l'heure qu'il est.
+  const r2 = await journee.boucle({ now: tard, fraicheurMin: 100000 });
   assert.strictEqual(r2.radar, undefined, 'lu il y a une seconde : on ne relit pas');
   assert.ok(r2.brief && r2.brief.jour === localDay(tard));
   assert.strictEqual(dbApi.getSetting('journee_dernier_brief'), localDay(tard));
-  const r3 = await journee.boucle({ now: tard });
+  const r3 = await journee.boucle({ now: tard, fraicheurMin: 100000 });
   assert.strictEqual(r3.brief, undefined, 'pas deux briefs le même jour');
 });
 

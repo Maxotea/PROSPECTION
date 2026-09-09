@@ -210,6 +210,13 @@ calcule la journée et te l'envoie par mail, à toi-même, depuis ton Gmail :
 répondre à Claire, rappeler Le Loft… La grosse pierre : monter la vidéo du
 Loft (≈ 3h). » Le bouton **📨 Le brief** l'affiche et le renvoie à la demande.
 
+Deux conditions pour qu'il arrive à l'heure : **l'app doit tourner à ce moment-là**
+(sur Mac, `demarrer-toujours.command` la garde allumée ; sinon le brief part dès
+que tu la lances, et un Mac endormi l'envoie au réveil), et Gmail doit être
+branché dans Réglages. Si le mail ne part pas, la page le dit sous le radar, et
+l'app réessaie toutes les 5 minutes. L'app vit à l'heure de Paris, même hébergée
+chez Render.
+
 ## 📅 Les Campagnes hebdo : une semaine, un secteur, tes références partout
 
 Le rythme : **chaque lundi, un nouveau terrain de chasse.** Semaine 1 la grande distribution (responsables communication interne : tu as le Galec en référence), semaine 2 l'aéronautique, puis l'agriculture, les hôtels (Pullman !), les agences de voyage, les collectivités (Puteaux)…
