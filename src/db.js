@@ -282,6 +282,17 @@ CREATE TABLE IF NOT EXISTS journee_radar (
   erreur TEXT DEFAULT ''
 );
 
+-- Les choses à faire posées dans Google Agenda : quel événement pour quel signal.
+CREATE TABLE IF NOT EXISTS journee_agenda (
+  cle TEXT PRIMARY KEY,
+  event_id TEXT NOT NULL,
+  calendar_id TEXT DEFAULT '',
+  titre TEXT DEFAULT '',
+  debut TEXT DEFAULT '',
+  fin TEXT DEFAULT '',
+  created_at TEXT NOT NULL
+);
+
 -- Le brief du matin, tel qu'il a été calculé (et envoyé) ce jour-là.
 CREATE TABLE IF NOT EXISTS journee_briefs (
   jour TEXT PRIMARY KEY,
@@ -366,6 +377,16 @@ const SETTINGS_DEFAULTS = {
   journee_jours_whatsapp: '14',   // fenêtre de lecture WhatsApp et appels, en jours
   journee_delai_devis: '5',       // jours sans nouvelle après un devis avant de relancer
   journee_dernier_brief: '',      // jour du dernier brief calculé automatiquement
+  // 🗓️ Google Agenda (via le script Apps Script agenda.gs)
+  agenda_url: '',                 // adresse /exec du déploiement
+  agenda_secret: '',              // généré ici, recopié dans le script
+  agenda_calendriers: '[]',       // agendas lus (ids) ; vide = tous
+  agenda_calendriers_connus: '[]',
+  agenda_calendrier_ecriture: '', // agenda où poser les tâches (le principal par défaut)
+  agenda_couleurs: '{}',          // couleur Google → niveau d'urgence
+  agenda_heures_debut: '09:00',
+  agenda_heures_fin: '18:30',
+  agenda_horizon_jours: '7',      // jusqu'où regarder devant pour les alertes de prod
 };
 
 // Variables d'environnement prioritaires sur la base (pratique pour .env).

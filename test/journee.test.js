@@ -484,6 +484,7 @@ test('le brief du matin : lisible, sans tiret cadratin, mémorisé une fois par 
   journee.ecrireRadar('gmail', { moi: 'maxime@otea.fr', recus: [], repondus: [], ecritsA: {} });
   journee.ecrireRadar('whatsapp', { conversations: [], via: 'mac' });
   journee.ecrireRadar('appels', { manques: [], via: 'mac' });
+  journee.ecrireRadar('agenda', { evenements: [] });
   const galec = dbApi.insertContact({ first_name: 'Claire', last_name: 'Arnaud', company: 'Le Galec', email: 'claire@galec.fr', segment: 'grand_compte', stage: 'devis_envoye' });
   const vieux = new Date(Date.now() - 12 * 86400000).toISOString();
   run(`INSERT INTO deals (contact_id, title, amount, status, created_at, updated_at) VALUES (?, 'Film corporate', 4800, 'devis_envoye', ?, ?)`, galec.id, vieux, vieux);

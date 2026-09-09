@@ -2307,6 +2307,28 @@ async function vReglages(view) {
           <label class="chip wide" style="cursor:pointer"><input type="checkbox" id="s-jbriefmail" ${s.journee_brief_mail !== '0' ? 'checked' : ''}> m'envoyer le brief par mail chaque matin</label>
         </div>
       </div>
+      <div class="card" id="s-agenda-card">
+        <h2>🗓️ Google Agenda</h2>
+        <p class="muted small">Ma journée lit ton agenda (prods, RDV, couleurs) et pose tes tâches sur tes créneaux libres, colorées par urgence. Pas de projet Google Cloud : un petit script sur ton compte Google sert de pont. <b>3 minutes, une fois.</b></p>
+        <ol class="small" style="margin:6px 0 10px 18px;padding:0;line-height:1.6">
+          <li>Ouvre <a href="https://script.google.com/home/projects/create" target="_blank" rel="noopener">script.google.com</a> → « Nouveau projet ». Efface tout, colle le code ci-dessous (📋), enregistre.</li>
+          <li><b>Déployer → Nouveau déploiement</b> → ⚙️ « Application web » → Exécuter en tant que : <b>Moi</b> · Qui a accès : <b>Tout le monde</b> → Déployer.</li>
+          <li>Google demande l'autorisation : ton compte → « Paramètres avancés » → « Accéder à OTEA Moteur (non sécurisé) ». C'est ton script, sur ton compte.</li>
+          <li>Copie l'<b>URL qui finit par /exec</b>, colle-la ici, puis 🔌 Tester.</li>
+        </ol>
+        <details style="margin-bottom:10px"><summary class="muted small" style="cursor:pointer">📋 Le code à coller dans Apps Script (ton secret est déjà dedans)</summary>
+          <div class="row" style="margin:8px 0"><button id="s-agenda-copy">📋 Copier le code</button></div>
+          <textarea id="s-agenda-code" rows="8" readonly class="mono" style="font-size:11.5px">Chargement…</textarea>
+        </details>
+        <div class="form-grid">
+          <label class="field wide">Adresse du script (finit par /exec)<input id="s-agenda-url" value="${esc(s.agenda_url)}" placeholder="https://script.google.com/macros/s/…/exec"></label>
+          <label class="field">Je travaille de<input id="s-agenda-hd" type="time" value="${esc(s.agenda_heures_debut)}"></label>
+          <label class="field">à<input id="s-agenda-hf" type="time" value="${esc(s.agenda_heures_fin)}"></label>
+          <label class="field">Alertes de prod jusqu'à <span class="faint">(jours devant)</span><input id="s-agenda-hz" type="number" min="1" max="30" value="${esc(s.agenda_horizon_jours)}"></label>
+        </div>
+        <div class="row" style="margin-top:10px"><button data-test="agenda">🔌 Tester Google Agenda</button><span id="t-agenda" class="muted small"></span></div>
+        <div id="s-agenda-detail" style="margin-top:12px"></div>
+      </div>
       <div class="card">
         <h2>📧 Email & Autopilote</h2>
         <p class="muted small">L'autopilote envoie depuis TA boîte et lit les en-têtes pour détecter les réponses. <b>Gmail / Google Workspace</b> : crée un <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">mot de passe d'application</a> (nécessite la <a href="https://myaccount.google.com/security" target="_blank" rel="noopener">validation en 2 étapes</a>). <b>OVH, Ionos, Infomaniak…</b> : ton mot de passe email normal suffit.</p>
@@ -2414,6 +2436,21 @@ async function vReglages(view) {
     }
   };
 
+  function agendaReglages() {
+    const out = {};
+    const lus = $$('[data-agenda-lu]').filter((c) => c.checked).map((c) => c.dataset.agendaLu);
+    if ($('[data-agenda-lu]')) out.agenda_calendriers = JSON.stringify(lus);
+    const ecr = $('#s-agenda-ecriture');
+    if (ecr) out.agenda_calendrier_ecriture = ecr.value;
+    const coul = $$('[data-agenda-coul]');
+    if (coul.length) {
+      const m = {};
+      for (const sel of coul) m[sel.dataset.agendaCoul] = sel.value === '' ? null : Number(sel.value);
+      out.agenda_couleurs = JSON.stringify(m);
+    }
+    return out;
+  }
+
   const saveReglages = async () => {
     await api('/settings', { method: 'PUT', body: {
       user_name: $('#s-user').value, company_name: $('#s-company').value, user_signature: $('#s-sig').value,
@@ -2430,8 +2467,36 @@ async function vReglages(view) {
       journee_brief_heure: $('#s-jheure').value || '08:00', journee_jours_mail: $('#s-jmail').value,
       journee_jours_whatsapp: $('#s-jwa').value, journee_delai_devis: $('#s-jdevis').value,
       journee_brief_mail: $('#s-jbriefmail').checked ? '1' : '0',
+      agenda_url: $('#s-agenda-url').value.trim(), agenda_heures_debut: $('#s-agenda-hd').value || '09:00', agenda_heures_fin: $('#s-agenda-hf').value || '18:30',
+      agenda_horizon_jours: $('#s-agenda-hz').value,
+      ...agendaReglages(),
     } });
   };
+
+  // 🗓️ Google Agenda : le code du script (avec le secret), les agendas à lire, les couleurs.
+  api('/agenda/script').then((r) => { const ta = $('#s-agenda-code'); if (ta) ta.value = r.code; }).catch(() => {});
+  $('#s-agenda-copy').onclick = async () => { await copyText($('#s-agenda-code').value); fx.toast('📋 Code copié : colle-le dans Apps Script'); };
+  const dessinerAgendaDetail = async () => {
+    const zone = $('#s-agenda-detail');
+    if (!zone) return;
+    let d;
+    try { d = await api('/agenda/calendriers'); } catch { return; }
+    if (!d.calendriers.length) { zone.innerHTML = ''; return; }
+    const lus = new Set(d.lus);
+    zone.innerHTML = `
+      <div class="grid" style="gap:12px">
+        <div>
+          <b class="small">Agendas à lire</b> <span class="faint small">(aucun coché = tous)</span>
+          <div class="row" style="flex-wrap:wrap;gap:6px;margin-top:6px">${d.calendriers.map((c) => `<label class="chip" style="cursor:pointer"><input type="checkbox" data-agenda-lu="${esc(c.id)}" ${lus.has(c.id) ? 'checked' : ''}> <span class="sw" style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${esc(c.couleur || '#64748b')}"></span> ${esc(c.nom)}</label>`).join('')}</div>
+        </div>
+        <label class="field">Poser mes tâches dans<select id="s-agenda-ecriture">${d.calendriers.filter((c) => c.a_moi !== false).map((c) => `<option value="${esc(c.id)}" ${c.id === d.ecriture ? 'selected' : ''}>${esc(c.nom)}</option>`).join('')}</select></label>
+        <div>
+          <b class="small">Ce que veulent dire tes couleurs</b> <span class="faint small">(c'est ton système d'urgence : l'app le lit, et l'applique quand elle pose ou reclasse un événement)</span>
+          <div class="j-couleurs" style="margin-top:6px">${Object.entries(d.palette).map(([id, p]) => `<label><span class="sw" style="background:${p.hex}"></span><span style="width:92px">${esc(p.nom)}</span><select data-agenda-coul="${id}">${[['3', '🔴 très urgent'], ['2', '🟠 urgent'], ['1', '🟡 moyen'], ['0', '🟢 pas urgent'], ['', '⚪ juste une info']].map(([v, l]) => `<option value="${v}" ${String(d.couleurs[id] === null || d.couleurs[id] === undefined ? '' : d.couleurs[id]) === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>`).join('')}</div>
+        </div>
+      </div>`;
+  };
+  dessinerAgendaDetail();
 
   // Fournisseur email → préremplit les serveurs (Gmail par défaut).
   const PROVIDERS = {
@@ -2463,7 +2528,8 @@ async function vReglages(view) {
   $$('[data-test]', view).forEach((b) => {
     b.onclick = async () => {
       try { await saveReglages(); } catch (e) { fx.error(e.message); return; }
-      testIntegration(b.dataset.test, $(`#t-${b.dataset.test}`));
+      await testIntegration(b.dataset.test, $(`#t-${b.dataset.test}`));
+      if (b.dataset.test === 'agenda') dessinerAgendaDetail(); // les agendas et les couleurs apparaissent après le premier test
     };
   });
 
