@@ -7,6 +7,7 @@ const J_SOURCES = {
   gmail: { emoji: '📧', label: 'Gmail' },
   whatsapp: { emoji: '💬', label: 'WhatsApp' },
   appels: { emoji: '📞', label: 'Appels' },
+  agenda: { emoji: '🗓️', label: 'Agenda' },
 };
 
 function jDepuis(iso) {
@@ -45,13 +46,19 @@ function jItemHtml(it, P) {
     if (a.type === 'repondre_mail') return `<button class="primary" data-j-mail="${a.uid}" data-j-cle="${esc(it.cle)}">${esc(a.label)}</button>`;
     return '';
   }).join('');
+  const cale = P.agenda && P.agenda.cales && P.agenda.cales[it.cle];
+  const caler = P.agenda && P.agenda.branche
+    ? (cale
+      ? `<button class="ghost" data-j-caler="${esc(it.cle)}" title="Déplacer dans l'agenda">📅 calé à ${esc(jHeure(cale.debut))}</button>`
+      : `<button data-j-caler="${esc(it.cle)}" title="Poser sur un créneau libre de Google Agenda">📅 Caler</button>`)
+    : '';
   return `
     <div class="j-item imp-${it.importance}" data-j-item="${esc(it.cle)}">
       <div class="j-imp" title="${esc(imp.label)}">${imp.emoji}</div>
       <div class="j-main">
         <div class="j-titre">${it.emoji} ${esc(it.titre)} <span class="chip" title="${esc(dur.aide)}">${dur.emoji} ${jDuree(it.minutes)}</span>${it.contact && it.contact.stage ? ` <span class="chip faint">${esc(it.contact.stage.replace(/_/g, ' '))}</span>` : ''}</div>
         ${it.pourquoi ? `<div class="j-why muted small">${esc(it.pourquoi)}</div>` : ''}
-        ${actions ? `<div class="row j-actions">${actions}</div>` : ''}
+        ${actions || caler ? `<div class="row j-actions">${actions}${caler}</div>` : ''}
       </div>
       <div class="j-decide">
         ${it.tache_id ? `<button class="ghost" title="Modifier" data-j-edit="${it.tache_id}">✏️</button>` : ''}
@@ -79,9 +86,56 @@ function jBlocHtml(code, P) {
     </section>`;
 }
 
+function jHeure(iso) {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+// Le fil de la journée tel qu'il est dans Google Agenda, avec les trous, et
+// l'urgence de chaque événement changeable d'un clic (c'est sa couleur là-bas).
+function jAgendaHtml(A) {
+  if (!A.branche) {
+    return `<div class="card" style="margin-top:14px"><div class="spread"><div><h3 style="margin-bottom:2px">🗓️ Ton agenda</h3><p class="muted small" style="margin:0">${esc(A.erreur || 'Pas encore branché.')} Une fois branché, ta journée se lit ici et tes tâches se posent sur tes créneaux libres, colorées par urgence.</p></div><a href="#/reglages"><button>⚙️ Brancher</button></a></div></div>`;
+  }
+  const N = A.niveaux;
+  const boutonsNiveau = (ev) => [3, 2, 1, 0].map((n) => `<button class="ghost j-niv ${ev.niveau === n ? 'actif' : ''}" data-j-niv="${n}" data-j-ev="${esc(ev.id)}" data-j-cal="${esc(ev.calendrier || '')}" title="${esc(N[n].label)}">${N[n].emoji}</button>`).join('')
+    + `<button class="ghost j-niv ${ev.niveau === null ? 'actif' : ''}" data-j-niv="" data-j-ev="${esc(ev.id)}" data-j-cal="${esc(ev.calendrier || '')}" title="Juste une info, pas d'urgence">⚪</button>`;
+  const lignes = [];
+  const evs = A.evenements;
+  const cren = A.creneaux;
+  // On entrelace événements et trous par heure de début.
+  const tout = [
+    ...evs.map((ev) => ({ t: ev.journee ? '' : ev.debut, ev })),
+    ...cren.map((c) => ({ t: c.debut, c })),
+  ].sort((x, y) => String(x.t).localeCompare(String(y.t)));
+  for (const x of tout) {
+    if (x.ev) {
+      const ev = x.ev;
+      const couleur = ev.couleur && A.palette[ev.couleur] ? A.palette[ev.couleur].hex : '';
+      lignes.push(`<div class="j-ev">
+        <span class="j-ev-h mono">${ev.journee ? 'journée' : `${esc(ev.heure)}<span class="faint">–${esc(ev.heure_fin)}</span>`}</span>
+        <span class="j-ev-dot" style="background:${couleur || 'var(--border2)'}"></span>
+        <span class="j-ev-t">${ev.niveau !== null && ev.niveau !== undefined ? N[ev.niveau].emoji + ' ' : ''}${esc(ev.titre || '(sans titre)')}${ev.calendrier_nom ? ` <span class="faint small">· ${esc(ev.calendrier_nom)}</span>` : ''}${ev.lieu ? ` <span class="faint small">📍 ${esc(ev.lieu)}</span>` : ''}</span>
+        <span class="j-ev-niv">${boutonsNiveau(ev)}</span>
+      </div>`);
+    } else {
+      lignes.push(`<div class="j-ev j-libre"><span class="j-ev-h mono">${esc(jHeure(x.c.debut))}<span class="faint">–${esc(jHeure(x.c.fin))}</span></span><span class="j-ev-dot"></span><span class="j-ev-t muted">libre · ${jDuree(x.c.minutes)}</span></div>`);
+    }
+  }
+  const libreTotal = cren.reduce((s, c) => s + c.minutes, 0);
+  return `
+    <div class="card" style="margin-top:14px">
+      <div class="spread">
+        <div><h3 style="margin-bottom:2px">🗓️ Aujourd'hui dans l'agenda</h3><p class="muted small" style="margin:0">${evs.length ? `${evs.length} événement${evs.length > 1 ? 's' : ''}` : 'Rien de prévu'} · ${libreTotal ? `${jDuree(libreTotal)} de libre d'ici ${esc(String(Math.floor(A.heures.fin / 60)).padStart(2, '0'))}:${esc(String(A.heures.fin % 60).padStart(2, '0'))}` : 'plus de créneau libre aujourd’hui'} · clique un rond pour changer l'urgence, elle change de couleur dans Google Agenda</p></div>
+        <button class="gold" id="j-caler-tout" ${cren.length ? '' : 'disabled'} title="Pose les courtes au plus tôt, la grosse pierre dans le plus grand trou, les moyennes ensuite">🗓️ Caler ma journée</button>
+      </div>
+      <div class="j-agenda">${lignes.join('') || '<p class="muted small j-vide">Journée vide.</p>'}</div>
+    </div>`;
+}
+
 function dessinerJournee(view) {
   const P = jPlan;
-  const radar = ['gmail', 'whatsapp', 'appels'].map((s) => {
+  const radar = ['gmail', 'whatsapp', 'appels', 'agenda'].map((s) => {
     const r = P.sources[s];
     const src = J_SOURCES[s];
     const ok = r.branche && !r.erreur;
@@ -106,6 +160,7 @@ function dessinerJournee(view) {
       <div class="j-radar"><span class="muted small">Radar :</span>${radar}<span class="muted small">· CRM lu en direct</span></div>
       <div class="j-radar" style="margin-top:8px"><span class="muted small">Brief :</span>${briefChip(P.brief)}</div>
     </div>
+    ${jAgendaHtml(P.agenda)}
     <div class="card" style="margin-top:14px">
       <h3>🧠 Vide-cerveau</h3>
       <div class="j-capture">
@@ -205,6 +260,32 @@ function dessinerJournee(view) {
     };
   });
   $$('[data-j-contact]', view).forEach((b) => { b.onclick = () => openContact(b.dataset.jContact); });
+  $$('[data-j-caler]', view).forEach((b) => { b.onclick = () => jCalerModal(b.dataset.jCaler, recharger); });
+  $$('[data-j-niv]', view).forEach((b) => {
+    b.onclick = async () => {
+      const niveau = b.dataset.jNiv === '' ? null : Number(b.dataset.jNiv);
+      $$('.j-niv', b.parentElement).forEach((x) => { x.disabled = true; });
+      try {
+        await api('/agenda/urgence', { method: 'POST', body: { id: b.dataset.jEv, calendrier: b.dataset.jCal, niveau } });
+        const N = jPlan.agenda.niveaux;
+        fx.toast(niveau === null ? '⚪ Plus d’urgence sur cet événement' : `${N[niveau].emoji} ${N[niveau].label} : couleur changée dans Google Agenda`);
+        await api('/journee/scan', { method: 'POST', body: { sources: ['agenda'] } });
+        await recharger();
+      } catch (e) { fx.error(e.message); $$('.j-niv', b.parentElement).forEach((x) => { x.disabled = false; }); }
+    };
+  });
+  const calerTout = $('#j-caler-tout');
+  if (calerTout) calerTout.onclick = async () => {
+    calerTout.disabled = true; calerTout.textContent = '🗓️ Je cale…';
+    try {
+      const r = await api('/journee/caler_tout', { method: 'POST', body: {} });
+      if (r.cales.length) fx.toast(`🗓️ ${r.cales.length} chose${r.cales.length > 1 ? 's' : ''} posée${r.cales.length > 1 ? 's' : ''} dans ton agenda : ${esc(r.cales.map((c) => `${c.heure} ${c.titre}`).join(' · ').slice(0, 160))}`);
+      else fx.toast('🗓️ Rien à caler : tout est déjà posé, ou plus de place aujourd’hui.');
+      if (r.sans_place.length) setTimeout(() => fx.error(`Pas de place aujourd'hui pour : ${r.sans_place.join(' · ').slice(0, 200)}`), 600);
+      await api('/journee/scan', { method: 'POST', body: { sources: ['agenda'] } });
+      await recharger();
+    } catch (e) { fx.error(e.message); calerTout.disabled = false; calerTout.textContent = '🗓️ Caler ma journée'; }
+  };
   $$('[data-j-edit]', view).forEach((b) => { b.onclick = () => jEditerTache(Number(b.dataset.jEdit), recharger); });
   $$('[data-j-mail]', view).forEach((b) => { b.onclick = () => jRepondreMail(Number(b.dataset.jMail), b.dataset.jCle, recharger); });
 }
@@ -227,6 +308,47 @@ function trouverItem(cle) {
     if (it) return it;
   }
   return null;
+}
+
+// ---------------------------------------------------------------- 📅 poser une chose sur un créneau libre
+function jCalerModal(cle, apres) {
+  const it = trouverItem(cle);
+  if (!it) return;
+  const A = jPlan.agenda;
+  const cale = A.cales && A.cales[cle];
+  const minutes = Math.max(15, Number(it.minutes) || 30);
+  const creneaux = A.creneaux.filter((c) => c.minutes >= 15);
+  const m = modal(`
+    <h2>📅 ${cale ? 'Déplacer' : 'Caler'} dans l'agenda</h2>
+    <p class="muted small">${esc(it.titre)} · ${jDuree(minutes)} · ${jPlan.vocabulaire.importances[it.importance].emoji} la couleur suivra l'urgence</p>
+    ${creneaux.length ? `<div class="grid" style="gap:6px;margin-top:8px">${creneaux.map((c, i) => `<label class="chip" style="cursor:pointer;justify-content:flex-start"><input type="radio" name="jc-cren" value="${esc(c.debut)}" ${i === 0 ? 'checked' : ''}> ${esc(jHeure(c.debut))} → ${esc(jHeure(c.fin))} <span class="faint">· ${jDuree(c.minutes)} de libre</span></label>`).join('')}</div>` : '<p class="muted small">Plus de créneau libre aujourd’hui dans tes heures de travail. Choisis une heure à la main :</p>'}
+    <div class="form-grid" style="margin-top:10px">
+      <label class="field">Ou à cette heure<input id="jc-heure" type="time" value=""></label>
+      <label class="field">Durée (min)<input id="jc-min" type="number" min="15" step="5" value="${minutes}"></label>
+    </div>
+    <div class="spread" style="margin-top:12px">
+      ${cale ? '<button class="danger" id="jc-del">🗑 Retirer de l’agenda</button>' : '<span></span>'}
+      <button class="primary" id="jc-ok">📅 ${cale ? 'Déplacer' : 'Caler'}</button>
+    </div>`);
+  $('#jc-ok', m).onclick = async () => {
+    const heure = $('#jc-heure', m).value;
+    const coche = m.querySelector('input[name="jc-cren"]:checked');
+    let debut = coche ? coche.value : '';
+    if (heure) { const d = new Date(); const [h, mn] = heure.split(':').map(Number); d.setHours(h, mn, 0, 0); debut = d.toISOString(); }
+    if (!debut) { fx.error('Choisis un créneau ou une heure.'); return; }
+    try {
+      const r = await api('/journee/caler', { method: 'POST', body: { cle, debut, minutes: Number($('#jc-min', m).value) || minutes } });
+      m.remove();
+      fx.toast(`📅 ${r.deplace ? 'Déplacé' : 'Posé'} à ${esc(r.heure)} dans Google Agenda`);
+      await api('/journee/scan', { method: 'POST', body: { sources: ['agenda'] } });
+      await apres();
+    } catch (e) { fx.error(e.message); }
+  };
+  const del = $('#jc-del', m);
+  if (del) del.onclick = async () => {
+    try { await api('/journee/decaler', { method: 'POST', body: { cle } }); m.remove(); fx.toast('🗑 Retiré de l’agenda'); await api('/journee/scan', { method: 'POST', body: { sources: ['agenda'] } }); await apres(); }
+    catch (e) { fx.error(e.message); }
+  };
 }
 
 // ---------------------------------------------------------------- ✏️ modifier une tâche

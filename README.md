@@ -172,6 +172,7 @@ liste se fait toute seule, à partir de ce qui se passe vraiment.
 | 📧 **Gmail** (onglet Principale) | un mail reçu, d'un humain, auquel tu n'as pas répondu (ni depuis Gmail, ni depuis l'app, ni en lui écrivant depuis) |
 | 💬 **WhatsApp** (Mac) | une conversation où le dernier message n'est pas de toi |
 | 📞 **Appels** (Mac) | un appel manqué d'une personne que tu connais, jamais rappelé |
+| 🗓️ **Google Agenda** | une prod colorée urgent ou très urgent dans les jours qui viennent, un titre qui dit tournage, livraison, rendu, deadline… |
 | 🗂️ **CRM** | relance arrivée à échéance, devis envoyé sans nouvelle depuis N jours, devis accepté pas facturé, RDV pris sans devis, demande entrante pas traitée, emails de l'Autopilote à valider, post de campagne pas publié, session d'appels du jour |
 | 🧠 **Ton cerveau** | ce que tu tapes dans le vide-cerveau, en une ligne |
 
@@ -216,6 +217,35 @@ que tu la lances, et un Mac endormi l'envoie au réveil), et Gmail doit être
 branché dans Réglages. Si le mail ne part pas, la page le dit sous le radar, et
 l'app réessaie toutes les 5 minutes. L'app vit à l'heure de Paris, même hébergée
 chez Render.
+
+### 🗓️ Google Agenda : lire ta journée, y poser tes tâches, colorer l'urgence
+
+L'agenda est le deuxième œil du matin : les prods, les RDV, et les couleurs que
+tu leur donnes déjà. Branché, il fait trois choses.
+
+1. **Il lit.** Le fil d'aujourd'hui s'affiche sous le radar, avec les trous entre
+   les rendez-vous. Sur les jours qui viennent (7 par défaut), une prod colorée
+   « urgent » ou « très urgent », ou un événement dont le titre dit *tournage,
+   livraison, rendu, deadline, montage…*, devient une chose à préparer dans la
+   liste, avec son importance.
+2. **Il pose.** Sur chaque ligne, **📅 Caler** propose les créneaux libres du jour ;
+   **🗓️ Caler ma journée** fait tout d'un coup : les courtes au plus tôt, la grosse
+   pierre dans le plus grand trou, les moyennes ensuite. Chaque tâche devient un
+   événement dans ton agenda, de la couleur de son urgence. Ce qui ne rentre pas
+   est dit, pas forcé.
+3. **Il classe.** Sur chaque événement du jour, cinq ronds : 🔴 très urgent,
+   🟠 urgent, 🟡 moyen, 🟢 pas urgent, ⚪ juste une info. Un clic change la couleur
+   de l'événement **dans Google Agenda**. Le sens de chaque couleur se règle dans
+   Réglages (par défaut : Tomate = très urgent, Mandarine et Flamant rose = urgent,
+   Banane = moyen, Basilic et Sauge = pas urgent, le reste = info) : si tu as déjà
+   ton code couleur, dis-le à l'app une fois, elle le respecte.
+
+**Brancher, en 3 minutes et sans projet Google Cloud.** Réglages → Google Agenda
+donne un petit script à coller sur [script.google.com](https://script.google.com)
+(ton secret est déjà dedans), à déployer en « Application web » exécutée en tant
+que toi et accessible à « Tout le monde ». Ce « tout le monde » ne voit rien :
+sans le secret, le script répond « Mauvais secret ». Colle l'URL en `/exec`,
+teste, choisis les agendas à lire et celui où poser tes tâches.
 
 ## 📅 Les Campagnes hebdo : une semaine, un secteur, tes références partout
 
@@ -408,7 +438,7 @@ Les clés sont stockées en local (ou via un fichier `.env` : `PENNYLANE_API_KEY
 ## 🧱 Sous le capot
 
 - **Zéro dépendance** : Node ≥ 22.13, SQLite natif (`node:sqlite`), frontend vanilla, clients **SMTP et IMAP écrits maison** (`src/mail/`). `git clone` → `node server.js`, c'est tout.
-- `server.js` : serveur HTTP + API REST (`/api/*`) + boucle Autopilote (10 min) + radar de la journée (5 min) + relève des enrichissements FullEnrich (2 min) · `src/journee.js` : Ma journée (signaux Gmail / WhatsApp / appels / CRM, classement, placement, brief) · `src/autopilot.js` : séquences, enrôlements, file d'envoi, détection des réponses · `src/db.js` : schéma + upsert/dédoublonnage · `src/gamification.js` : XP, niveaux, quêtes, streak, badges, boss · `src/playbooks.js` : segments, cadences, templates, séquences · `src/integrations/` : Pennylane, FullEnrich, HubSpot, Claude · `src/importers/` : répertoire chaud (appels macOS, WhatsApp, scoring des relations) · `public/` : l'app.
+- `server.js` : serveur HTTP + API REST (`/api/*`) + boucle Autopilote (10 min) + radar de la journée (5 min) + relève des enrichissements FullEnrich (2 min) · `src/journee.js` : Ma journée (signaux Gmail / WhatsApp / appels / agenda / CRM, classement, placement, brief) · `src/integrations/agenda.js` + `agenda.gs` : Google Agenda via un script Apps Script sur le compte de Maxime (lecture, créneaux libres, pose des tâches, couleurs d'urgence) · `src/autopilot.js` : séquences, enrôlements, file d'envoi, détection des réponses · `src/db.js` : schéma + upsert/dédoublonnage · `src/gamification.js` : XP, niveaux, quêtes, streak, badges, boss · `src/playbooks.js` : segments, cadences, templates, séquences · `src/integrations/` : Pennylane, FullEnrich, HubSpot, Claude · `src/importers/` : répertoire chaud (appels macOS, WhatsApp, scoring des relations) · `public/` : l'app.
 - API Pennylane **v2** (`/api/external/v2` : `customers`, `customer_invoices`, `quotes`, `create_from_quote`) ; FullEnrich **v2** (`/api/v2/contact/enrich/bulk`, fallback v1 automatique) ; HubSpot **v3** ; Gmail en **SMTP/IMAP standard** (mot de passe d'application, aucun projet Google Cloud à créer).
 - Les réponses d'API inattendues remontent **verbatim** dans l'interface pour diagnostiquer vite.
 - **Tests** : `npm test` : 105 tests. Ma journée (analyse du vide-cerveau, placement, signaux CRM / Gmail / WhatsApp / appels contre un IMAP factice, décisions, brief), moteur Autopilote contre des serveurs SMTP/IMAP factices (envoi, threading, réponses, bounces, cap, scan), campagnes hebdo, et répertoire chaud contre de fausses bases d'appels/WhatsApp et de vrais formats d'export.

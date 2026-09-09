@@ -87,6 +87,7 @@ const repertoire = require('./src/importers/repertoire');
 const { seedDemo } = require('./seed');
 const migrationTirets = require('./src/migrations/tirets');
 const journee = require('./src/journee');
+const agenda = require('./src/integrations/agenda');
 
 playbooks.seedTemplates(dbApi);
 playbooks.seedSequences(dbApi);
@@ -307,6 +308,27 @@ route('POST', '/api/journee/mail/:uid/reponse', async (req, params) => {
   return journee.preparerReponseMail(Number(params.uid), { instructions: b.instructions || '' });
 });
 route('POST', '/api/journee/mail/envoyer', async (req) => journee.envoyerReponseMail(await readBody(req)));
+
+// ---- 🗓️ Google Agenda (via le script Apps Script)
+route('GET', '/api/agenda/script', async () => ({ code: agenda.codeDuScript(), branche: agenda.estBranche() }));
+route('GET', '/api/agenda/test', async () => agenda.test());
+route('GET', '/api/agenda/calendriers', async () => ({ calendriers: agenda.calendriersConnus(), lus: agenda.calendriersLus(), ecriture: dbApi.getSetting('agenda_calendrier_ecriture'), couleurs: agenda.couleurs(), palette: agenda.PALETTE, niveaux: agenda.NIVEAUX }));
+route('POST', '/api/journee/caler', async (req) => {
+  const b = await readBody(req);
+  if (!b.cle) throw httpError(400, 'Signal inconnu.');
+  return journee.calerDansAgenda(String(b.cle), { debut: b.debut, fin: b.fin, minutes: b.minutes });
+});
+route('POST', '/api/journee/decaler', async (req) => {
+  const b = await readBody(req);
+  if (!b.cle) throw httpError(400, 'Signal inconnu.');
+  return agenda.decaler(String(b.cle));
+});
+route('POST', '/api/journee/caler_tout', async () => journee.calerToutDansAgenda());
+route('POST', '/api/agenda/urgence', async (req) => {
+  const b = await readBody(req);
+  if (!b.id) throw httpError(400, 'Événement inconnu.');
+  return agenda.changerUrgence({ calendrier: b.calendrier || '', id: String(b.id), niveau: b.niveau });
+});
 
 // ---- contacts
 route('GET', '/api/contacts', async (req, params, query) => {
@@ -557,7 +579,7 @@ route('POST', '/api/ai/draft', async (req) => {
 });
 
 // ---- réglages
-const SECRET_KEYS = ['pennylane_api_key', 'fullenrich_api_key', 'hubspot_token', 'anthropic_api_key', 'gmail_app_password'];
+const SECRET_KEYS = ['pennylane_api_key', 'fullenrich_api_key', 'hubspot_token', 'anthropic_api_key', 'gmail_app_password', 'agenda_secret'];
 const MASK = '••••••••';
 route('GET', '/api/settings', async () => {
   const s = dbApi.allSettings();

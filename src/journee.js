@@ -36,6 +36,7 @@ const autopilot = require('./autopilot');
 const game = require('./gamification');
 const campaigns = require('./campaigns');
 const claude = require('./integrations/claude');
+const agenda = require('./integrations/agenda');
 
 // ---------------------------------------------------------------- vocabulaire
 const DUREES = {
@@ -276,7 +277,7 @@ function filtrerAppels(entrees, jours) {
     .map((e) => ({ key: e.key, name: e.name || '', phone: e.phone || '', manques: e.manques, dernier_manque_le: e.dernier_manque_le, calls: e.calls || 0 }));
 }
 
-async function rafraichir({ sources = ['gmail', 'whatsapp', 'appels'] } = {}) {
+async function rafraichir({ sources = ['gmail', 'whatsapp', 'appels', 'agenda'] } = {}) {
   const bilan = {};
   const joursMail = Math.max(1, Number(getSetting('journee_jours_mail')) || 10);
   const joursWa = Math.max(1, Number(getSetting('journee_jours_whatsapp')) || 14);
@@ -321,6 +322,23 @@ async function rafraichir({ sources = ['gmail', 'whatsapp', 'appels'] } = {}) {
     } catch (e) {
       ecrireRadar('whatsapp', undefined, e.message);
       bilan.whatsapp = { branche: true, erreur: e.message };
+    }
+  }
+
+  if (sources.includes('agenda')) {
+    if (!agenda.estBranche()) {
+      ecrireRadar('agenda', null, "Google Agenda pas encore branché : Réglages → Google Agenda (3 minutes, un script à coller).");
+      bilan.agenda = { branche: false };
+    } else {
+      try {
+        const r = await agenda.lireEvenements();
+        ecrireRadar('agenda', { ...r, calendriers: agenda.calendriersLus() });
+        agenda.nettoyerLiens();
+        bilan.agenda = { branche: true, evenements: r.evenements.length };
+      } catch (e) {
+        ecrireRadar('agenda', undefined, e.message);
+        bilan.agenda = { branche: true, erreur: e.message };
+      }
     }
   }
 
@@ -459,6 +477,70 @@ function signauxAppels(radar, index, now) {
       actions: a.phone ? [{ type: 'lien', label: '☎️ Appeler', href: `tel:${a.phone}` }] : [],
     });
   });
+}
+
+// 🗓️ L'agenda : une prod colorée « urgent » ou un mot de prod dans les prochains
+// jours devient une chose à préparer. Le reste (RDV, perso) s'affiche dans le
+// fil de la journée sans devenir une tâche.
+function signauxAgenda(radar, today, now) {
+  const data = radar.agenda && radar.agenda.charge;
+  if (!data || !Array.isArray(data.evenements)) return [];
+  const mapping = agenda.couleurs();
+  const items = [];
+  const vus = new Set();
+  for (const ev of data.evenements) {
+    if (!ev.id || vus.has(ev.id)) continue;
+    vus.add(ev.id);
+    const { niveau, source, mot } = agenda.niveauDe(ev, mapping);
+    if (niveau === null || niveau === 0) continue;                 // info ou pas urgent : pas une tâche
+    const jour = ev.debut ? localDay(new Date(ev.debut)) : '';
+    if (!jour || jour < today) continue;                            // passé : trop tard pour préparer
+    const dans = joursDeRetard(today, jour);                       // jours avant l'événement
+    if (niveau === 1 && source === 'mot' && dans > 3) continue;    // une prod sans couleur ne presse qu'à 3 jours
+    const quand = jour === today ? `aujourd'hui${ev.journee ? '' : ` à ${agenda.heureCourte(ev.debut)}`}`
+      : jour === addDays(today, 1) ? `demain${ev.journee ? '' : ` à ${agenda.heureCourte(ev.debut)}`}`
+      : `${dateLongue(jour)}${ev.journee ? '' : ` à ${agenda.heureCourte(ev.debut)}`}`;
+    const importance = niveau === 3 ? 3 : niveau === 2 ? 2 : (dans <= 1 ? 2 : 1);
+    const verbe = /livraison|livrable|rendu|deadline|publication|mise en ligne|diffusion/i.test(ev.titre || '') ? 'Livrer' : 'Préparer';
+    items.push(item({
+      cle: `agenda:${ev.id}`, source: 'agenda', emoji: '🎬',
+      titre: `${verbe} : ${ev.titre || '(sans titre)'}`,
+      pourquoi: [
+        `${quand}${ev.calendrier_nom ? ` · ${ev.calendrier_nom}` : ''}`,
+        source === 'couleur' ? `couleur ${agenda.NIVEAUX[niveau].emoji} ${agenda.NIVEAUX[niveau].label} dans l'agenda` : `mot « ${mot} » dans le titre`,
+        ev.lieu ? `📍 ${ev.lieu}` : '',
+      ].filter(Boolean).join(' · '),
+      duree: 'moyen', importance,
+      urgence: Math.max(0, 5 - dans), echeance: jour, date: ev.debut,
+      futur: dans > 2 && niveau < 3,
+      actions: [{ type: 'lien', label: '🗓️ Ouvrir dans Google Agenda', href: 'https://calendar.google.com/calendar/r/day/' + jour.replace(/-/g, '/') }],
+    }));
+  }
+  return items;
+}
+
+// Le fil d'aujourd'hui (pour l'afficher) et les trous entre les rendez-vous.
+function agendaDuJour(radar, today, now) {
+  const r = radar.agenda;
+  const data = r && r.charge;
+  const mapping = agenda.couleurs();
+  const jourLocal = (iso) => (iso ? localDay(new Date(iso)) : '');
+  const aujourdhui = data && Array.isArray(data.evenements)
+    ? data.evenements
+      .filter((ev) => (ev.journee ? jourLocal(ev.debut) <= today && jourLocal(new Date(Date.parse(ev.fin) - 1).toISOString()) >= today : jourLocal(ev.debut) === today))
+      .map((ev) => ({ ...ev, niveau: agenda.niveauDe(ev, mapping).niveau, heure: ev.journee ? '' : agenda.heureCourte(ev.debut), heure_fin: ev.journee ? '' : agenda.heureCourte(ev.fin) }))
+    : [];
+  return {
+    branche: !!(data),
+    erreur: r ? r.erreur : '',
+    lu_le: r ? r.lu_le : '',
+    evenements: aujourdhui,
+    creneaux: data ? agenda.creneauxLibres(data.evenements, { day: today, now }) : [],
+    heures: agenda.heuresTravail(),
+    niveaux: agenda.NIVEAUX,
+    palette: agenda.PALETTE,
+    cales: agenda.liensCales(),
+  };
 }
 
 function signauxCrm(today) {
@@ -683,6 +765,7 @@ function plan({ now = new Date() } = {}) {
     ...signauxGmail(radar, index, nowMs),
     ...signauxWhatsapp(radar, index, nowMs),
     ...signauxAppels(radar, index, nowMs),
+    ...signauxAgenda(radar, today, nowMs),
     ...signauxCrm(today),
     ...signauxTaches(today),
   ];
@@ -696,7 +779,7 @@ function plan({ now = new Date() } = {}) {
   for (const it of visibles) parSource[it.source] = (parSource[it.source] || 0) + 1;
 
   const sources = {};
-  for (const src of ['gmail', 'whatsapp', 'appels']) {
+  for (const src of ['gmail', 'whatsapp', 'appels', 'agenda']) {
     const r = radar[src];
     sources[src] = { lu_le: r ? r.lu_le : '', erreur: r ? r.erreur : '', branche: !!(r && r.charge), via: r && r.charge ? r.charge.via || '' : '' };
   }
@@ -712,6 +795,7 @@ function plan({ now = new Date() } = {}) {
     faits_aujourdhui: faits,
     sources,
     brief: etatBrief(now),
+    agenda: agendaDuJour(radar, today, now),
     vocabulaire: { durees: DUREES, importances: IMPORTANCES, blocs: BLOCS },
   };
 }
@@ -738,7 +822,11 @@ function texteBrief(p) {
   if (b.pierre.length) lignes.push(`🏔️ La grosse pierre : ${listeCourte(b.pierre, 2)} (≈ ${dureeTexte(p.minutes.pierre)}).`);
   if (b.apres_midi.length) lignes.push(`🧱 Cet après-midi : ${listeCourte(b.apres_midi, 3)} (≈ ${dureeTexte(p.minutes.apres_midi)}).`);
   if (b.plus_tard.length) lignes.push(`💤 Peut attendre : ${b.plus_tard.length} chose${b.plus_tard.length > 1 ? 's' : ''}.`);
-  const muettes = ['gmail', 'whatsapp', 'appels'].filter((s) => !p.sources[s].branche);
+  if (p.agenda && p.agenda.evenements && p.agenda.evenements.length) {
+    const evs = p.agenda.evenements.slice(0, 5).map((ev) => `${ev.heure ? ev.heure + ' ' : ''}${ev.niveau !== null && ev.niveau !== undefined ? agenda.NIVEAUX[ev.niveau].emoji + ' ' : ''}${ev.titre}`);
+    lignes.push(`🗓️ Dans l'agenda : ${evs.join(', ')}${p.agenda.evenements.length > 5 ? ` et ${p.agenda.evenements.length - 5} autres` : ''}.`);
+  }
+  const muettes = ['gmail', 'whatsapp', 'appels', 'agenda'].filter((s) => !p.sources[s].branche);
   if (muettes.length) lignes.push(`(Sources pas lues : ${muettes.join(', ')}. Vérifie les Réglages ou lance le pont sur le Mac.)`);
   return lignes.join('\n');
 }
@@ -812,6 +900,28 @@ function briefDuJour(now = new Date()) {
   try { return { ...JSON.parse(row.charge), jour: row.jour, envoye_le: row.envoye_le }; } catch { return null; }
 }
 
+// ---------------------------------------------------------------- 🗓️ poser la journée dans l'agenda
+function itemDuPlan(cle, p = plan()) {
+  for (const liste of Object.values(p.blocs)) {
+    const it = liste.find((x) => x.cle === cle);
+    if (it) return it;
+  }
+  return null;
+}
+
+async function calerDansAgenda(cle, { debut, fin, minutes } = {}) {
+  const it = itemDuPlan(cle);
+  if (!it) throw new Error("Cette chose n'est plus dans la journée (faite, remise à plus tard ou ignorée).");
+  return agenda.caler(it, { debut, fin, minutes });
+}
+
+async function calerToutDansAgenda({ now = new Date() } = {}) {
+  const p = plan({ now });
+  const data = lireRadar().agenda;
+  const evenements = data && data.charge && Array.isArray(data.charge.evenements) ? data.charge.evenements : [];
+  return agenda.calerJournee(p, { now, evenements });
+}
+
 // ---------------------------------------------------------------- ✨ répondre à un mail depuis la journée
 async function preparerReponseMail(uid, { instructions = '' } = {}) {
   const cfg = autopilot.mailCfg();
@@ -857,7 +967,7 @@ async function boucle({ now = new Date(), fraicheurMin = 15 } = {}) {
   try {
     const out = {};
     const radar = lireRadar();
-    const plusVieux = Math.min(...['gmail', 'whatsapp', 'appels'].map((s) => (radar[s] && radar[s].lu_le ? Date.parse(radar[s].lu_le) : 0)));
+    const plusVieux = Math.min(...['gmail', 'whatsapp', 'appels', 'agenda'].map((s) => (radar[s] && radar[s].lu_le ? Date.parse(radar[s].lu_le) : 0)));
     if (!plusVieux || now.getTime() - plusVieux > fraicheurMin * 60000) out.radar = await rafraichir();
 
     const today = localDay(now);
@@ -875,7 +985,7 @@ module.exports = {
   analyserTexte, ajouterTache, modifierTache, supprimerTache,
   rafraichir, lireRadar, ecrireRadar, filtrerWhatsapp, filtrerAppels,
   signauxGmail, signauxWhatsapp, signauxAppels, signauxCrm, signauxTaches,
-  decider, decisions, placer, plan, score,
+  decider, decisions, placer, plan, score, signauxAgenda, agendaDuJour, itemDuPlan, calerDansAgenda, calerToutDansAgenda,
   texteBrief, mailBrief, briefDuMatin, briefDuJour, etatBrief,
   preparerReponseMail, envoyerReponseMail,
   boucle, depuis, dateLongue, dureeTexte,
