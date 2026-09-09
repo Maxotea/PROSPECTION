@@ -711,6 +711,7 @@ function plan({ now = new Date() } = {}) {
     vitaux: visibles.filter((it) => it.importance === 3).length,
     faits_aujourdhui: faits,
     sources,
+    brief: etatBrief(now),
     vocabulaire: { durees: DUREES, importances: IMPORTANCES, blocs: BLOCS },
   };
 }
@@ -765,7 +766,9 @@ function mailBrief(p) {
 async function briefDuMatin({ envoyer = getSetting('journee_brief_mail') === '1', force = false, now = new Date() } = {}) {
   const today = localDay(now);
   const existant = get('SELECT * FROM journee_briefs WHERE jour = ?', today);
-  if (existant && !force) return { deja_fait: true, jour: today, envoye: !!existant.envoye_le };
+  // Déjà calculé aujourd'hui : on ne recommence que si le mail attendu n'est pas parti.
+  const mailManque = envoyer && autopilot.isConfigured() && !(existant && existant.envoye_le);
+  if (existant && !force && !mailManque) return { deja_fait: true, jour: today, envoye: !!existant.envoye_le };
 
   const p = plan({ now });
   const texte = texteBrief(p);
@@ -782,10 +785,25 @@ async function briefDuMatin({ envoyer = getSetting('journee_brief_mail') === '1'
       await smtp.sendMail({ ...cfg.smtp, from: cfg.from, fromName: 'OTEA Moteur', to: cfg.from, subject: m.subject, body: m.body });
       run('UPDATE journee_briefs SET envoye_le = ? WHERE jour = ?', nowIso(), today);
       envoye = true;
-    } catch (e) { erreur = e.message; }
+    } catch (e) { erreur = `Le mail du brief n'est pas parti : ${e.message}`; }
   }
-  setSetting('journee_dernier_brief', today);
+  setSetting('journee_brief_erreur', erreur);
+  // Tant que le mail attendu n'est pas parti, la boucle réessaie (toutes les 5 min).
+  if (envoye || !envoyer || !autopilot.isConfigured()) setSetting('journee_dernier_brief', today);
   return { jour: today, texte, total: p.total, envoye, erreur };
+}
+
+// Où en est le brief d'aujourd'hui, pour l'afficher sur la page.
+function etatBrief(now = new Date()) {
+  const row = get('SELECT jour, envoye_le, created_at FROM journee_briefs WHERE jour = ?', localDay(now));
+  return {
+    heure: getSetting('journee_brief_heure') || '08:00',
+    par_mail: getSetting('journee_brief_mail') === '1',
+    gmail: autopilot.isConfigured(),
+    calcule_le: row ? row.created_at : '',
+    envoye_le: row ? row.envoye_le : '',
+    erreur: getSetting('journee_brief_erreur') || '',
+  };
 }
 
 function briefDuJour(now = new Date()) {
@@ -858,7 +876,7 @@ module.exports = {
   rafraichir, lireRadar, ecrireRadar, filtrerWhatsapp, filtrerAppels,
   signauxGmail, signauxWhatsapp, signauxAppels, signauxCrm, signauxTaches,
   decider, decisions, placer, plan, score,
-  texteBrief, mailBrief, briefDuMatin, briefDuJour,
+  texteBrief, mailBrief, briefDuMatin, briefDuJour, etatBrief,
   preparerReponseMail, envoyerReponseMail,
   boucle, depuis, dateLongue, dureeTexte,
 };

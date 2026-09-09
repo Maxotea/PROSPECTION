@@ -3,6 +3,11 @@
 // Serveur zéro dépendance (Node ≥ 22.13) : node server.js puis http://localhost:1337
 // Les clés API restent en local (data/prospection.db) : le serveur n'écoute que sur 127.0.0.1.
 
+// L'app vit à l'heure de Maxime, pas à celle du serveur. Chez un hébergeur
+// (Render…), l'horloge est réglée sur Londres : sans ça, le brief « de 8h »
+// partait à 10h et la journée changeait de date à 2h du matin.
+if (!process.env.TZ) process.env.TZ = 'Europe/Paris';
+
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');

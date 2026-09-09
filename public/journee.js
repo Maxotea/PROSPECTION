@@ -104,6 +104,7 @@ function dessinerJournee(view) {
     </div>
     <div class="card">
       <div class="j-radar"><span class="muted small">Radar :</span>${radar}<span class="muted small">· CRM lu en direct</span></div>
+      <div class="j-radar" style="margin-top:8px"><span class="muted small">Brief :</span>${briefChip(P.brief)}</div>
     </div>
     <div class="card" style="margin-top:14px">
       <h3>🧠 Vide-cerveau</h3>
@@ -206,6 +207,17 @@ function dessinerJournee(view) {
   $$('[data-j-contact]', view).forEach((b) => { b.onclick = () => openContact(b.dataset.jContact); });
   $$('[data-j-edit]', view).forEach((b) => { b.onclick = () => jEditerTache(Number(b.dataset.jEdit), recharger); });
   $$('[data-j-mail]', view).forEach((b) => { b.onclick = () => jRepondreMail(Number(b.dataset.jMail), b.dataset.jCle, recharger); });
+}
+
+// « Envoyé à 08:02 », « pas encore », ou la raison pour laquelle il n'est pas parti.
+function briefChip(b) {
+  const heure = (iso) => new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  if (b.envoye_le) return `<span class="chip ok">📨 envoyé sur ta boîte à ${heure(b.envoye_le)}</span>`;
+  if (b.erreur) return `<span class="chip due" title="${esc(b.erreur)}">⚠️ ${esc(b.erreur)}</span><span class="muted small">· nouvel essai toutes les 5 min</span>`;
+  if (!b.par_mail) return `<span class="chip">📨 mail désactivé</span><span class="muted small">· à activer dans Réglages si tu le veux chaque matin</span>`;
+  if (!b.gmail) return `<span class="chip due">📨 Gmail pas branché</span><span class="muted small">· adresse et mot de passe d'application dans Réglages</span>`;
+  if (b.calcule_le) return `<span class="chip">📨 calculé à ${heure(b.calcule_le)}, mail en cours</span>`;
+  return `<span class="chip">📨 part à ${esc(b.heure)}</span><span class="muted small">· l'app doit tourner à cette heure-là : sur Mac, demarrer-toujours.command ; sinon il part dès l'ouverture</span>`;
 }
 
 function trouverItem(cle) {
