@@ -30,7 +30,8 @@ async function test() {
 }
 
 function domainFromContact(c) {
-  if (c.domain) return String(c.domain).replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
+  const brut = String(c.domain || '').trim();
+  if (brut) return brut.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].trim();
   if (c.email && c.email.includes('@')) {
     const d = c.email.split('@')[1];
     if (!/gmail|hotmail|outlook|yahoo|orange|free|sfr|wanadoo|icloud|laposte/i.test(d)) return d;
@@ -38,28 +39,75 @@ function domainFromContact(c) {
   return '';
 }
 
+// Ne garde que les champs renseignés. FullEnrich rejette TOUT le lot dès qu'un
+// seul contact arrive avec un champ vide (« domain cannot be empty ») : un
+// prospect sans site web faisait donc échouer l'enrichissement des 99 autres.
+function sansVides(obj) {
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === null || v === undefined) continue;
+    if (typeof v === 'string' && !v.trim()) continue;
+    out[k] = typeof v === 'string' ? v.trim() : v;
+  }
+  return out;
+}
+
+// Seuls ces deux champs d'enrichissement sont documentés par FullEnrich.
+const CHAMPS_V2 = ['contact.work_emails', 'contact.phones'];
+
 function contactPayloadV2(c) {
   return {
-    first_name: c.first_name || '',
-    last_name: c.last_name || '',
-    domain: domainFromContact(c),
-    company_name: c.company || '',
-    linkedin_url: c.linkedin_url || '',
-    enrich_fields: ['contact.work_emails', 'contact.personal_emails', 'contact.phones'],
+    ...sansVides({
+      first_name: c.first_name,
+      last_name: c.last_name,
+      domain: domainFromContact(c),
+      company_name: c.company,
+      linkedin_url: c.linkedin_url,
+    }),
+    enrich_fields: CHAMPS_V2,
     custom: { contact_id: String(c.id) },
   };
 }
 
 function contactPayloadV1(c) {
   return {
-    firstname: c.first_name || '',
-    lastname: c.last_name || '',
-    domain: domainFromContact(c),
-    company_name: c.company || '',
-    linkedin_url: c.linkedin_url || '',
+    ...sansVides({
+      firstname: c.first_name,
+      lastname: c.last_name,
+      domain: domainFromContact(c),
+      company_name: c.company,
+      linkedin_url: c.linkedin_url,
+    }),
     enrich_fields: ['contact.emails', 'contact.phones'],
     custom: { contact_id: String(c.id) },
   };
+}
+
+// Une erreur HTTP brute ne dit rien à Maxime. On dit ce qui s'est passé et quoi faire.
+function traduireErreur(e) {
+  const corps = e && e.body && typeof e.body === 'object' ? e.body : {};
+  const code = String(corps.code || '');
+  const texte = String(corps.message || corps.error || e.message || '');
+  let message;
+  if (code.includes('domain.empty') || /domain.*empty/i.test(texte)) {
+    message = "FullEnrich a refusé le lot : au moins un contact n'a ni site web, ni entreprise, ni URL LinkedIn. Complète ces fiches (une entreprise suffit) ou retire-les de la sélection, puis relance.";
+  } else if (e.status === 401 || e.status === 403) {
+    message = 'Clé API FullEnrich refusée. Vérifie-la dans Réglages (app.fullenrich.com → Settings → API).';
+  } else if (e.status === 402 || /credit/i.test(texte)) {
+    message = "Plus de crédits FullEnrich : recharge ton compte sur app.fullenrich.com avant de relancer.";
+  } else if (e.status === 429) {
+    message = 'FullEnrich limite le rythme des demandes. Attends une minute et relance.';
+  } else if (e.status >= 500) {
+    message = 'FullEnrich est indisponible pour le moment. Réessaie dans quelques minutes.';
+  } else if (e.status) {
+    message = `FullEnrich a refusé la demande : ${texte.slice(0, 200)}`;
+  } else {
+    message = String(e.message || 'Erreur FullEnrich inconnue.');
+  }
+  const err = new Error(message);
+  err.httpStatus = 502;
+  err.detail = e.message;
+  return err;
 }
 
 // Lance un enrichissement bulk pour une liste de contacts (ids). Retourne le job créé.
@@ -80,14 +128,23 @@ async function startEnrich(contactIds) {
       body: { name, datas: batch.map(contactPayloadV2) },
     });
   } catch (e) {
-    if (e.status && e.status >= 400 && e.status < 500 && base().includes('/v2')) {
-      // Fallback v1 : anciens comptes / anciens noms de champs.
+    if ((e.status === 404 || e.status === 405) && base().includes('/v2')) {
+      // Repli v1, seulement si la route v2 n'existe pas pour ce compte. Une
+      // erreur de validation (400) ne doit PAS y mener : la v1 refuserait pareil.
       apiVersion = 'v1';
-      res = await apiFetch(`${base().replace('/v2', '/v1')}/contact/enrich/bulk`, {
-        method: 'POST', headers: headers(),
-        body: { name, datas: batch.map(contactPayloadV1) },
-      });
-    } else throw e;
+      try {
+        res = await apiFetch(`${base().replace('/v2', '/v1')}/contact/enrich/bulk`, {
+          method: 'POST', headers: headers(),
+          body: { name, datas: batch.map(contactPayloadV1) },
+        });
+      } catch (e1) {
+        console.error('[fullenrich]', e1.message);
+        throw traduireErreur(e1);
+      }
+    } else {
+      console.error('[fullenrich]', e.message);
+      throw traduireErreur(e);
+    }
   }
 
   const externalId = String(res && (res.enrichment_id || res.id || (res.data && res.data.enrichment_id)) || '');
@@ -183,7 +240,13 @@ function retrouverContact(entry, index, fiches) {
 // Interroge un job en attente et écrit les résultats sur les contacts.
 async function pollJob(job) {
   const apiBase = job.provider.endsWith('v1') ? base().replace('/v2', '/v1') : base();
-  const res = await apiFetch(`${apiBase}/contact/enrich/bulk/${encodeURIComponent(job.external_id)}`, { headers: headers() });
+  let res;
+  try {
+    res = await apiFetch(`${apiBase}/contact/enrich/bulk/${encodeURIComponent(job.external_id)}`, { headers: headers() });
+  } catch (e) {
+    console.error('[fullenrich]', e.message);
+    throw traduireErreur(e);
+  }
   const status = String(res && (res.status || res.state) || '').toUpperCase();
 
   if (!['FINISHED', 'COMPLETED', 'DONE'].includes(status)) {
@@ -243,4 +306,4 @@ async function pollPending() {
   return results;
 }
 
-module.exports = { test, startEnrich, pollJob, pollPending };
+module.exports = { test, startEnrich, pollJob, pollPending, contactPayloadV2, traduireErreur };

@@ -319,6 +319,8 @@ L'enrichissement est asynchrone : FullEnrich met quelques minutes. **Le serveur 
 
 Les résultats sont rattachés à leur fiche par l'identifiant renvoyé, sinon par l'URL LinkedIn, sinon par le nom, sinon par la position dans le lot. Et rien n'est jamais écrasé : l'enrichissement ne remplit que les cases vides.
 
+Pour être enrichissable, une fiche a besoin d'un nom et d'au moins une chose parmi : une entreprise, un site web ou une URL LinkedIn. Une fiche à laquelle il manque le site n'est plus envoyée avec un champ vide (FullEnrich refusait alors tout le lot des 100 avec « domain cannot be empty ») : le champ est simplement omis. Et quand FullEnrich refuse quelque chose, l'app le dit en français avec quoi faire, au lieu d'afficher le code HTTP.
+
 ### CRM hybride : HubSpot
 Import des contacts HubSpot dans la Chasse, et **push** vers HubSpot (fiche contact ou sélection dans Contacts). Philosophie : **la Chasse pilote la prospection au quotidien, HubSpot reste la base « officielle »** que tu synchronises quand tu veux.
 
@@ -339,7 +341,7 @@ Ensuite : **🧾 Facture PL** crée la facture **en brouillon** dans Pennylane (
 | **Pennylane** | app.pennylane.com → Paramètres → API (scopes clients, devis, factures) | import anciens clients, création devis/factures |
 | **FullEnrich** | app.fullenrich.com → Settings → API | enrichissement emails + téléphones |
 | **HubSpot** | Paramètres → Intégrations → **Applications privées** (scopes `crm.objects.contacts` read + write) | import / push contacts |
-| **Claude** (optionnel) | console.anthropic.com → API keys | rédaction IA des messages et réponses |
+| **Claude** (optionnel) | console.anthropic.com → API keys | rédaction IA des messages et réponses. La clé seule ne suffit pas : le compte doit avoir du crédit prépayé (console.anthropic.com → Plans & Billing), sinon chaque demande est refusée. Sans clé, tout retombe sur les templates. |
 
 Les clés sont stockées en local (ou via un fichier `.env` : `PENNYLANE_API_KEY=…`, `FULLENRICH_API_KEY=…`, `HUBSPOT_TOKEN=…`, `ANTHROPIC_API_KEY=…`). Chaque service a un bouton **🔌 Tester**.
 
@@ -349,7 +351,7 @@ Les clés sont stockées en local (ou via un fichier `.env` : `PENNYLANE_API_KEY
 - `server.js` : serveur HTTP + API REST (`/api/*`) + boucle Autopilote (10 min) + relève des enrichissements FullEnrich (2 min) · `src/autopilot.js` : séquences, enrôlements, file d'envoi, détection des réponses · `src/db.js` : schéma + upsert/dédoublonnage · `src/gamification.js` : XP, niveaux, quêtes, streak, badges, boss · `src/playbooks.js` : segments, cadences, templates, séquences · `src/integrations/` : Pennylane, FullEnrich, HubSpot, Claude · `src/importers/` : répertoire chaud (appels macOS, WhatsApp, scoring des relations) · `public/` : l'app.
 - API Pennylane **v2** (`/api/external/v2` : `customers`, `customer_invoices`, `quotes`, `create_from_quote`) ; FullEnrich **v2** (`/api/v2/contact/enrich/bulk`, fallback v1 automatique) ; HubSpot **v3** ; Gmail en **SMTP/IMAP standard** (mot de passe d'application, aucun projet Google Cloud à créer).
 - Les réponses d'API inattendues remontent **verbatim** dans l'interface pour diagnostiquer vite.
-- **Tests** : `npm test` : 86 tests. Moteur Autopilote contre des serveurs SMTP/IMAP factices (envoi, threading, réponses, bounces, cap, scan), campagnes hebdo, et répertoire chaud contre de fausses bases d'appels/WhatsApp et de vrais formats d'export.
+- **Tests** : `npm test` : 94 tests. Moteur Autopilote contre des serveurs SMTP/IMAP factices (envoi, threading, réponses, bounces, cap, scan), campagnes hebdo, et répertoire chaud contre de fausses bases d'appels/WhatsApp et de vrais formats d'export.
 
 ## 🗺️ Pistes pour la suite
 

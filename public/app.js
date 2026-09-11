@@ -1048,13 +1048,20 @@ async function vContacts(view) {
   }
 }
 
+// Un seul lancement à la fois : sur téléphone, sans retour visuel immédiat, on
+// tape deux fois, et le même lot partait deux fois (deux fois les crédits, ou
+// deux fois la même erreur à l'écran).
+let enrichEnCours = false;
 async function launchEnrich(ids, after) {
+  if (enrichEnCours) { fx.toast('⏳ Un enrichissement est déjà en train de partir.'); return; }
   if (!confirm(`Enrichir ${Math.min(ids.length, 100)} contact(s) via FullEnrich ?\n⚠️ Consomme des crédits FullEnrich (email + téléphone en cascade).`)) return;
+  enrichEnCours = true;
   try {
     const r = await api('/fullenrich/enrich', { method: 'POST', body: { contact_ids: ids } });
     fx.toast(`🧪 Enrichissement lancé (${r.count} contacts). Les résultats arrivent tout seuls dans quelques minutes, même si tu fermes l'app.`);
     if (after) after();
   } catch (e) { fx.error(e.message); }
+  finally { enrichEnCours = false; }
 }
 
 function newContactModal(after) {

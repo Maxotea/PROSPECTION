@@ -21,7 +21,7 @@ const REPONSE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/fullen
 
 // Faux FullEnrich : accepte un lot, puis répond « en cours » jusqu'à ce que le
 // test le déclare terminé.
-let etat = { termine: false, corps: REPONSE, recu: null };
+let etat = { termine: false, corps: REPONSE, recu: null, urlsAppelees: [] };
 let serveur;
 
 test.before(async () => {
@@ -32,6 +32,14 @@ test.before(async () => {
       res.setHeader('Content-Type', 'application/json');
       if (req.method === 'POST' && req.url.endsWith('/contact/enrich/bulk')) {
         etat.recu = JSON.parse(brut || '{}');
+        etat.urlsAppelees.push(req.url);
+        // Refuse comme le vrai : un champ vide, ou un contact marqué exprès pour le test.
+        const vide = (etat.recu.datas || []).some((d) => Object.values(d).some((v) => v === '') || d.company_name === 'REFUSE-MOI');
+        if (vide) {
+          res.statusCode = 400;
+          res.end(JSON.stringify({ code: 'error.enrichment.domain.empty', message: 'Domain cannot be empty' }));
+          return;
+        }
         res.end(JSON.stringify({ enrichment_id: 'job-test-1' }));
         return;
       }
@@ -134,4 +142,44 @@ test('un email déjà rempli n’est jamais écrasé', async () => {
   etat.corps = { status: 'FINISHED', datas: [REPONSE.datas[0]] };
   await fullenrich.pollPending();
   assert.strictEqual(dbApi.get('SELECT * FROM contacts WHERE id = ?', id).email, 'perso@camille.fr');
+});
+
+test('un contact sans site web ne fait plus échouer tout le lot', async () => {
+  // Le bug de Maxime : « 452 contacts sans email », et dès qu'un seul n'avait
+  // pas de domaine, FullEnrich refusait les 100 avec « domain cannot be empty ».
+  etat.urlsAppelees = [];
+  const avecSite = creer('Ines', 'Fabre', 'Boite Vide', { domain: 'boitevide.fr' }).id;
+  const sansSite = dbApi.insertContact({ first_name: 'Karim', last_name: 'Sans', company: 'Sans Site', segment: 'pme', stage: 'a_contacter' }).id;
+  const r = await fullenrich.startEnrich([avecSite, sansSite]);
+  assert.strictEqual(r.count, 2, 'les deux partent');
+  const karim = etat.recu.datas.find((d) => d.first_name === 'Karim');
+  assert.ok(karim, 'Karim est bien dans le lot');
+  assert.ok(!('domain' in karim), 'sans domaine, pas de champ domain du tout');
+  assert.ok(!('linkedin_url' in karim), 'sans LinkedIn, pas de champ linkedin_url');
+  assert.strictEqual(karim.company_name, 'Sans Site');
+  assert.ok(etat.urlsAppelees.every((u) => u.includes('/api/v2/')), 'aucun repli vers la v1');
+});
+
+test('une erreur de validation ne déclenche pas le repli v1 et parle français', async () => {
+  // Le faux serveur refuse ce lot avec le code exact vu chez Maxime. Ce qu'on
+  // vérifie : pas de second essai en v1, un message en français, et des fiches
+  // qui ne restent pas bloquées « en attente ».
+  etat.urlsAppelees = [];
+  const id = creer('Lea', 'Vide', 'REFUSE-MOI', { domain: 'refuse.fr' }).id;
+  let erreur = null;
+  try { await fullenrich.startEnrich([id]); } catch (e) { erreur = e; }
+  assert.ok(erreur, 'le lot est refusé');
+  assert.ok(!/HTTP 400/.test(erreur.message), `message lisible, obtenu : ${erreur.message}`);
+  assert.match(erreur.message, /site web|entreprise|LinkedIn/, 'dit quoi compléter');
+  assert.strictEqual(etat.urlsAppelees.length, 1, 'un seul appel : pas de second essai en v1');
+  assert.ok(etat.urlsAppelees[0].includes('/api/v2/'));
+  assert.notStrictEqual(dbApi.get('SELECT * FROM contacts WHERE id = ?', id).enrich_status, 'pending',
+    "un lot refusé ne laisse pas les fiches marquées « en attente »");
+});
+
+test('un domaine fait d’espaces ou d’une URL complète est nettoyé', () => {
+  const p = fullenrich.contactPayloadV2({ id: 1, first_name: 'A', last_name: 'B', company: 'C', domain: '   ' });
+  assert.ok(!('domain' in p), 'des espaces ne sont pas un domaine');
+  const q = fullenrich.contactPayloadV2({ id: 2, first_name: 'A', last_name: 'B', domain: ' https://www.exemple.fr/contact ' });
+  assert.strictEqual(q.domain, 'exemple.fr');
 });

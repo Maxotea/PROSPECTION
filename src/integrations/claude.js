@@ -38,6 +38,39 @@ function contactContext(contact) {
   return lines.filter(Boolean).join('\n');
 }
 
+// L'API Anthropic répond avec un JSON { type: 'error', error: { type, message } }.
+// Brut, c'est illisible pour Maxime. On dit ce qui s'est passé et quoi faire.
+function traduireErreurAnthropic(e) {
+  const corps = e && e.body && typeof e.body === 'object' ? e.body : {};
+  const inner = corps.error && typeof corps.error === 'object' ? corps.error : {};
+  const type = String(inner.type || '');
+  const texte = String(inner.message || e.message || '');
+  let message;
+  if (/credit balance/i.test(texte) || /billing/i.test(texte)) {
+    message = "Ton compte Anthropic n'a plus de crédit : l'IA ne peut pas rédiger. Recharge-le sur console.anthropic.com (Plans & Billing), ou retire la clé IA dans Réglages pour repasser sur les templates.";
+  } else if (e.status === 401 || type === 'authentication_error') {
+    message = 'Clé API Anthropic refusée. Vérifie-la dans Réglages (console.anthropic.com → API Keys).';
+  } else if (e.status === 403 || type === 'permission_error') {
+    message = "Cette clé Anthropic n'a pas le droit d'utiliser ce modèle. Vérifie les droits de la clé sur console.anthropic.com.";
+  } else if (e.status === 404 || type === 'not_found_error') {
+    message = "Le modèle IA configuré n'existe pas. Dans Réglages, remets le modèle par défaut.";
+  } else if (e.status === 429 || type === 'rate_limit_error') {
+    message = "L'IA reçoit trop de demandes d'un coup. Attends une minute et réessaie.";
+  } else if (e.status === 529 || type === 'overloaded_error') {
+    message = "L'IA est surchargée en ce moment. Réessaie dans quelques minutes.";
+  } else if (e.status >= 500) {
+    message = "L'IA est indisponible pour le moment. Réessaie dans quelques minutes.";
+  } else if (e.status) {
+    message = `L'IA a refusé la demande : ${texte.slice(0, 200)}`;
+  } else {
+    message = String(e.message || 'Erreur IA inconnue.');
+  }
+  const err = new Error(message);
+  err.httpStatus = 502;
+  err.detail = e.message;
+  return err;
+}
+
 async function draft({ contact = null, purpose = 'premier_contact', incoming_text = '', instructions = '' }) {
   const key = getSetting('anthropic_api_key');
   const settings = allSettings();
@@ -77,17 +110,23 @@ Réponds UNIQUEMENT avec le message final, sans commentaire autour. Si c'est un 
     instructions ? `\n--- CONSIGNES SUPPLÉMENTAIRES ---\n${instructions}` : '',
   ].join('\n');
 
-  const res = await apiFetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-    body: {
-      model: getSetting('ai_model') || 'claude-sonnet-5',
-      max_tokens: 900,
-      system,
-      messages: [{ role: 'user', content: userMsg }],
-    },
-    timeoutMs: 60000,
-  });
+  let res;
+  try {
+    res = await apiFetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+      body: {
+        model: getSetting('ai_model') || 'claude-sonnet-5',
+        max_tokens: 900,
+        system,
+        messages: [{ role: 'user', content: userMsg }],
+      },
+      timeoutMs: 60000,
+    });
+  } catch (e) {
+    console.error('[ia]', e.message);
+    throw traduireErreurAnthropic(e);
+  }
 
   const text = (res.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim();
   let subject = '';
@@ -97,4 +136,4 @@ Réponds UNIQUEMENT avec le message final, sans commentaire autour. Si c'est un 
   return { subject, body, source: 'claude', model: res.model };
 }
 
-module.exports = { draft, PURPOSES };
+module.exports = { draft, PURPOSES, traduireErreurAnthropic };
