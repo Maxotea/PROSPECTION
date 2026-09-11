@@ -1,5 +1,5 @@
 'use strict';
-// Le pont relie le Mac (qui seul voit les appels et WhatsApp) à La Chasse
+// Le pont relie le Mac (qui seul voit les appels et WhatsApp) à OTEA Moteur
 // hébergée. Ce qu'on vérifie : le dépôt exige le mot de passe, les relations
 // attendent la validation au lieu d'entrer toutes seules, et elles quittent la
 // file d'attente une fois importées.

@@ -47,17 +47,24 @@ function agreger(lignes, { days = 1095 } = {}) {
         name: '', phone: sig.normPhone(brut),
         calls: 0, messages: 0, incoming: 0, outgoing: 0,
         duration_sec: 0, last_at: null, first_at: null, signaux: [], excerpt: '',
+        manques: 0, dernier_manque_le: null,   // appels entrants jamais décrochés (pour « Ma journée »)
+        dernier_appel_de_moi: null,
       };
       parNumero.set(cle, e);
     }
 
     const duree = Math.max(0, Number(l.duration) || 0);
     const repondu = duree >= DUREE_MINIMALE;
+    const deMoi = Number(l.originated) === 1;
     if (repondu) {
       e.calls++;
-      if (Number(l.originated) === 1) e.outgoing++; else e.incoming++;
+      if (deMoi) e.outgoing++; else e.incoming++;
       e.duration_sec += duree;
+    } else if (!deMoi) {
+      e.manques++;
+      if (!e.dernier_manque_le || l.date > e.dernier_manque_le) e.dernier_manque_le = l.date;
     }
+    if (!e.last_at || l.date > e.last_at) e.dernier_appel_de_moi = deMoi;
     // Le carnet d'adresses du Mac donne parfois le nom : c'est cadeau.
     const nom = bl.texte(l.name).trim();
     if (nom && !e.name) e.name = nom;

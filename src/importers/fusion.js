@@ -28,6 +28,13 @@ function fusionner(listes) {
     if (entree.excerpt && !existant.excerpt) existant.excerpt = entree.excerpt;
     for (const s of entree.signaux || []) if (!existant.signaux.includes(s)) existant.signaux.push(s);
     if (!existant.sources.includes(entree.source)) existant.sources.push(entree.source);
+    // Champs « Ma journée » : on garde l'information la plus récente.
+    if (entree.dernier_entrant_le && (!existant.dernier_entrant_le || entree.dernier_entrant_le > existant.dernier_entrant_le)) {
+      existant.dernier_entrant_le = entree.dernier_entrant_le;
+      existant.dernier_de_moi = entree.dernier_de_moi;
+    }
+    existant.manques = (existant.manques || 0) + (entree.manques || 0);
+    if (entree.dernier_manque_le && (!existant.dernier_manque_le || entree.dernier_manque_le > existant.dernier_manque_le)) existant.dernier_manque_le = entree.dernier_manque_le;
   }
   return [...parCle.values()];
 }

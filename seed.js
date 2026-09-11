@@ -1,5 +1,5 @@
 'use strict';
-// Données de démo pour essayer la Chasse à vide (contacts fictifs).
+// Données de démo pour essayer OTEA Moteur à vide (contacts fictifs).
 //   node seed.js          → ajoute la démo si elle n'existe pas déjà
 //   node seed.js --wipe   → vide TOUTE la base puis re-seed la démo
 

@@ -1,9 +1,12 @@
-# ⚔️ La Chasse · CRM de prospection gamifié + Autopilote (OTEA Production)
+# ⚙️ OTEA Moteur · ta journée, ta prospection, ton autopilote (OTEA Production)
 
-Un outil de prospection **local, zéro dépendance**, pensé pour un seul objectif : **déclencher 5 factures**.
+Un outil de travail **local, zéro dépendance**, sur une seule adresse : le matin, **☀️ Ma journée** dit quoi faire ; le reste du temps, **⚔️ La Chasse** (le Mode Chasse, les campagnes, l'Autopilote, le CRM) fait rentrer les factures. Objectif : **déclencher 5 factures**.
 
-Trois moteurs :
+*L'app s'appelait « La Chasse ». Elle a grandi : La Chasse est devenue son moteur de prospection, OTEA Moteur est l'ensemble.*
 
+Quatre moteurs :
+
+0. **☀️ Ma journée** : la to-do du matin, faite par la machine au lieu de la tête. Elle lit **Gmail** (les mails sans réponse), **WhatsApp** et **les appels** du Mac (les conversations où le dernier mot n'est pas de toi, les appels manqués jamais rappelés), et le **CRM** (relances dues, devis à relancer ou à faire, factures à émettre), classe chaque chose par **importance** et par **durée**, et la place dans la journée : les courtes ce matin, la grosse pierre, les moyennes cet après-midi. Le brief part par mail chaque matin.
 1. **📅 Les Campagnes hebdo** : la stratégie : une semaine = un secteur (grande distribution, aéronautique, agriculture, hôtellerie, agences de voyage…) et un persona cible. Chaque campagne se crée en 2 clics avec sa **recette Sales Navigator** prête à copier, sa **séquence email** citant tes vraies références (le Galec, La Poste, Pullman…), son **post LinkedIn** et son **script DM** : pour qu'on voie OTEA partout, partout, partout.
 2. **🤖 L'Autopilote** : la machine qui prospecte à ta place : elle enrôle tes contacts (anciens clients Pennylane, HubSpot, ta boîte Gmail) dans des **séquences email**, envoie depuis **ton Gmail** (chaque relance reste dans le même fil), respecte un cap quotidien et des horaires ouvrés, **détecte les réponses dans ta boîte** et stoppe la séquence dès qu'on te répond : il ne te reste qu'à transformer la réponse en call.
 3. **🎮 Le CRM gamifié** : import Pennylane / LinkedIn / HubSpot, enrichissement FullEnrich, typologies de clients, Mode Chasse, devis Pennylane en 2 clics, XP, quêtes, streak, badges, boss final « 5 factures ».
@@ -20,7 +23,7 @@ Prérequis : **Node.js ≥ 22.13** (aucun `npm install`, aucune dépendance) : i
 
 Le navigateur s'ouvre tout seul sur l'app. **Laisse la petite fenêtre noire ouverte** : c'est elle qui fait tourner l'Autopilote.
 
-**📱 Depuis un iPad / iPhone (même Wi-Fi)** : lance **`demarrer-reseau.command`** (Mac) ou **`demarrer-reseau.bat`** (Windows) au lieu du lanceur normal. La fenêtre noire affiche l'adresse à ouvrir sur l'iPad (`http://IP-de-l'ordinateur:1337`) et un **code d'accès à 6 caractères** (demandé une fois par appareil : l'app reste verrouillée pour le reste du réseau). L'ordinateur doit rester allumé : c'est lui qui fait tourner l'app et l'Autopilote, l'iPad n'est qu'un écran. Astuce : sur l'iPad, Safari → Partager → « Sur l'écran d'accueil » pour avoir La Chasse comme une app. Pour y accéder **hors de chez toi** (4G, autre lieu), installe [Tailscale](https://tailscale.com) (gratuit) sur l'ordinateur et l'iPad : même adresse, où que tu sois, sans rien exposer sur internet.
+**📱 Depuis un iPad / iPhone (même Wi-Fi)** : lance **`demarrer-reseau.command`** (Mac) ou **`demarrer-reseau.bat`** (Windows) au lieu du lanceur normal. La fenêtre noire affiche l'adresse à ouvrir sur l'iPad (`http://IP-de-l'ordinateur:1337`) et un **code d'accès à 6 caractères** (demandé une fois par appareil : l'app reste verrouillée pour le reste du réseau). L'ordinateur doit rester allumé : c'est lui qui fait tourner l'app et l'Autopilote, l'iPad n'est qu'un écran. Astuce : sur l'iPad, Safari → Partager → « Sur l'écran d'accueil » pour avoir OTEA Moteur comme une app. Pour y accéder **hors de chez toi** (4G, autre lieu), installe [Tailscale](https://tailscale.com) (gratuit) sur l'ordinateur et l'iPad : même adresse, où que tu sois, sans rien exposer sur internet.
 
 **Avec terminal** :
 
@@ -36,7 +39,7 @@ Pour essayer avec des données fictives : `npm run demo` (et `npm run reset` pou
 
 Toutes tes données (contacts, clés API, historique) restent **sur ta machine**, dans `data/prospection.db` (gitignoré). Le serveur n'écoute que sur `127.0.0.1`.
 
-### ☁️ Mettre La Chasse en ligne (comme Make)
+### ☁️ Mettre OTEA Moteur en ligne (comme Make)
 
 Une adresse à ouvrir de n'importe où, sur n'importe quel appareil, sans rien lancer :
 l'app tourne sur un serveur au lieu de ton Mac.
@@ -75,18 +78,18 @@ les mêmes variables : `CODE_ACCES`, `DATA_DIR=/data`, `EN_LIGNE=1`.
 **Sécurité de la version en ligne :** mot de passe obligatoire (l'app refuse de démarrer
 sans, ou avec moins de 8 caractères), cookie qui ne contient jamais le mot de passe,
 connexion chiffrée exigée, et pause de 15 minutes après 5 essais ratés. Le navigateur
-reçoit aussi la consigne de ne charger que les fichiers de La Chasse elle-même (aucun
+reçoit aussi la consigne de ne charger que les fichiers d'OTEA Moteur lui-même (aucun
 script extérieur, impossible d'encadrer l'app dans un autre site).
 
 **Déménager tes données du Mac vers la version en ligne :**
 
-1. Sur ta Chasse actuelle : Réglages → **Télécharger ma sauvegarde**.
+1. Sur ton OTEA Moteur actuel : Réglages → **Télécharger ma sauvegarde**.
 2. Sur la version en ligne : Réglages → **Remettre une sauvegarde**, choisis le fichier.
 3. Elle remplace tout et redémarre, la page se recharge seule. Tes contacts, ton
    historique, ton XP et tes réglages sont là.
 
 L'ancienne base est mise de côté (`prospection.db.avant-restauration`) avant d'être
-remplacée, et un fichier qui n'est pas une sauvegarde de La Chasse est refusé sans rien
+remplacée, et un fichier qui n'est pas une sauvegarde d'OTEA Moteur est refusé sans rien
 toucher.
 
 **Sauvegarde régulière :** le même bouton, de temps en temps. Un hébergeur peut perdre
@@ -94,7 +97,7 @@ un disque, pas toi.
 
 ### 🌉 Garder WhatsApp et les appels branchés quand l'app est en ligne
 
-**La Chasse ne se connecte pas à WhatsApp, et ne le peut pas.** Il n'existe aucune
+**OTEA Moteur ne se connecte pas à WhatsApp, et ne le peut pas.** Il n'existe aucune
 connexion officielle donnant accès à tes conversations personnelles : l'API WhatsApp
 Business sert à écrire à des clients qui ont donné leur accord, elle ne lit pas ton
 historique. Les bibliothèques qui se font passer pour un appareil lié existent, mais
@@ -105,10 +108,10 @@ Ce que l'app fait à la place : elle **lit les fichiers de l'app WhatsApp instal
 ton Mac**, en lecture seule. Pas de connexion, donc rien à maintenir connecté. Il suffit
 que WhatsApp pour Mac reste ouvert et lié à ton téléphone, comme d'habitude.
 
-Quand La Chasse est hébergée en ligne, elle n'a plus accès à ces fichiers. D'où le pont :
+Quand OTEA Moteur est hébergé en ligne, il n'a plus accès à ces fichiers. D'où le pont :
 
 1. Double-clique **`pont-mac.command`** sur ton Mac, une seule fois.
-2. Il demande l'adresse de ta Chasse en ligne et ton mot de passe.
+2. Il demande l'adresse de ton OTEA Moteur en ligne et ton mot de passe.
 3. Chaque matin à 8h30, ton Mac lit tes appels et tes discussions, et **envoie
    seulement le résultat** : des compteurs, les mots de travail repérés, un court
    extrait du dernier message. Jamais tes conversations.
@@ -120,7 +123,7 @@ Pour tout arrêter : double-clique à nouveau sur le même fichier.
 
 ### ♾️ Ne plus jamais avoir à la lancer
 
-Double-clique **une fois** sur `demarrer-toujours.command`. La Chasse démarre alors
+Double-clique **une fois** sur `demarrer-toujours.command`. OTEA Moteur démarre alors
 toute seule à chaque ouverture de session, se relance si elle s'arrête, et tourne sans
 fenêtre noire à garder ouverte. C'est aussi ce qui permet à **l'Autopilote d'envoyer tes
 relances toute la journée** : sans ça, il ne tourne que pendant que la fenêtre est ouverte.
@@ -132,7 +135,7 @@ retirer le démarrage automatique.
 
 **« Ce site est inaccessible » / ERR_CONNECTION_REFUSED dans le navigateur** veut dire
 une seule chose : l'app ne tourne pas. Le navigateur n'est qu'une fenêtre ouverte sur
-elle. **La Chasse ne tourne que pendant que la fenêtre noire est ouverte** : si tu la
+lui. **OTEA Moteur ne tourne que pendant que la fenêtre noire est ouverte** : si tu la
 fermes (ou si tu redémarres le Mac), l'adresse ne répond plus tant que tu n'as pas
 relancé `demarrer.command`.
 
@@ -155,6 +158,95 @@ Tes contacts, tes clés API et ton historique vivent dans le dossier **`data/`**
 
 ---
 
+## ☀️ Ma journée : la to-do du matin, lue dans tes boîtes
+
+C'est la page d'accueil. Avant, la liste du matin se faisait de tête, classée par
+importance et par durée, et il en manquait toujours une : le mail qu'on voulait
+envoyer, le devis promis au téléphone, le montage qu'on repousse. Maintenant la
+liste se fait toute seule, à partir de ce qui se passe vraiment.
+
+**Ce qu'elle lit** (et relit toutes les 15 minutes tant que l'app tourne) :
+
+| Source | Ce qui devient une chose à faire |
+|---|---|
+| 📧 **Gmail** (onglet Principale) | un mail reçu, d'un humain, auquel tu n'as pas répondu (ni depuis Gmail, ni depuis l'app, ni en lui écrivant depuis) |
+| 💬 **WhatsApp** (Mac) | une conversation où le dernier message n'est pas de toi |
+| 📞 **Appels** (Mac) | un appel manqué d'une personne que tu connais, jamais rappelé |
+| 🗓️ **Google Agenda** | une prod colorée urgent ou très urgent dans les jours qui viennent, un titre qui dit tournage, livraison, rendu, deadline… |
+| 🗂️ **CRM** | relance arrivée à échéance, devis envoyé sans nouvelle depuis N jours, devis accepté pas facturé, RDV pris sans devis, demande entrante pas traitée, emails de l'Autopilote à valider, post de campagne pas publié, session d'appels du jour |
+| 🧠 **Ton cerveau** | ce que tu tapes dans le vide-cerveau, en une ligne |
+
+Sur téléphone ou en ligne, WhatsApp et les appels passent par le pont du Mac
+(`pont-mac.command`), comme pour le répertoire chaud : le Mac lit, envoie le
+résultat, rien de plus.
+
+**Comment elle classe.** Chaque chose reçoit une importance (🔴 vitale, 🟠
+importante, 🟢 normale) et une durée (⚡ court, 15 min ou moins ; 🧱 moyen ;
+🏔️ long, plus d'1h30). L'argent pèse lourd : un devis, une facture, un mot comme
+« budget » ou « acompte » dans un objet de mail montent d'un cran. Un mail sans
+réponse depuis deux jours aussi. Puis chaque chose prend sa place, exactement
+comme avant :
+
+- **⚡ Ce matin** : toutes les courtes, les plus importantes d'abord (douze au plus).
+- **🏔️ La grosse pierre** : une ou deux longues et importantes. Bloque le créneau.
+- **🧱 Cet après-midi** : les moyennes.
+- **💤 Peut attendre** : ni urgent ni vital.
+
+**Le vide-cerveau.** Une ligne suffit : `monter la vidéo du Loft 3h !! avant le 12/09`.
+Un `!` rend la chose importante, `!!` vitale ; `2h`, `1h30`, `30 min` donnent
+la durée ; `demain`, `vendredi`, `avant le 12/09` l'échéance. Sans indication,
+l'app devine à partir des mots (montage, tournage = long ; devis, réunion,
+stories = moyen ; mail, appel, relance = court) et tu corriges d'un clic.
+
+**Sur chaque ligne** : ✅ fait, ⏰ plus tard (demain, lundi, dans une semaine…),
+🙈 ignorer. Ce que tu décides ne revient pas le lendemain ; un nouveau message de
+la même personne, si. Un « fait » sur une relance compte comme une relance dans
+le jeu (XP, prochaine relance programmée). Pour un mail, **✨ Rédiger la réponse**
+lit le message, propose un brouillon (IA si tu as une clé, template sinon), et
+**📤 Envoyer depuis mon Gmail** répond dans le même fil. Rien ne part sans ton clic.
+
+**Le brief du matin.** À l'heure choisie dans Réglages (8h par défaut), l'app
+calcule la journée et te l'envoie par mail, à toi-même, depuis ton Gmail :
+« 9 choses à faire, dont 3 vitales, 4 800 € en jeu. Ce matin (≈ 1h10) :
+répondre à Claire, rappeler Le Loft… La grosse pierre : monter la vidéo du
+Loft (≈ 3h). » Le bouton **📨 Le brief** l'affiche et le renvoie à la demande.
+
+Deux conditions pour qu'il arrive à l'heure : **l'app doit tourner à ce moment-là**
+(sur Mac, `demarrer-toujours.command` la garde allumée ; sinon le brief part dès
+que tu la lances, et un Mac endormi l'envoie au réveil), et Gmail doit être
+branché dans Réglages. Si le mail ne part pas, la page le dit sous le radar, et
+l'app réessaie toutes les 5 minutes. L'app vit à l'heure de Paris, même hébergée
+chez Render.
+
+### 🗓️ Google Agenda : lire ta journée, y poser tes tâches, colorer l'urgence
+
+L'agenda est le deuxième œil du matin : les prods, les RDV, et les couleurs que
+tu leur donnes déjà. Branché, il fait trois choses.
+
+1. **Il lit.** Le fil d'aujourd'hui s'affiche sous le radar, avec les trous entre
+   les rendez-vous. Sur les jours qui viennent (7 par défaut), une prod colorée
+   « urgent » ou « très urgent », ou un événement dont le titre dit *tournage,
+   livraison, rendu, deadline, montage…*, devient une chose à préparer dans la
+   liste, avec son importance.
+2. **Il pose.** Sur chaque ligne, **📅 Caler** propose les créneaux libres du jour ;
+   **🗓️ Caler ma journée** fait tout d'un coup : les courtes au plus tôt, la grosse
+   pierre dans le plus grand trou, les moyennes ensuite. Chaque tâche devient un
+   événement dans ton agenda, de la couleur de son urgence. Ce qui ne rentre pas
+   est dit, pas forcé.
+3. **Il classe.** Sur chaque événement du jour, cinq ronds : 🔴 très urgent,
+   🟠 urgent, 🟡 moyen, 🟢 pas urgent, ⚪ juste une info. Un clic change la couleur
+   de l'événement **dans Google Agenda**. Le sens de chaque couleur se règle dans
+   Réglages (par défaut : Tomate = très urgent, Mandarine et Flamant rose = urgent,
+   Banane = moyen, Basilic et Sauge = pas urgent, le reste = info) : si tu as déjà
+   ton code couleur, dis-le à l'app une fois, elle le respecte.
+
+**Brancher, en 3 minutes et sans projet Google Cloud.** Réglages → Google Agenda
+donne un petit script à coller sur [script.google.com](https://script.google.com)
+(ton secret est déjà dedans), à déployer en « Application web » exécutée en tant
+que toi et accessible à « Tout le monde ». Ce « tout le monde » ne voit rien :
+sans le secret, le script répond « Mauvais secret ». Colle l'URL en `/exec`,
+teste, choisis les agendas à lire et celui où poser tes tâches.
+
 ## 📅 Les Campagnes hebdo : une semaine, un secteur, tes références partout
 
 Le rythme : **chaque lundi, un nouveau terrain de chasse.** Semaine 1 la grande distribution (responsables communication interne : tu as le Galec en référence), semaine 2 l'aéronautique, puis l'agriculture, les hôtels (Pullman !), les agences de voyage, les collectivités (Puteaux)…
@@ -175,7 +267,7 @@ Le rythme : **chaque lundi, un nouveau terrain de chasse.** Semaine 1 la grande 
 ### Brancher ton Gmail (2 minutes, sans projet Google Cloud)
 
 1. Active la **validation en 2 étapes** sur ton compte Google ;
-2. Va sur [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords) → crée un mot de passe d'application « La Chasse » ;
+2. Va sur [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords) → crée un mot de passe d'application « OTEA Moteur » ;
 3. Colle-le dans **Réglages → Gmail & Autopilote** avec ton adresse → **Tester SMTP** + **Tester IMAP** → « 📤 M'envoyer un email de test ».
 
 ### La boucle (toutes les 10 minutes quand l'Autopilote est actif)
@@ -226,7 +318,7 @@ Le gisement le plus rentable n'est pas sur LinkedIn : ce sont les gens que tu as
 | 📞 Appels | l'historique que ton Mac synchronise avec ton iPhone | iPhone → Réglages → Téléphone → **Appels sur d'autres appareils** → coche ton Mac |
 | 💬 WhatsApp | les discussions de l'app WhatsApp pour Mac | installe **WhatsApp pour Mac** et connecte-le à ton téléphone |
 
-**Si macOS bloque la lecture** (message « Accès complet au disque ») : Réglages Système → Confidentialité et sécurité → **Accès complet au disque** → active **Terminal**, puis relance la Chasse. Le message reste affiché à l'écran tant que ce n'est pas fait : il ne disparaît pas tout seul.
+**Si macOS bloque la lecture** (message « Accès complet au disque ») : Réglages Système → Confidentialité et sécurité → **Accès complet au disque** → active **Terminal**, puis relance OTEA Moteur. Le message reste affiché à l'écran tant que ce n'est pas fait : il ne disparaît pas tout seul.
 
 **Plans B, sans rien installer :**
 - **WhatsApp** : sur ton téléphone, ouvre une discussion → tape le nom du contact en haut → **Exporter la discussion** → **Sans les médias** → envoie-toi le .txt → dépose-le dans la carte. Formats iPhone et Android, français et anglais, reconnus.
@@ -322,7 +414,7 @@ Les résultats sont rattachés à leur fiche par l'identifiant renvoyé, sinon p
 Pour être enrichissable, une fiche a besoin d'un nom et d'au moins une chose parmi : une entreprise, un site web ou une URL LinkedIn. Une fiche à laquelle il manque le site n'est plus envoyée avec un champ vide (FullEnrich refusait alors tout le lot des 100 avec « domain cannot be empty ») : le champ est simplement omis. Et quand FullEnrich refuse quelque chose, l'app le dit en français avec quoi faire, au lieu d'afficher le code HTTP.
 
 ### CRM hybride : HubSpot
-Import des contacts HubSpot dans la Chasse, et **push** vers HubSpot (fiche contact ou sélection dans Contacts). Philosophie : **la Chasse pilote la prospection au quotidien, HubSpot reste la base « officielle »** que tu synchronises quand tu veux.
+Import des contacts HubSpot dans OTEA Moteur, et **push** vers HubSpot (fiche contact ou sélection dans Contacts). Philosophie : **OTEA Moteur pilote la prospection au quotidien, HubSpot reste la base « officielle »** que tu synchronises quand tu veux.
 
 ## 📄 Devis Pennylane en 2 clics
 
@@ -348,10 +440,10 @@ Les clés sont stockées en local (ou via un fichier `.env` : `PENNYLANE_API_KEY
 ## 🧱 Sous le capot
 
 - **Zéro dépendance** : Node ≥ 22.13, SQLite natif (`node:sqlite`), frontend vanilla, clients **SMTP et IMAP écrits maison** (`src/mail/`). `git clone` → `node server.js`, c'est tout.
-- `server.js` : serveur HTTP + API REST (`/api/*`) + boucle Autopilote (10 min) + relève des enrichissements FullEnrich (2 min) · `src/autopilot.js` : séquences, enrôlements, file d'envoi, détection des réponses · `src/db.js` : schéma + upsert/dédoublonnage · `src/gamification.js` : XP, niveaux, quêtes, streak, badges, boss · `src/playbooks.js` : segments, cadences, templates, séquences · `src/integrations/` : Pennylane, FullEnrich, HubSpot, Claude · `src/importers/` : répertoire chaud (appels macOS, WhatsApp, scoring des relations) · `public/` : l'app.
+- `server.js` : serveur HTTP + API REST (`/api/*`) + boucle Autopilote (10 min) + radar de la journée (5 min) + relève des enrichissements FullEnrich (2 min) · `src/journee.js` : Ma journée (signaux Gmail / WhatsApp / appels / agenda / CRM, classement, placement, brief) · `src/integrations/agenda.js` + `agenda.gs` : Google Agenda via un script Apps Script sur le compte de Maxime (lecture, créneaux libres, pose des tâches, couleurs d'urgence) · `src/autopilot.js` : séquences, enrôlements, file d'envoi, détection des réponses · `src/db.js` : schéma + upsert/dédoublonnage · `src/gamification.js` : XP, niveaux, quêtes, streak, badges, boss · `src/playbooks.js` : segments, cadences, templates, séquences · `src/integrations/` : Pennylane, FullEnrich, HubSpot, Claude · `src/importers/` : répertoire chaud (appels macOS, WhatsApp, scoring des relations) · `public/` : l'app.
 - API Pennylane **v2** (`/api/external/v2` : `customers`, `customer_invoices`, `quotes`, `create_from_quote`) ; FullEnrich **v2** (`/api/v2/contact/enrich/bulk`, fallback v1 automatique) ; HubSpot **v3** ; Gmail en **SMTP/IMAP standard** (mot de passe d'application, aucun projet Google Cloud à créer).
 - Les réponses d'API inattendues remontent **verbatim** dans l'interface pour diagnostiquer vite.
-- **Tests** : `npm test` : 94 tests. Moteur Autopilote contre des serveurs SMTP/IMAP factices (envoi, threading, réponses, bounces, cap, scan), campagnes hebdo, et répertoire chaud contre de fausses bases d'appels/WhatsApp et de vrais formats d'export.
+- **Tests** : `npm test` : 123 tests. Ma journée (analyse du vide-cerveau, placement, signaux CRM / Gmail / WhatsApp / appels contre un IMAP factice, décisions, brief), moteur Autopilote contre des serveurs SMTP/IMAP factices (envoi, threading, réponses, bounces, cap, scan), campagnes hebdo, et répertoire chaud contre de fausses bases d'appels/WhatsApp et de vrais formats d'export.
 
 ## 🗺️ Pistes pour la suite
 

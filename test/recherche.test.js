@@ -73,7 +73,7 @@ test('la recherche ordinaire reste large : prénom, nom, boîte, sans tenir comp
   assert.strictEqual((await chercher('vidéo')).length, 2);
 });
 
-test('chaque réponse dit au navigateur de ne charger que La Chasse elle-même', async () => {
+test('chaque réponse dit au navigateur de ne charger que l’app elle-même', async () => {
   for (const chemin of ['/', '/app.js', '/api/state', '/api/contacts?search=x']) {
     const r = await fetch(BASE + chemin);
     const csp = r.headers.get('content-security-policy') || '';

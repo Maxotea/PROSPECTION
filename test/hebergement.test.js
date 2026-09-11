@@ -155,7 +155,7 @@ test('le déménagement : une sauvegarde se restaure sur une autre Chasse', asyn
     return (r.headers.get('set-cookie') || '').split(';')[0];
   };
 
-  // La Chasse « du Mac », avec un contact dedans.
+  // OTEA Moteur « du Mac », avec un contact dedans.
   const source = fs.mkdtempSync(path.join(os.tmpdir(), 'chasse-source-'));
   const portSource = PORT + 5;
   const baseSource = `http://127.0.0.1:${portSource}`;
@@ -170,7 +170,7 @@ test('le déménagement : une sauvegarde se restaure sur une autre Chasse', asyn
   srv.kill();
   fs.rmSync(source, { recursive: true, force: true });
 
-  // La Chasse « en ligne » démarre vide, puis reçoit la sauvegarde.
+  // OTEA Moteur « en ligne » démarre vide, puis reçoit la sauvegarde.
   const jeton = await jetonDe(BASE, MOT_DE_PASSE);
   const avant = await (await fetch(BASE + '/api/contacts', { headers: { cookie: jeton } })).json();
 

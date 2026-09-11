@@ -2,7 +2,7 @@
 # Render lit ce fichier et crée le service, le disque et les variables.
 services:
   - type: web
-    name: la-chasse
+    name: la-chasse   # nom historique du service Render : le changer créerait un nouveau service, sans le disque
     runtime: docker
     plan: starter          # un disque persistant demande une offre payante
     healthCheckPath: /sante

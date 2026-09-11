@@ -1,7 +1,7 @@
 #!/bin/bash
-# ⚙️ La Chasse : la lancer automatiquement, pour de bon.
+# ⚙️ OTEA Moteur : le lancer automatiquement, pour de bon.
 #
-# Double-clique ce fichier UNE FOIS. Ensuite La Chasse démarre toute seule à
+# Double-clique ce fichier UNE FOIS. Ensuite OTEA Moteur démarre tout seul à
 # chaque ouverture de session, se relance si elle s'arrête, et tourne sans
 # fenêtre noire à garder ouverte. C'est ce qui permet à l'Autopilote d'envoyer
 # tes relances pendant que tu tournes.
@@ -16,7 +16,7 @@ PLIST="$HOME/Library/LaunchAgents/$ETIQUETTE.plist"
 JOURNAL="$HOME/Library/Logs/la-chasse.log"
 
 echo ""
-echo "⚙️  LA CHASSE : DÉMARRAGE AUTOMATIQUE"
+echo "⚙️  OTEA MOTEUR : DÉMARRAGE AUTOMATIQUE"
 echo "────────────────────────────────────────────"
 echo ""
 
@@ -36,11 +36,11 @@ if [ -f "$PLIST" ]; then
     launchctl bootout "gui/$(id -u)/$ETIQUETTE" 2>/dev/null || launchctl unload "$PLIST" 2>/dev/null
     rm -f "$PLIST"
     echo ""
-    echo "✅ Retiré. La Chasse ne démarrera plus toute seule."
+    echo "✅ Retiré. OTEA Moteur ne démarrera plus tout seul."
     echo "   Pour la lancer : double-clique sur demarrer.command (et laisse la fenêtre ouverte)."
   else
     echo ""
-    echo "Rien n'a été changé. La Chasse continue de démarrer toute seule."
+    echo "Rien n'a été changé. OTEA Moteur continue de démarrer tout seul."
     echo "→ Ton app : http://localhost:1337"
   fi
   echo ""
@@ -106,7 +106,7 @@ if launchctl bootstrap "gui/$(id -u)" "$PLIST" 2>/dev/null || launchctl load "$P
   CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:1337/ 2>/dev/null)
   if [ "$CODE" = "200" ]; then
     echo ""
-    echo "✅ C'EST FAIT. La Chasse tourne, et elle tournera toujours."
+    echo "✅ C'EST FAIT. OTEA Moteur tourne, et il tournera toujours."
     echo ""
     echo "   · Ton app : http://localhost:1337 (mets-la en favori)"
     echo "   · Elle redémarre toute seule à chaque ouverture de session."
@@ -126,7 +126,7 @@ if launchctl bootstrap "gui/$(id -u)" "$PLIST" 2>/dev/null || launchctl load "$P
   fi
 else
   echo "❌ macOS a refusé d'installer le démarrage automatique."
-  echo "   → Lance La Chasse normalement avec demarrer.command,"
+  echo "   → Lance OTEA Moteur normalement avec demarrer.command,"
   echo "     et envoie-moi le rapport de diagnostic.command."
   rm -f "$PLIST"
 fi

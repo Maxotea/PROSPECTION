@@ -1,7 +1,12 @@
 'use strict';
-// ⚔️ LA CHASSE : CRM de prospection gamifié d'OTEA Production.
+// ⚙️ OTEA MOTEUR (ex-La Chasse) : la journée, la prospection et l'autopilote d'OTEA Production.
 // Serveur zéro dépendance (Node ≥ 22.13) : node server.js puis http://localhost:1337
 // Les clés API restent en local (data/prospection.db) : le serveur n'écoute que sur 127.0.0.1.
+
+// L'app vit à l'heure de Maxime, pas à celle du serveur. Chez un hébergeur
+// (Render…), l'horloge est réglée sur Londres : sans ça, le brief « de 8h »
+// partait à 10h et la journée changeait de date à 2h du matin.
+if (!process.env.TZ) process.env.TZ = 'Europe/Paris';
 
 const http = require('node:http');
 const fs = require('node:fs');
@@ -14,13 +19,13 @@ const crypto = require('node:crypto');
 function expliquerEtSortir(erreur) {
   const detail = (erreur && erreur.stack) || String(erreur);
 
-  // Cas de très loin le plus fréquent : une première fenêtre de La Chasse est
+  // Cas de très loin le plus fréquent : une première fenêtre d'OTEA Moteur est
   // restée ouverte. Ce n'est pas une panne, il n'y a rien à réparer.
   if (erreur && erreur.code === 'EADDRINUSE') {
     console.error(`
-  ℹ️  LA CHASSE TOURNE DÉJÀ
+  ℹ️  OTEA MOTEUR TOURNE DÉJÀ
 
-  Une autre fenêtre de La Chasse est encore ouverte sur cet ordinateur :
+  Une autre fenêtre d'OTEA Moteur est encore ouverte sur cet ordinateur :
   deux ne peuvent pas tourner en même temps.
 
   Deux solutions, au choix :
@@ -32,13 +37,13 @@ function expliquerEtSortir(erreur) {
     process.exit(1);
   }
   console.error(`
-  ⚠️  LA CHASSE N'A PAS PU DÉMARRER
+  ⚠️  OTEA MOTEUR N'A PAS PU DÉMARRER
 
   Tes données ne sont pas perdues : elles sont dans le dossier « data ».
 
   À essayer, dans l'ordre :
    1. Ferme cette fenêtre et relance en double-cliquant sur « demarrer.command ».
-   2. Vérifie qu'aucune autre fenêtre de La Chasse ne tourne déjà.
+   2. Vérifie qu'aucune autre fenêtre d'OTEA Moteur ne tourne déjà.
    3. Si ça recommence, copie le texte ci-dessous et envoie-le à Claude.
 
   ────────────── détail technique ──────────────
@@ -52,7 +57,7 @@ process.on('uncaughtException', expliquerEtSortir);
 {
   const [maj, min] = process.versions.node.split('.').map(Number);
   if (maj < 22 || (maj === 22 && min < 13)) {
-    console.error(`\n❌ Ta version de Node.js (${process.version}) est trop ancienne pour La Chasse (il faut la 22.13 ou plus).\n→ Installe la dernière version LTS depuis https://nodejs.org puis relance.\n`);
+    console.error(`\n❌ Ta version de Node.js (${process.version}) est trop ancienne pour OTEA Moteur (il faut la 22.13 ou plus).\n→ Installe la dernière version LTS depuis https://nodejs.org puis relance.\n`);
     process.exit(1);
   }
 }
@@ -81,6 +86,8 @@ const campaigns = require('./src/campaigns');
 const repertoire = require('./src/importers/repertoire');
 const { seedDemo } = require('./seed');
 const migrationTirets = require('./src/migrations/tirets');
+const journee = require('./src/journee');
+const agenda = require('./src/integrations/agenda');
 
 playbooks.seedTemplates(dbApi);
 playbooks.seedSequences(dbApi);
@@ -118,8 +125,8 @@ if (MODE_PROTEGE) {
       console.error(`
   ⚠️  MOT DE PASSE MANQUANT OU TROP COURT
 
-  La Chasse est configurée pour être accessible en ligne, mais la variable
-  CODE_ACCES est vide ou fait moins de 8 caractères. Elle refuse de démarrer
+  OTEA Moteur est configuré pour être accessible en ligne, mais la variable
+  CODE_ACCES est vide ou fait moins de 8 caractères. Il refuse de démarrer
   plutôt que de laisser tes contacts et tes clés en accès libre.
 
   → Dans les réglages de ton hébergeur, ajoute une variable d'environnement
@@ -184,14 +191,14 @@ function noteEchec(ip) {
 }
 
 function loginPage(wrong) {
-  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>⚔️ La Chasse : accès</title>
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>⚙️ OTEA Moteur : accès</title>
   <style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0a0d18;color:#e9edff;font:16px system-ui,sans-serif}
   .box{background:#131830;border:1px solid #242c52;border-radius:16px;padding:32px 36px;text-align:center;max-width:340px}
   input{font:inherit;font-size:26px;letter-spacing:8px;text-align:center;text-transform:uppercase;width:100%;padding:10px;border-radius:10px;border:1px solid #34406e;background:#0e1222;color:#e9edff;margin:14px 0}
   button{font:inherit;font-weight:700;width:100%;padding:12px;border-radius:10px;border:0;background:linear-gradient(135deg,#7c3aed,#8b5cf6);color:#fff;cursor:pointer}
   .err{color:#f87171;font-size:14px}</style></head><body>
   <form class="box" method="POST" action="/acces">
-    <div style="font-size:44px">⚔️</div><h2 style="margin:6px 0">La Chasse</h2>
+    <div style="font-size:44px">⚙️</div><h2 style="margin:6px 0">OTEA Moteur</h2>
     <p style="color:#93a0c9;font-size:14px">${EN_LIGNE ? 'Entre ton mot de passe.' : 'Entre le code affiché dans la fenêtre noire de ton ordinateur.'}</p>
     ${wrong ? `<p class="err">${wrong === 'bloque' ? '⏳ Trop d’essais. Réessaie dans quelques minutes.' : '❌ Mauvais code, réessaie.'}</p>` : ''}
     <input name="code" type="${EN_LIGNE ? 'password' : 'text'}" maxlength="${EN_LIGNE ? 128 : 6}" autofocus autocomplete="${EN_LIGNE ? 'current-password' : 'off'}" placeholder="••••••" style="${EN_LIGNE ? 'letter-spacing:4px;font-size:20px;text-transform:none' : ''}">
@@ -264,7 +271,64 @@ function route(method, pattern, handler) {
 const USER_ACTIONS = ['note', 'connexion_linkedin', 'message_envoye', 'relance', 'appel', 'reponse_envoyee', 'reponse_recue', 'rdv_pris', 'devis_envoye', 'devis_accepte', 'facture', 'disqualifie', 'reporte'];
 
 // ---- état global (dashboard)
-route('GET', '/api/state', async () => ({ ...game.fullState(), autopilot: autopilot.state(), campaign: campaigns.currentCampaign() }));
+route('GET', '/api/state', async () => {
+  const p = journee.plan();
+  return {
+    ...game.fullState(), autopilot: autopilot.state(), campaign: campaigns.currentCampaign(),
+    journee: { total: p.total, vitaux: p.vitaux, matin: p.blocs.matin.length, pierre: p.blocs.pierre.length, faits: p.faits_aujourdhui },
+  };
+});
+
+// ---- ☀️ Ma journée : la to-do du matin, lue dans Gmail, WhatsApp, les appels et le CRM
+route('GET', '/api/journee', async () => journee.plan());
+route('POST', '/api/journee/scan', async (req) => {
+  const b = await readBody(req);
+  const bilan = await journee.rafraichir(Array.isArray(b.sources) && b.sources.length ? { sources: b.sources } : {});
+  return { bilan, plan: journee.plan() };
+});
+route('GET', '/api/journee/brief', async () => ({ brief: journee.briefDuJour(), texte: journee.texteBrief(journee.plan()) }));
+route('POST', '/api/journee/brief', async (req) => {
+  const b = await readBody(req);
+  return journee.briefDuMatin({ envoyer: !!b.envoyer, force: true });
+});
+route('POST', '/api/journee/taches', async (req) => {
+  const b = await readBody(req);
+  if (!String(b.texte || '').trim()) throw httpError(400, 'Écris ce que tu dois faire, en une ligne.');
+  return { tache: journee.ajouterTache(b.texte, b) };
+});
+route('PATCH', '/api/journee/taches/:id', async (req, params) => ({ tache: journee.modifierTache(Number(params.id), await readBody(req)) }));
+route('DELETE', '/api/journee/taches/:id', async (req, params) => journee.supprimerTache(Number(params.id)));
+route('POST', '/api/journee/decision', async (req) => {
+  const b = await readBody(req);
+  if (!b.cle) throw httpError(400, 'Signal inconnu.');
+  return journee.decider(String(b.cle), String(b.statut || ''), { jours: b.jours, titre: b.titre });
+});
+route('POST', '/api/journee/mail/:uid/reponse', async (req, params) => {
+  const b = await readBody(req);
+  return journee.preparerReponseMail(Number(params.uid), { instructions: b.instructions || '' });
+});
+route('POST', '/api/journee/mail/envoyer', async (req) => journee.envoyerReponseMail(await readBody(req)));
+
+// ---- 🗓️ Google Agenda (via le script Apps Script)
+route('GET', '/api/agenda/script', async () => ({ code: agenda.codeDuScript(), branche: agenda.estBranche() }));
+route('GET', '/api/agenda/test', async () => agenda.test());
+route('GET', '/api/agenda/calendriers', async () => ({ calendriers: agenda.calendriersConnus(), lus: agenda.calendriersLus(), ecriture: dbApi.getSetting('agenda_calendrier_ecriture'), couleurs: agenda.couleurs(), palette: agenda.PALETTE, niveaux: agenda.NIVEAUX }));
+route('POST', '/api/journee/caler', async (req) => {
+  const b = await readBody(req);
+  if (!b.cle) throw httpError(400, 'Signal inconnu.');
+  return journee.calerDansAgenda(String(b.cle), { debut: b.debut, fin: b.fin, minutes: b.minutes });
+});
+route('POST', '/api/journee/decaler', async (req) => {
+  const b = await readBody(req);
+  if (!b.cle) throw httpError(400, 'Signal inconnu.');
+  return agenda.decaler(String(b.cle));
+});
+route('POST', '/api/journee/caler_tout', async () => journee.calerToutDansAgenda());
+route('POST', '/api/agenda/urgence', async (req) => {
+  const b = await readBody(req);
+  if (!b.id) throw httpError(400, 'Événement inconnu.');
+  return agenda.changerUrgence({ calendrier: b.calendrier || '', id: String(b.id), niveau: b.niveau });
+});
 
 // ---- contacts
 route('GET', '/api/contacts', async (req, params, query) => {
@@ -515,7 +579,7 @@ route('POST', '/api/ai/draft', async (req) => {
 });
 
 // ---- réglages
-const SECRET_KEYS = ['pennylane_api_key', 'fullenrich_api_key', 'hubspot_token', 'anthropic_api_key', 'gmail_app_password'];
+const SECRET_KEYS = ['pennylane_api_key', 'fullenrich_api_key', 'hubspot_token', 'anthropic_api_key', 'gmail_app_password', 'agenda_secret'];
 const MASK = '••••••••';
 route('GET', '/api/settings', async () => {
   const s = dbApi.allSettings();
@@ -742,11 +806,11 @@ route('POST', '/api/restauration', async (req) => {
       tables = essai.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((t) => t.name);
       essai.close();
     } catch {
-      throw httpError(400, "Ce fichier n'est pas une sauvegarde de La Chasse. Reprends le fichier téléchargé depuis Réglages.");
+      throw httpError(400, "Ce fichier n'est pas une sauvegarde d'OTEA Moteur. Reprends le fichier téléchargé depuis Réglages.");
     }
     for (const attendue of ['contacts', 'settings', 'templates']) {
       if (!tables.includes(attendue)) {
-        throw httpError(400, "Ce fichier n'est pas une sauvegarde de La Chasse (il lui manque des tables).");
+        throw httpError(400, "Ce fichier n'est pas une sauvegarde d'OTEA Moteur (il lui manque des tables).");
       }
     }
 
@@ -762,7 +826,7 @@ route('POST', '/api/restauration', async (req) => {
     // L'app tient sa base ouverte depuis son démarrage : elle doit repartir pour
     // lire la nouvelle. L'hébergeur (ou le démarrage automatique) la relance seul.
     setTimeout(() => process.exit(1), 400);
-    return { ok: true, message: 'Sauvegarde restaurée. La Chasse redémarre, recharge la page dans quelques secondes.' };
+    return { ok: true, message: 'Sauvegarde restaurée. OTEA Moteur redémarre, recharge la page dans quelques secondes.' };
   } finally {
     try { fs.rmSync(dossier, { recursive: true, force: true }); } catch { /* rien à nettoyer */ }
   }
@@ -850,7 +914,7 @@ route('POST', '/api/demo', async () => seedDemo(false));
 // ---------------------------------------------------------------- serveur
 function httpError(status, message) { const e = new Error(message); e.httpStatus = status; return e; }
 
-// Ce que le navigateur a le droit de charger dans La Chasse : ses propres
+// Ce que le navigateur a le droit de charger dans OTEA Moteur : ses propres
 // fichiers, et rien d'autre. Un script glissé dans une note ou un nom de
 // contact ne peut alors ni s'exécuter ni appeler l'extérieur, même si un
 // échappement venait à manquer un jour. Les styles en ligne restent permis :
@@ -1005,7 +1069,27 @@ async function enrichLoop() {
     enriching = false;
   }
 }
+// ☀️ Ma journée : relit Gmail, WhatsApp et les appels quand ça date, et
+// fabrique le brief du matin une fois par jour à l'heure choisie.
+let journeeEnCours = false;
+async function journeeLoop() {
+  if (journeeEnCours) return;
+  journeeEnCours = true;
+  try {
+    const r = await journee.boucle();
+    if (r && r.brief && !r.brief.deja_fait) {
+      console.log(`[journée] brief du ${r.brief.jour} : ${r.brief.total} chose(s)${r.brief.envoye ? ' · envoyé par mail' : ''}${r.brief.erreur ? ` · mail non envoyé : ${r.brief.erreur}` : ''}`);
+    }
+  } catch (e) {
+    console.error('[journée]', e.message);
+  } finally {
+    journeeEnCours = false;
+  }
+}
+
 if (process.env.NODE_ENV !== 'test') {
+  setInterval(journeeLoop, 5 * 60 * 1000);
+  setTimeout(journeeLoop, 10 * 1000);
   setInterval(autopilotLoop, 10 * 60 * 1000);
   setTimeout(autopilotLoop, 20 * 1000); // premier passage peu après le démarrage
   setInterval(enrichLoop, 2 * 60 * 1000); // les résultats FullEnrich arrivent en quelques minutes
@@ -1025,7 +1109,7 @@ ${ips.map((ip) => `  ➜  http://${ip}:${PORT}`).join('\n') || `  ➜  http://IP
 `;
   }
   console.log(`
-  ⚔️  LA CHASSE : CRM de prospection gamifié (OTEA Production)
+  ⚙️  OTEA MOTEUR : ta journée, ta prospection, ton autopilote (OTEA Production)
   ────────────────────────────────────────────────────────────
   ➜  http://localhost:${PORT}${reseau}
   Base de données : ${dbApi.DB_PATH}

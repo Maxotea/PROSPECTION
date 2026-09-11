@@ -1,6 +1,8 @@
-# La Chasse : image de déploiement.
+# OTEA Moteur : image de déploiement.
+# L'heure de Paris, pour que le brief du matin parte à l'heure dite.
 # Zéro dépendance à installer, donc pas de npm install : on copie et on lance.
 FROM node:22-alpine
+ENV TZ=Europe/Paris
 
 WORKDIR /app
 COPY . .
