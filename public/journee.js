@@ -130,7 +130,18 @@ function jAgendaHtml(A) {
         <button class="gold" id="j-caler-tout" ${cren.length ? '' : 'disabled'} title="Pose les courtes au plus tôt, la grosse pierre dans le plus grand trou, les moyennes ensuite">🗓️ Caler ma journée</button>
       </div>
       <div class="j-agenda">${lignes.join('') || '<p class="muted small j-vide">Journée vide.</p>'}</div>
+      ${jSemaineHtml(A)}
     </div>`;
+}
+
+// Ce qui compte dans les sept prochains jours : les prods et l'important, sans les rappels quotidiens.
+function jSemaineHtml(A) {
+  const sem = A.semaine || [];
+  if (!sem.length) return '';
+  const N = A.niveaux;
+  const jour = (d) => { const [y, m, j] = d.split('-').map(Number); const x = new Date(y, m - 1, j); return `${['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'][x.getDay()]}. ${x.getDate()}`; };
+  const lignes = sem.slice(0, 8).map((ev) => `<div class="j-ev"><span class="j-ev-h mono">${esc(jour(ev.jour))}${ev.heure ? ` <span class="faint">${esc(ev.heure)}</span>` : ''}</span><span class="j-ev-dot" style="background:${ev.niveau >= 2 ? N[ev.niveau].couleur && A.palette[N[ev.niveau].couleur] ? A.palette[N[ev.niveau].couleur].hex : 'var(--border2)' : 'var(--border2)'}"></span><span class="j-ev-t">${ev.niveau >= 2 ? N[ev.niveau].emoji + ' ' : ''}${esc(ev.titre)}${ev.lieu ? ` <span class="faint small">📍 ${esc(ev.lieu)}</span>` : ''}</span></div>`);
+  return `<h4 style="margin:14px 0 4px">📆 Cette semaine</h4><div class="j-agenda">${lignes.join('')}</div>`;
 }
 
 function dessinerJournee(view) {

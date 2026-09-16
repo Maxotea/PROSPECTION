@@ -173,7 +173,7 @@ liste se fait toute seule, à partir de ce qui se passe vraiment.
 | 💬 **WhatsApp** (Mac) | une conversation où le dernier message n'est pas de toi |
 | 📞 **Appels** (Mac) | un appel manqué d'une personne que tu connais, jamais rappelé |
 | 🗓️ **Google Agenda** | une prod colorée urgent ou très urgent dans les jours qui viennent, un titre qui dit tournage, livraison, rendu, deadline… |
-| 🗂️ **CRM** | relance arrivée à échéance, devis envoyé sans nouvelle depuis N jours, devis accepté pas facturé, RDV pris sans devis, demande entrante pas traitée, emails de l'Autopilote à valider, post de campagne pas publié, session d'appels du jour |
+| 🗂️ **CRM** | relance arrivée à échéance (un contact chaud a sa ligne ; au-delà de trois prospects froids en retard, ils tiennent sur une seule ligne « Relances de prospection »), devis envoyé sans nouvelle depuis N jours, devis accepté pas facturé, RDV pris sans devis, demande entrante pas traitée (une réponse automatique n'en est pas une, et un contact qui a écrit n'est pas relancé en plus), emails de l'Autopilote à valider, post de campagne pas publié, session d'appels du jour |
 | 🧠 **Ton cerveau** | ce que tu tapes dans le vide-cerveau, en une ligne |
 
 Sur téléphone ou en ligne, WhatsApp et les appels passent par le pont du Mac
@@ -227,7 +227,10 @@ tu leur donnes déjà. Branché, il fait trois choses.
    les rendez-vous. Sur les jours qui viennent (7 par défaut), une prod colorée
    « urgent » ou « très urgent », ou un événement dont le titre dit *tournage,
    livraison, rendu, deadline, montage…*, devient une chose à préparer dans la
-   liste, avec son importance.
+   liste, avec son importance. Un titre qui dit déjà l'action (« Envoyer le devis
+   Galec ») reste tel quel. Un rappel qui revient chaque jour (« Vérifier PPT BNI »)
+   reste dans l'agenda, pas dans la liste. Le brief ajoute une ligne **📆 Cette
+   semaine** : les prods et l'important des sept prochains jours.
 2. **Il pose.** Sur chaque ligne, **📅 Caler** propose les créneaux libres du jour ;
    **🗓️ Caler ma journée** fait tout d'un coup : les courtes au plus tôt, la grosse
    pierre dans le plus grand trou, les moyennes ensuite. Chaque tâche devient un
@@ -443,7 +446,7 @@ Les clés sont stockées en local (ou via un fichier `.env` : `PENNYLANE_API_KEY
 - `server.js` : serveur HTTP + API REST (`/api/*`) + boucle Autopilote (10 min) + radar de la journée (5 min) + relève des enrichissements FullEnrich (2 min) · `src/journee.js` : Ma journée (signaux Gmail / WhatsApp / appels / agenda / CRM, classement, placement, brief) · `src/integrations/agenda.js` + `agenda.gs` : Google Agenda via un script Apps Script sur le compte de Maxime (lecture, créneaux libres, pose des tâches, couleurs d'urgence) · `src/autopilot.js` : séquences, enrôlements, file d'envoi, détection des réponses · `src/db.js` : schéma + upsert/dédoublonnage · `src/gamification.js` : XP, niveaux, quêtes, streak, badges, boss · `src/playbooks.js` : segments, cadences, templates, séquences · `src/integrations/` : Pennylane, FullEnrich, HubSpot, Claude · `src/importers/` : répertoire chaud (appels macOS, WhatsApp, scoring des relations) · `public/` : l'app.
 - API Pennylane **v2** (`/api/external/v2` : `customers`, `customer_invoices`, `quotes`, `create_from_quote`) ; FullEnrich **v2** (`/api/v2/contact/enrich/bulk`, fallback v1 automatique) ; HubSpot **v3** ; Gmail en **SMTP/IMAP standard** (mot de passe d'application, aucun projet Google Cloud à créer).
 - Les réponses d'API inattendues remontent **verbatim** dans l'interface pour diagnostiquer vite.
-- **Tests** : `npm test` : 123 tests. Ma journée (analyse du vide-cerveau, placement, signaux CRM / Gmail / WhatsApp / appels contre un IMAP factice, décisions, brief), moteur Autopilote contre des serveurs SMTP/IMAP factices (envoi, threading, réponses, bounces, cap, scan), campagnes hebdo, et répertoire chaud contre de fausses bases d'appels/WhatsApp et de vrais formats d'export.
+- **Tests** : `npm test` : 125 tests. Ma journée (analyse du vide-cerveau, placement, signaux CRM / Gmail / WhatsApp / appels contre un IMAP factice, décisions, brief), moteur Autopilote contre des serveurs SMTP/IMAP factices (envoi, threading, réponses, bounces, cap, scan), campagnes hebdo, et répertoire chaud contre de fausses bases d'appels/WhatsApp et de vrais formats d'export.
 
 ## 🗺️ Pistes pour la suite
 
