@@ -201,6 +201,32 @@ test('signaux : une prod urgente ou un mot de prod devient une chose à prépare
   assert.ok(!brief.includes(TIRET));
 });
 
+test('signaux : un rappel qui revient chaque jour n’est pas une prod, un titre qui dit déjà l’action reste tel quel, et le brief annonce la semaine', () => {
+  reset();
+  const j1 = addDays(today, 1), j2 = addDays(today, 2), j3 = addDays(today, 3), j9 = addDays(today, 9);
+  journee.ecrireRadar('agenda', { evenements: [
+    { id: 'r1', calendrier: 'cal-pro', calendrier_nom: 'OTEA', titre: 'VERIFIER PPT BNI', debut: a(today, '17:00'), fin: a(today, '17:15'), journee: false, couleur: '6' },
+    { id: 'r2', calendrier: 'cal-pro', calendrier_nom: 'OTEA', titre: 'Vérifier PPT BNI', debut: a(j1, '17:00'), fin: a(j1, '17:15'), journee: false, couleur: '6' },
+    { id: 'r3', calendrier: 'cal-pro', calendrier_nom: 'OTEA', titre: 'Vérifier PPT BNI', debut: a(j2, '17:00'), fin: a(j2, '17:15'), journee: false, couleur: '6' },
+    { id: 'e1', calendrier: 'cal-pro', calendrier_nom: 'OTEA', titre: 'Envoyer le devis Galec', debut: a(j1, '10:00'), fin: a(j1, '10:30'), journee: false, couleur: '11' },
+    { id: 'e2', calendrier: 'cal-pro', calendrier_nom: 'OTEA', titre: 'Tournage AIRFF', debut: a(j2, '12:00'), fin: a(j2, '19:30'), journee: false, couleur: '', lieu: 'Maison de la RATP' },
+    { id: 'e3', calendrier: 'cal-pro', calendrier_nom: 'OTEA', titre: 'Dej Memorem', debut: a(j3, '12:30'), fin: a(j3, '14:00'), journee: false, couleur: '6' },
+    { id: 'e4', calendrier: 'cal-perso', calendrier_nom: 'Perso', titre: 'Coiffeur', debut: a(j3, '18:00'), fin: a(j3, '19:00'), journee: false, couleur: '' },
+    { id: 'e5', calendrier: 'cal-pro', calendrier_nom: 'OTEA', titre: 'Tournage Plénitude', debut: a(j9, '09:00'), fin: a(j9, '18:00'), journee: false, couleur: '11' },
+  ] });
+  const items = journee.signauxAgenda(journee.lireRadar(), today, Date.now());
+  const par = Object.fromEntries(items.map((i) => [i.cle, i]));
+  assert.ok(!par['agenda:r1'] && !par['agenda:r2'] && !par['agenda:r3'], 'le rappel quotidien reste dans l’agenda, pas dans la to-do');
+  assert.strictEqual(par['agenda:e1'].titre, 'Envoyer le devis Galec', 'le titre dit déjà quoi faire');
+  assert.strictEqual(par['agenda:e2'].titre, 'Préparer : Tournage AIRFF');
+
+  const p = journee.plan();
+  assert.deepStrictEqual(p.agenda.semaine.map((ev) => ev.id), ['e1', 'e2', 'e3'], 'la semaine : le devis, le tournage, le déjeuner important ; pas le coiffeur, pas le rappel, pas dans 9 jours');
+  const brief = journee.texteBrief(p);
+  assert.match(brief, /📆 Cette semaine : \S+\. \d+ 10:00 🔴 Envoyer le devis Galec, \S+\. \d+ 12:00 Tournage AIRFF, \S+\. \d+ 12:30 🟠 Dej Memorem\./);
+  assert.ok(!brief.includes(TIRET));
+});
+
 // ================================================================ poser et reclasser
 test('caler : une chose se pose sur un créneau, de la couleur de son urgence, puis se déplace, puis se retire', async () => {
   reset();

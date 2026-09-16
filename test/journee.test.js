@@ -215,13 +215,14 @@ test('Gmail : un mail d’humain sans réponse devient une chose à faire, le re
       { uid: 12, from: { name: 'Moi', email: 'maxime@otea.fr' }, subject: 'note à moi-même', date: il_y_a(1), message_id: '<m12@me>', lu: true, repondu: false },
       { uid: 13, from: { name: 'Zoé', email: 'zoe@z.fr' }, subject: 'Re: Salut', date: il_y_a(2), message_id: '<m13@z>', lu: true, repondu: false },
       { uid: 14, from: { name: 'Banque', email: 'contact@banque.fr' }, subject: 'Votre code de vérification', date: il_y_a(2), message_id: '<m14@b>', lu: false, repondu: false },
+      { uid: 15, from: { name: 'Sabrina', email: 'sabrina@allianz.fr' }, subject: 'Réponse automatique : Absence du bureau', date: il_y_a(2), message_id: '<m15@al>', lu: false, repondu: false },
     ],
     repondus: ['<m9@y>'],
     ecritsA: { 'zoe@z.fr': Date.now() - 20 * 3600000 },
   });
   const items = journee.signauxGmail(radar, { parEmail: new Map([['claire@galec.fr', galec]]), parTel: new Map() }, Date.now());
   const cles = items.map((i) => i.cle).sort();
-  assert.deepStrictEqual(cles, ['mail:<m13@z>', 'mail:<m7@galec>'], 'Jean (répondu dans Gmail), Léa (répondu depuis Envoyés), LinkedIn, moi-même et la banque sont écartés ; Zoé garde son dernier mail, plus récent que ce qu’on lui a écrit');
+  assert.deepStrictEqual(cles, ['mail:<m13@z>', 'mail:<m7@galec>'], 'Jean (répondu dans Gmail), Léa (répondu depuis Envoyés), LinkedIn, moi-même, la banque et la réponse automatique sont écartés ; Zoé garde son dernier mail, plus récent que ce qu’on lui a écrit');
 
   const claire = items.find((i) => i.cle === 'mail:<m7@galec>');
   assert.strictEqual(claire.importance, 3, 'contact chaud + mot budget + plus de 48 h + réponse à ta prospection : plafonné à vital');
@@ -235,6 +236,37 @@ test('Gmail : un mail d’humain sans réponse devient une chose à faire, le re
   const zoe = items.find((i) => i.cle === 'mail:<m13@z>');
   assert.strictEqual(zoe.importance, 1);
   assert.strictEqual(zoe.duree, 'court');
+});
+
+test('CRM : les relances froides en retard tiennent sur une ligne, pas de doublon avec une demande, une réponse automatique n’est pas une demande', () => {
+  nettoyer();
+  const chaud = dbApi.insertContact({ first_name: 'Claire', last_name: 'Arnaud', company: 'Le Galec', segment: 'grand_compte', stage: 'en_discussion', next_action: 'Relancer', next_action_at: addDays(today, -2) });
+  const froids = [];
+  for (let i = 0; i < 5; i++) froids.push(dbApi.insertContact({ first_name: `Prospect${i}`, last_name: 'Froid', company: `Boîte ${i}`, segment: 'pme', stage: i % 2 ? 'contacte' : 'a_contacter', next_action: 'Reprendre contact', next_action_at: addDays(today, -(20 - i)) }));
+  const ecrit = dbApi.insertContact({ first_name: 'Nadia', last_name: 'Nwafo', company: 'Memorem', segment: 'pme', stage: 'contacte', next_action: 'Relance 2', next_action_at: addDays(today, -1) });
+  run(`INSERT INTO inbox (contact_id, source, content, created_at, updated_at) VALUES (?, 'email', 'Bonjour Maxime, on peut se voir jeudi ?', ?, ?)`, ecrit.id, il_y_a(5), il_y_a(5));
+  run(`INSERT INTO inbox (contact_id, source, content, created_at, updated_at) VALUES (NULL, 'email', 'Réponse automatique : je suis absent du bureau jusqu’au 22/09.', ?, ?)`, il_y_a(5), il_y_a(5));
+
+  const items = journee.signauxCrm(today);
+  const cles = items.map((i) => i.cle);
+  assert.ok(cles.includes(`crm:relance:${chaud.id}:${addDays(today, -2)}`), 'le contact chaud garde sa ligne');
+  assert.ok(!cles.some((c) => froids.some((f) => c.startsWith(`crm:relance:${f.id}:`))), 'aucune ligne par prospect froid');
+  const groupe = items.find((i) => i.cle === `crm:relances:${today}`);
+  assert.ok(groupe, 'les cinq relances froides tiennent sur une ligne');
+  assert.strictEqual(groupe.titre, 'Relances de prospection : 5 contacts');
+  assert.strictEqual(groupe.importance, 2, 'important, jamais vital');
+  assert.match(groupe.pourquoi, /Prospect0 Froid, Prospect1 Froid, Prospect2 Froid et 2 autres, la plus ancienne en retard de 20 j/);
+  assert.ok(groupe.actions.some((a) => a.href === '#/chasse'));
+  assert.ok(!cles.some((c) => c.startsWith(`crm:relance:${ecrit.id}:`)), 'Nadia a écrit : on lui répond, on ne la relance pas');
+  const demandes = items.filter((i) => i.cle.startsWith('crm:demande:'));
+  assert.strictEqual(demandes.length, 1, 'la réponse automatique n’est pas une demande');
+  assert.match(demandes[0].titre, /Nadia Nwafo/);
+
+  // Trois relances froides ou moins : chacune garde sa ligne.
+  for (const f of froids.slice(3)) run('UPDATE contacts SET next_action_at = ? WHERE id = ?', addDays(today, 5), f.id);
+  const peu = journee.signauxCrm(today).map((i) => i.cle);
+  assert.ok(!peu.includes(`crm:relances:${today}`));
+  assert.strictEqual(peu.filter((c) => /^crm:relance:/.test(c)).length, 4, 'le chaud + trois froids, ligne par ligne');
 });
 
 // ================================================================ WhatsApp et appels

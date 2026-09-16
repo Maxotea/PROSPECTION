@@ -77,6 +77,8 @@ const MOTS_COURT = [
 const MOTS_VITAL = ['urgent', 'asap', "aujourd'hui", 'aujourd’hui', 'ce matin', 'avant midi', 'impayé', 'impaye', 'mise en demeure', 'retard de paiement', 'deadline'];
 
 // Expéditeurs qui ne sont pas des humains qui attendent une réponse.
+// Les réponses automatiques (absence, accusé de réception) ne demandent rien.
+const REPONSE_AUTO = /r[ée]ponse automatique|automatic reply|auto-?reply|autoreply|out of office|absence du bureau|absent(e)? du bureau|accus[ée] de r[ée]ception/i;
 const BRUIT_MAIL = /no-?reply|ne-?pas-?repondre|notification|mailer-daemon|newsletter|donotreply|do-not-reply|@(facebook|instagram|linkedin|google|apple|amazon|paypal|stripe|qonto|pennylane|notion|slack|canva|adobe|metricool|zapier|github|calendly|doctolib)\./i;
 
 const JOURS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
@@ -86,6 +88,10 @@ const MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 
 function jourDe(d) {
   const [y, m, j] = String(d).split('-').map(Number);
   return new Date(y, m - 1, j);
+}
+function dateCourte(day) {
+  const d = jourDe(day);
+  return `${JOURS[d.getDay()].slice(0, 3)}. ${d.getDate()}`;
 }
 function dateLongue(day) {
   const d = jourDe(day);
@@ -403,6 +409,7 @@ function signauxGmail(radar, index, now) {
     const from = m.from && m.from.email;
     if (!from || from === moi) continue;
     if (BRUIT_MAIL.test(from) || sig.ressembleAuBruit({ nom: m.from.name, texte: m.subject })) continue;
+    if (REPONSE_AUTO.test(m.subject || '')) continue;
     if (m.repondu || (m.message_id && repondus.has(m.message_id))) continue;
     const recu = Date.parse(m.date) || 0;
     if ((ecritsA[from] || 0) > recu) continue; // on lui a écrit depuis : la balle est chez lui
@@ -482,10 +489,38 @@ function signauxAppels(radar, index, now) {
 // 🗓️ L'agenda : une prod colorée « urgent » ou un mot de prod dans les prochains
 // jours devient une chose à préparer. Le reste (RDV, perso) s'affiche dans le
 // fil de la journée sans devenir une tâche.
+// « Vérifier PPT BNI » posé chaque jour est un rappel, pas une prod : on l'écarte
+// quand le même titre revient sur au moins deux jours de la fenêtre lue.
+function cleTitre(titre) {
+  return String(titre || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+}
+function titresRoutiniers(evenements) {
+  const jours = new Map();
+  for (const ev of evenements) {
+    const k = cleTitre(ev.titre);
+    if (!k || !ev.debut) continue;
+    if (!jours.has(k)) jours.set(k, new Set());
+    jours.get(k).add(localDay(new Date(ev.debut)));
+  }
+  return new Set([...jours].filter(([, j]) => j.size >= 2).map(([k]) => k));
+}
+
+// Le titre d'un événement qui commence déjà par une action reste tel quel ;
+// sinon on dit ce qu'il y a à faire : livrer ou préparer.
+const VERBES_ACTION = /^(v[ée]rifier|pr[ée]parer|envoyer|relancer|appeler|rappeler|livrer|rendre|faire|monter|relire|valider|finir|terminer|publier|[ée]crire|r[ée]diger|tourner|filmer|d[ée]poser|r[ée]pondre|payer|facturer|corriger|r[ée]server|confirmer|acheter|commander|exporter|uploader|poster|programmer|planifier|organiser|ranger|trier|imprimer|signer|d[ée]rusher|caler|booker)\b/i;
+function titreAgenda(titre) {
+  const t = String(titre || '').trim();
+  if (!t) return 'Préparer : (sans titre)';
+  if (VERBES_ACTION.test(t)) return t;
+  const verbe = /livraison|livrable|rendu|deadline|publication|mise en ligne|diffusion/i.test(t) ? 'Livrer' : 'Préparer';
+  return `${verbe} : ${t}`;
+}
+
 function signauxAgenda(radar, today, now) {
   const data = radar.agenda && radar.agenda.charge;
   if (!data || !Array.isArray(data.evenements)) return [];
   const mapping = agenda.couleurs();
+  const routines = titresRoutiniers(data.evenements);
   const items = [];
   const vus = new Set();
   for (const ev of data.evenements) {
@@ -493,6 +528,7 @@ function signauxAgenda(radar, today, now) {
     vus.add(ev.id);
     const { niveau, source, mot } = agenda.niveauDe(ev, mapping);
     if (niveau === null || niveau === 0) continue;                 // info ou pas urgent : pas une tâche
+    if (niveau < 3 && routines.has(cleTitre(ev.titre))) continue;  // un rappel qui revient chaque jour n'est pas une chose à préparer
     const jour = ev.debut ? localDay(new Date(ev.debut)) : '';
     if (!jour || jour < today) continue;                            // passé : trop tard pour préparer
     const dans = joursDeRetard(today, jour);                       // jours avant l'événement
@@ -501,10 +537,9 @@ function signauxAgenda(radar, today, now) {
       : jour === addDays(today, 1) ? `demain${ev.journee ? '' : ` à ${agenda.heureCourte(ev.debut)}`}`
       : `${dateLongue(jour)}${ev.journee ? '' : ` à ${agenda.heureCourte(ev.debut)}`}`;
     const importance = niveau === 3 ? 3 : niveau === 2 ? 2 : (dans <= 1 ? 2 : 1);
-    const verbe = /livraison|livrable|rendu|deadline|publication|mise en ligne|diffusion/i.test(ev.titre || '') ? 'Livrer' : 'Préparer';
     items.push(item({
       cle: `agenda:${ev.id}`, source: 'agenda', emoji: '🎬',
-      titre: `${verbe} : ${ev.titre || '(sans titre)'}`,
+      titre: titreAgenda(ev.titre),
       pourquoi: [
         `${quand}${ev.calendrier_nom ? ` · ${ev.calendrier_nom}` : ''}`,
         source === 'couleur' ? `couleur ${agenda.NIVEAUX[niveau].emoji} ${agenda.NIVEAUX[niveau].label} dans l'agenda` : `mot « ${mot} » dans le titre`,
@@ -519,6 +554,27 @@ function signauxAgenda(radar, today, now) {
   return items;
 }
 
+// Ce qui compte dans les sept prochains jours : les prods et ce que Maxime a
+// coloré important ou plus. Les rappels quotidiens restent dehors, six lignes maximum.
+function semaineAVenir(evenements, today, mapping) {
+  const fin = addDays(today, 7);
+  const routines = titresRoutiniers(evenements);
+  const vusTitres = new Set();
+  const out = [];
+  for (const ev of [...evenements].sort((x, y) => String(x.debut).localeCompare(String(y.debut)))) {
+    if (!ev.debut) continue;
+    const jour = localDay(new Date(ev.debut));
+    if (jour <= today || jour > fin) continue;
+    const { niveau, source } = agenda.niveauDe(ev, mapping);
+    if (!(niveau >= 2 || source === 'mot')) continue;
+    const k = cleTitre(ev.titre);
+    if (routines.has(k) && (niveau < 3 || vusTitres.has(k))) continue; // un rappel quotidien n'annonce pas la semaine
+    vusTitres.add(k);
+    out.push({ id: ev.id, jour, heure: ev.journee ? '' : agenda.heureCourte(ev.debut), titre: ev.titre || '(sans titre)', niveau, lieu: ev.lieu || '' });
+  }
+  return out;
+}
+
 // Le fil d'aujourd'hui (pour l'afficher) et les trous entre les rendez-vous.
 function agendaDuJour(radar, today, now) {
   const r = radar.agenda;
@@ -530,17 +586,31 @@ function agendaDuJour(radar, today, now) {
       .filter((ev) => (ev.journee ? jourLocal(ev.debut) <= today && jourLocal(new Date(Date.parse(ev.fin) - 1).toISOString()) >= today : jourLocal(ev.debut) === today))
       .map((ev) => ({ ...ev, niveau: agenda.niveauDe(ev, mapping).niveau, heure: ev.journee ? '' : agenda.heureCourte(ev.debut), heure_fin: ev.journee ? '' : agenda.heureCourte(ev.fin) }))
     : [];
+  const semaine = data && Array.isArray(data.evenements) ? semaineAVenir(data.evenements, today, mapping) : [];
   return {
     branche: !!(data),
     erreur: r ? r.erreur : '',
     lu_le: r ? r.lu_le : '',
     evenements: aujourdhui,
+    semaine,
     creneaux: data ? agenda.creneauxLibres(data.evenements, { day: today, now }) : [],
     heures: agenda.heuresTravail(),
     niveaux: agenda.NIVEAUX,
     palette: agenda.PALETTE,
     cales: agenda.liensCales(),
   };
+}
+
+// Au-delà de ce nombre, les relances froides en retard tiennent sur une ligne.
+const RELANCES_GROUPEES = 3;
+function relanceItem(c, retard) {
+  return item({
+    cle: `crm:relance:${c.id}:${c.next_action_at}`, source: 'crm', emoji: '🔁',
+    titre: `${c.next_action || 'Relancer'} : ${avecSociete(c)}`,
+    pourquoi: retard ? `Prévu le ${c.next_action_at.slice(8, 10)}/${c.next_action_at.slice(5, 7)}, en retard de ${retard} j` : "Prévu aujourd'hui",
+    duree: 'court', importance: 1 + chaleurContact(c) + (retard >= 3 ? 1 : 0), urgence: Math.min(5, retard),
+    contact: fiche(c), actions: [{ type: 'contact', id: c.id, label: '👤 Ouvrir la fiche' }],
+  });
 }
 
 function signauxCrm(today) {
@@ -591,21 +661,38 @@ function signauxCrm(today) {
     }));
   }
 
-  // Relances programmées par le CRM et arrivées à échéance.
+  // Demandes entrantes collées dans « Réponses » et pas encore traitées.
+  // Une réponse automatique n'est pas une demande.
+  const demandes = all(`SELECT i.*, c.first_name, c.last_name, c.company, c.stage FROM inbox i LEFT JOIN contacts c ON c.id = i.contact_id WHERE i.status = 'nouveau' ORDER BY i.id`)
+    .filter((r) => !REPONSE_AUTO.test(String(r.content || '').slice(0, 300)));
+  const contactsAvecDemande = new Set(demandes.map((r) => r.contact_id).filter(Boolean));
+
+  // Relances programmées par le CRM et arrivées à échéance. Un contact chaud a sa
+  // ligne ; les prospects froids en retard partent ensemble, en une seule ligne,
+  // sinon vingt relances de prospection écrasent le reste de la journée.
+  const froides = [];
   for (const c of all(`SELECT * FROM contacts WHERE archived = 0 AND stage NOT IN ('gagne', 'perdu') AND next_action_at != '' AND next_action_at <= ? ORDER BY next_action_at`, today)) {
-    if (contactsAvecDevis.has(c.id)) continue; // déjà couvert par la relance de devis
+    if (contactsAvecDevis.has(c.id)) continue;   // déjà couvert par la relance de devis
+    if (contactsAvecDemande.has(c.id)) continue; // il a écrit : c'est une réponse, pas une relance
     const retard = joursDeRetard(c.next_action_at, today);
+    if (!chaleurContact(c)) { froides.push({ c, retard }); continue; }
+    items.push(relanceItem(c, retard));
+  }
+  if (froides.length <= RELANCES_GROUPEES) {
+    for (const { c, retard } of froides) items.push(relanceItem(c, retard));
+  } else {
+    const noms = froides.slice(0, 3).map(({ c }) => nomContact(c));
+    const plusVieux = Math.max(...froides.map((f) => f.retard));
     items.push(item({
-      cle: `crm:relance:${c.id}:${c.next_action_at}`, source: 'crm', emoji: '🔁',
-      titre: `${c.next_action || 'Relancer'} : ${avecSociete(c)}`,
-      pourquoi: retard ? `Prévu le ${c.next_action_at.slice(8, 10)}/${c.next_action_at.slice(5, 7)}, en retard de ${retard} j` : "Prévu aujourd'hui",
-      duree: 'court', importance: 1 + chaleurContact(c) + (retard >= 3 ? 1 : 0), urgence: Math.min(5, retard),
-      contact: fiche(c), actions: [{ type: 'contact', id: c.id, label: '👤 Ouvrir la fiche' }],
+      cle: `crm:relances:${today}`, source: 'crm', emoji: '🔁',
+      titre: `Relances de prospection : ${froides.length} contacts`,
+      pourquoi: `${noms.join(', ')} et ${froides.length - noms.length} autre${froides.length - noms.length > 1 ? 's' : ''}${plusVieux ? `, la plus ancienne en retard de ${plusVieux} j` : ''}`,
+      duree: froides.length > 8 ? 'long' : 'moyen', importance: 2, urgence: Math.min(5, Math.floor(plusVieux / 7)),
+      actions: [{ type: 'lien', label: '🎯 Ouvrir le Mode Chasse', href: '#/chasse' }],
     }));
   }
 
-  // Demandes entrantes collées dans « Réponses » et pas encore traitées.
-  for (const r of all(`SELECT i.*, c.first_name, c.last_name, c.company, c.stage FROM inbox i LEFT JOIN contacts c ON c.id = i.contact_id WHERE i.status = 'nouveau' ORDER BY i.id`)) {
+  for (const r of demandes) {
     const heures = heuresDepuis(r.created_at);
     items.push(item({
       cle: `crm:demande:${r.id}`, source: 'crm', emoji: '📥',
@@ -825,6 +912,10 @@ function texteBrief(p) {
   if (p.agenda && p.agenda.evenements && p.agenda.evenements.length) {
     const evs = p.agenda.evenements.slice(0, 5).map((ev) => `${ev.heure ? ev.heure + ' ' : ''}${ev.niveau !== null && ev.niveau !== undefined ? agenda.NIVEAUX[ev.niveau].emoji + ' ' : ''}${ev.titre}`);
     lignes.push(`🗓️ Dans l'agenda : ${evs.join(', ')}${p.agenda.evenements.length > 5 ? ` et ${p.agenda.evenements.length - 5} autres` : ''}.`);
+  }
+  if (p.agenda && p.agenda.semaine && p.agenda.semaine.length) {
+    const evs = p.agenda.semaine.slice(0, 6).map((ev) => `${dateCourte(ev.jour)}${ev.heure ? ' ' + ev.heure : ''} ${ev.niveau >= 2 ? agenda.NIVEAUX[ev.niveau].emoji + ' ' : ''}${ev.titre}`);
+    lignes.push(`📆 Cette semaine : ${evs.join(', ')}${p.agenda.semaine.length > 6 ? ` et ${p.agenda.semaine.length - 6} autres` : ''}.`);
   }
   const muettes = ['gmail', 'whatsapp', 'appels', 'agenda'].filter((s) => !p.sources[s].branche);
   if (muettes.length) lignes.push(`(Sources pas lues : ${muettes.join(', ')}. Vérifie les Réglages ou lance le pont sur le Mac.)`);
