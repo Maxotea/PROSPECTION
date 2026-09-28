@@ -852,7 +852,10 @@ route('POST', '/api/repertoire/import', async (req) => {
 
 // ---- 📅 Campagnes hebdo thématiques
 route('GET', '/api/campaign_presets', async () => ({
-  presets: Object.entries(campaigns.PRESETS).map(([code, p]) => ({ code, emoji: p.emoji, label: p.label, persona: p.persona, angle: p.angle })),
+  presets: Object.entries(campaigns.PRESETS).map(([code, p]) => ({
+    code, emoji: p.emoji, label: p.label, persona: p.persona, angle: p.angle,
+    kind: p.kind === 'projet' ? 'projet' : 'semaine', ends_on: p.ends_on || '',
+  })),
 }));
 route('GET', '/api/campaigns', async () => ({ campaigns: campaigns.listCampaigns() }));
 route('POST', '/api/campaigns', async (req) => {
@@ -863,9 +866,13 @@ route('PATCH', '/api/campaigns/:id', async (req, params) => {
   const b = await readBody(req);
   const c = get('SELECT * FROM campaigns WHERE id = ?', params.id);
   if (!c) throw httpError(404, 'Campagne introuvable');
-  const fields = ['name', 'persona', 'week_start', 'post_draft', 'dm_draft', 'sn_recipe', 'notes'];
+  const fields = ['name', 'persona', 'week_start', 'ends_on', 'post_draft', 'dm_draft', 'sn_recipe', 'notes'];
   const sets = fields.filter((f) => b[f] !== undefined);
   if (b.week_start !== undefined) b.week_start = campaigns.mondayOf(b.week_start);
+  if (b.ends_on !== undefined) {
+    if (!c.ends_on) throw httpError(400, 'Une semaine thématique dure sept jours : seule la date de fin d’un projet se modifie.');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(b.ends_on))) throw httpError(400, 'Date de fin invalide : attendu AAAA-MM-JJ.');
+  }
   if (sets.length) run(`UPDATE campaigns SET ${sets.map((f) => `${f} = ?`).join(', ')} WHERE id = ?`, ...sets.map((f) => b[f]), params.id);
   if (b.posted !== undefined) run('UPDATE campaigns SET posted = ? WHERE id = ?', b.posted ? 1 : 0, params.id);
   return { ok: true };

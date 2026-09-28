@@ -587,6 +587,7 @@ async function vChasse(view) {
 
 // ================================================================ 📅 CAMPAGNES HEBDO
 const CAMP_STATUS = { a_venir: '📆 à venir', en_cours: '🔥 EN COURS', terminee: '🏁 terminée' };
+const fmtDayAn = (d) => (d && d.length >= 10 ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}` : ''); // 13/06/2027 : un projet dépasse souvent l'année
 let importCampaignId = 0; // présélection du select campagne dans l'import CSV
 
 async function vCampagnes(view) {
@@ -607,12 +608,13 @@ async function vCampagnes(view) {
 
   const hero = current ? (() => {
     const st = current.stats;
+    const projet = current.kind === 'projet';
     const check = (done, label, hint) => `<div class="quest ${done ? 'done' : ''}"><div class="q-emoji">${done ? '✅' : '⬜'}</div><div style="flex:1"><div class="q-label">${label}</div>${hint && !done ? `<div class="muted small">${hint}</div>` : ''}</div></div>`;
     return `
     <div class="card boss-card">
       <div class="spread">
         <div>
-          <div class="boss-title">${CAMP_STATUS[current.status]} · SEMAINE DU ${fmtDay(current.week_start)}</div>
+          <div class="boss-title">${CAMP_STATUS[current.status]} · ${projet ? `PROJET · DU ${fmtDay(current.week_start)} AU ${fmtDayAn(current.ends_on)}` : `SEMAINE DU ${fmtDay(current.week_start)}`}</div>
           <h1 style="margin:4px 0">${esc(current.name)}</h1>
           <div class="muted">🎯 Persona : <b>${esc(current.persona)}</b></div>
           <div class="row" style="margin-top:8px">${current.references.map((r) => `<span class="chip ${r.verified ? '' : 'due'}" title="${esc(r.detail)}">${r.verified ? '⭐' : '⚠️'} ${esc(r.name)}</span>`).join('')}</div>
@@ -626,11 +628,11 @@ async function vCampagnes(view) {
       </div>
       <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:14px;align-items:start">
         <div>
-          <h3>✔️ La checklist de la semaine</h3>
+          <h3>✔️ La checklist ${projet ? 'du projet' : 'de la semaine'}</h3>
           ${check(st.contacts > 0, `1. Sourcer sur Sales Navigator + importer le CSV (${st.contacts} contact(s))`, 'Recette de recherche ci-dessous → export FullEnrich → Importer')}
           ${check(st.contacts > 0 && st.avec_email >= st.contacts * 0.7, `2. Enrichir les emails via FullEnrich (${st.avec_email}/${st.contacts} avec email)`, 'Vue Imports → « Enrichir les contacts incomplets »')}
           ${check(st.enrolled > 0, `3. Enrôler dans la séquence (${st.enrolled} en séquence)`, 'Bouton « 🤖 Enrôler toute la campagne » ci-dessous')}
-          ${check(!!current.posted, `4. Publier le post LinkedIn de la semaine`, 'Kit ci-contre → Copier → poster → coche « posté »')}
+          ${check(!!current.posted, `4. Publier le post LinkedIn ${projet ? 'du projet' : 'de la semaine'}`, 'Kit ci-contre → Copier → poster → coche « posté »')}
           ${check(st.replies > 0, `5. Récolter les réponses (${st.replies} 💬 · ${st.rdv} RDV · ${st.devis} devis)`, "L'autopilote détecte les réponses et te crée les tâches")}
           <div class="row" style="margin-top:12px">
             <button class="primary" id="camp-import">📥 Importer le CSV de la campagne</button>
@@ -647,7 +649,7 @@ async function vCampagnes(view) {
     </div>
     <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:14px;align-items:start">
       <div class="card">
-        <div class="spread"><h3>📣 Post LinkedIn de la semaine</h3>
+        <div class="spread"><h3>📣 Post LinkedIn ${projet ? 'du projet' : 'de la semaine'}</h3>
           <div class="row">
             <label class="chip" style="cursor:pointer"><input type="checkbox" id="camp-posted" ${current.posted ? 'checked' : ''}> posté ✓</label>
             <button data-copy-text="camp-post">📋 Copier</button>
@@ -664,7 +666,7 @@ async function vCampagnes(view) {
         </div>
         <div class="card">
           <h3>📧 La séquence email de la campagne</h3>
-          <p class="muted small">3 emails (J0 → J+4 → J+10) citant tes références, envoyés par l'<a href="#/autopilot">Autopilote</a> ; ils s'arrêtent à la première réponse. Modifie-les depuis la vue Autopilote (✏️ sur la séquence) ou régénère le kit à l'IA.</p>
+          <p class="muted small">3 emails (${esc(current.cadence || 'J0 → J+4 → J+10')})${projet ? ' écrits pour chercher des partenaires' : ' citant tes références'}, envoyés par l'<a href="#/autopilot">Autopilote</a> ; ils s'arrêtent à la première réponse. Modifie-les depuis la vue Autopilote (✏️ sur la séquence) ou régénère le kit à l'IA.</p>
           <div class="small muted">📤 ${st.sent} envoyé(s) · 💬 ${st.replies} réponse(s)</div>
         </div>
       </div>
@@ -673,26 +675,30 @@ async function vCampagnes(view) {
     <div class="card" style="border-color:rgba(234,179,8,.4)">
       <h2>📅 Lance ta première semaine thématique</h2>
       <p class="muted">Le principe : chaque semaine, UN secteur, UN persona, TES références en avant : partout (emails, LinkedIn, post). Grande distribution avec le Galec, hôtellerie avec Pullman, collectivités avec Puteaux…</p>
-      <p class="muted small">Choisis un secteur ci-dessous 👇 et la campagne se crée avec sa recette Sales Nav, sa séquence email et son kit de diffusion.</p>
+      <p class="muted small">Choisis un secteur ci-dessous 👇 et la campagne se crée avec sa recette Sales Nav, sa séquence email et son kit de diffusion. Un projet long (sponsoring, partenariats) se crée au même endroit et reste en cours jusqu'à sa date de fin.</p>
     </div>`;
 
   view.innerHTML = `
     <div class="view-header spread">
-      <div><h1>📅 Campagnes de la semaine</h1><div class="sub">Une semaine = un secteur. On sature le secteur, on voit ${esc('OTEA')} partout, on récolte les calls.</div></div>
+      <div><h1>📅 Campagnes</h1><div class="sub">Une semaine = un secteur, un projet = plusieurs mois. On sature la cible, on voit ${esc('OTEA')} partout, on récolte les calls.</div></div>
     </div>
     ${hero}
 
     <div class="card" style="margin-top:14px">
-      <h2>🗓️ Planifier les prochaines semaines</h2>
+      <h2>🗓️ Planifier les prochaines semaines (ou ouvrir un projet)</h2>
       <div class="row" style="margin:8px 0">
-        <select id="np-sector" style="min-width:260px">${presets.map((p) => `<option value="${p.code}">${p.emoji} ${esc(p.label)} · ${esc(p.persona)}</option>`).join('')}</select>
-        <label class="field">Semaine du<input id="np-week" type="date" value="${current ? nextMonday : today()}"></label>
+        <select id="np-sector" style="min-width:260px">
+          <optgroup label="Semaines thématiques">${presets.filter((p) => p.kind !== 'projet').map((p) => `<option value="${p.code}" data-kind="semaine">${p.emoji} ${esc(p.label)} · ${esc(p.persona)}</option>`).join('')}</optgroup>
+          ${presets.some((p) => p.kind === 'projet') ? `<optgroup label="Projets longs (en cours jusqu'à leur date de fin)">${presets.filter((p) => p.kind === 'projet').map((p) => `<option value="${p.code}" data-kind="projet" data-ends="${p.ends_on}">${p.emoji} ${esc(p.label)} · jusqu'au ${fmtDayAn(p.ends_on)}</option>`).join('')}</optgroup>` : ''}
+        </select>
+        <label class="field"><span id="np-week-txt">Semaine du</span><input id="np-week" type="date" value="${current ? nextMonday : today()}"></label>
         <button class="primary" id="np-create" style="margin-top:14px">➕ Créer la campagne</button>
       </div>
+      <p class="muted small" id="np-hint" style="display:none">Un projet reste en cours jusqu'à sa date de fin : ses fiches, sa séquence et son post vivent des mois, pas une semaine.</p>
       ${list.length ? `<div class="table-scroll"><table class="list">
-        <thead><tr><th>Semaine</th><th>Campagne</th><th>Statut</th><th>Contacts</th><th>Réponses</th><th></th></tr></thead>
+        <thead><tr><th>Période</th><th>Campagne</th><th>Statut</th><th>Contacts</th><th>Réponses</th><th></th></tr></thead>
         <tbody>${list.map((c) => `<tr>
-          <td class="mono">${fmtDay(c.week_start)}</td>
+          <td class="mono">${fmtDay(c.week_start)}${c.kind === 'projet' ? ` → ${fmtDayAn(c.ends_on)}` : ''}</td>
           <td class="t-name">${esc(c.name)}<div class="t-sub">${esc(c.persona)}</div></td>
           <td>${CAMP_STATUS[c.status]}</td>
           <td class="mono">${c.stats.contacts} (${c.stats.enrolled} 🤖)</td>
@@ -759,10 +765,19 @@ async function vCampagnes(view) {
   }
 
   // --- planning
+  const npSector = $('#np-sector');
+  const npKind = () => (npSector.selectedOptions[0] || {}).dataset?.kind || 'semaine';
+  npSector.onchange = () => {
+    const projet = npKind() === 'projet';
+    $('#np-week-txt').textContent = projet ? 'Démarre le' : 'Semaine du';
+    $('#np-hint').style.display = projet ? '' : 'none';
+    if (projet) $('#np-week').value = today();
+  };
   $('#np-create').onclick = async () => {
     try {
-      await api('/campaigns', { method: 'POST', body: { sector: $('#np-sector').value, week_start: $('#np-week').value } });
-      fx.toast('📅 Campagne créée avec sa séquence et son kit');
+      const projet = npKind() === 'projet';
+      await api('/campaigns', { method: 'POST', body: { sector: npSector.value, week_start: $('#np-week').value } });
+      fx.toast(projet ? '🏋️ Projet ouvert : ses fiches, sa séquence et son kit sont prêts' : '📅 Campagne créée avec sa séquence et son kit');
       fx.play('quest');
       vCampagnes(view);
     } catch (e) { fx.error(e.message); }

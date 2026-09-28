@@ -265,6 +265,12 @@ Le rythme : **chaque lundi, un nouveau terrain de chasse.** Semaine 1 la grande 
 
 10 secteurs pré-configurés : grande distribution, aéronautique, agriculture & agro, hôtellerie, agences de voyage & tourisme, collectivités & villes, influence & médias, immobilier & architecture, corporate & industrie, sport & événementiel.
 
+### 🏋️ Les projets longs : même machine, autre durée
+
+Certaines chasses ne tiennent pas en une semaine : chercher des sponsors pour deux athlètes, monter un partenariat, remplir un événement. Dans la vue Campagnes, le menu propose donc aussi des **projets longs** : un projet se crée comme une semaine thématique (fiches rattachées, séquence email, post, DM, checklist, recette Sales Navigator) mais il reste **en cours jusqu'à sa date de fin** au lieu de sept jours. Il garde sa place dans le menu d'import CSV et dans la carte « Campagne » de Ma journée tant qu'il court, et la semaine thématique en cours passe devant lui quand il y en a une.
+
+Premier projet livré : **Sponsoring HYROX · Pierre & Antoine** (jusqu'au 13 juin 2027, fin du championnat du monde à Hong Kong). Son kit n'est pas le gabarit « vente de vidéo » : les trois emails, le post et le DM sont écrits pour chercher des partenaires (qui sont les athlètes, ce que la marque gagne, ce qu'on lui demande), avec une cadence plus lente (J0 → J+5 → J+12) parce qu'un responsable sponsoring répond moins vite qu'un dircom. Le bouton ✨ Régénérer le kit reçoit lui aussi un brief « sponsoring », pas un brief « vidéo ». Les fiches à rattacher (marques, montres, nutrition, récupération, distribution, employeur, ville) arrivent par l'import CSV habituel, avec le projet sélectionné dans le menu « Campagne ».
+
 ## 🤖 L'Autopilote : la machine qui prospecte à ta place
 
 ### Brancher ton Gmail (2 minutes, sans projet Google Cloud)
@@ -446,7 +452,7 @@ Les clés sont stockées en local (ou via un fichier `.env` : `PENNYLANE_API_KEY
 - `server.js` : serveur HTTP + API REST (`/api/*`) + boucle Autopilote (10 min) + radar de la journée (5 min) + relève des enrichissements FullEnrich (2 min) · `src/journee.js` : Ma journée (signaux Gmail / WhatsApp / appels / agenda / CRM, classement, placement, brief) · `src/integrations/agenda.js` + `agenda.gs` : Google Agenda via un script Apps Script sur le compte de Maxime (lecture, créneaux libres, pose des tâches, couleurs d'urgence) · `src/autopilot.js` : séquences, enrôlements, file d'envoi, détection des réponses · `src/db.js` : schéma + upsert/dédoublonnage · `src/gamification.js` : XP, niveaux, quêtes, streak, badges, boss · `src/playbooks.js` : segments, cadences, templates, séquences · `src/integrations/` : Pennylane, FullEnrich, HubSpot, Claude · `src/importers/` : répertoire chaud (appels macOS, WhatsApp, scoring des relations) · `public/` : l'app.
 - API Pennylane **v2** (`/api/external/v2` : `customers`, `customer_invoices`, `quotes`, `create_from_quote`) ; FullEnrich **v2** (`/api/v2/contact/enrich/bulk`, fallback v1 automatique) ; HubSpot **v3** ; Gmail en **SMTP/IMAP standard** (mot de passe d'application, aucun projet Google Cloud à créer).
 - Les réponses d'API inattendues remontent **verbatim** dans l'interface pour diagnostiquer vite.
-- **Tests** : `npm test` : 125 tests. Ma journée (analyse du vide-cerveau, placement, signaux CRM / Gmail / WhatsApp / appels contre un IMAP factice, décisions, brief), moteur Autopilote contre des serveurs SMTP/IMAP factices (envoi, threading, réponses, bounces, cap, scan), campagnes hebdo, et répertoire chaud contre de fausses bases d'appels/WhatsApp et de vrais formats d'export.
+- **Tests** : `npm test` : 130 tests. Ma journée (analyse du vide-cerveau, placement, signaux CRM / Gmail / WhatsApp / appels contre un IMAP factice, décisions, brief), moteur Autopilote contre des serveurs SMTP/IMAP factices (envoi, threading, réponses, bounces, cap, scan), campagnes hebdo, et répertoire chaud contre de fausses bases d'appels/WhatsApp et de vrais formats d'export.
 
 ## 🗺️ Pistes pour la suite
 
