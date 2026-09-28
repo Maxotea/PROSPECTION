@@ -10,8 +10,10 @@
 // est écrit par une fonction dédiée (preset.kit) plutôt que par le gabarit
 // « vente de vidéo ». Premier projet : le sponsoring de Pierre et Antoine.
 
+const fs = require('node:fs');
+const path = require('node:path');
 const dbApi = require('./db');
-const { get, all, run, nowIso, localDay, addDays, getSetting, allSettings } = dbApi;
+const { get, all, run, nowIso, localDay, addDays, getSetting, setSetting, allSettings } = dbApi;
 const game = require('./gamification');
 const autopilot = require('./autopilot');
 const { apiFetch } = require('./integrations/util');
@@ -410,6 +412,43 @@ function createCampaign({ sector, week_start, persona, reference_ids, name, ends
   return get('SELECT * FROM campaigns WHERE id = ?', campaignId);
 }
 
+// ---------------------------------------------------------------- projets livrés avec l'app
+// Un preset projet peut embarquer ses fiches (src/projets/<code>.json, champs de
+// l'app) : au premier démarrage, le projet s'ouvre tout seul et ses fiches se
+// rattachent. Une seule fois par base (réglage projet_seed_<code>), pour qu'un
+// projet supprimé à la main ne revienne pas au redémarrage suivant.
+function seedProjects() {
+  const ouverts = [];
+  for (const [code, preset] of Object.entries(PRESETS)) {
+    if (preset.kind !== 'projet') continue;
+    const cleReglage = `projet_seed_${code}`;
+    if (getSetting(cleReglage)) continue;
+    const today = localDay();
+    let campagne = get(`SELECT * FROM campaigns WHERE sector = ? AND ends_on != '' AND ends_on >= ? ORDER BY id DESC LIMIT 1`, code, today);
+    if (!campagne) {
+      if (preset.ends_on && preset.ends_on < today) { setSetting(cleReglage, '1'); continue; } // projet déjà passé : rien à ouvrir
+      campagne = createCampaign({ sector: code, week_start: today });
+    }
+    let fiches = [];
+    const fichier = path.join(__dirname, 'projets', `${code}.json`);
+    if (fs.existsSync(fichier)) {
+      try { fiches = JSON.parse(fs.readFileSync(fichier, 'utf8')); } catch { fiches = []; }
+    }
+    let crees = 0, fusionnes = 0;
+    for (const f of fiches) {
+      if (!f || (!f.first_name && !f.last_name && !f.company)) continue;
+      const { created } = dbApi.upsertContact({ ...f, origin: f.origin || 'linkedin', campaign_id: campagne.id });
+      if (created) crees++; else fusionnes++;
+    }
+    if (fiches.length) {
+      game.insertActivity({ type: 'import', xp: 0, note: `Projet « ${campagne.name} » ouvert : ${crees} fiche(s) rattachée(s), ${fusionnes} déjà connue(s)`, meta: { count: crees, source: 'projet' } });
+    }
+    setSetting(cleReglage, '1');
+    ouverts.push({ code, id: campagne.id, name: campagne.name, fiches: fiches.length, crees, fusionnes });
+  }
+  return ouverts;
+}
+
 // ---------------------------------------------------------------- stats & état
 function campaignStats(c) {
   const n = (sql, ...p) => Number(get(sql, ...p).n);
@@ -553,4 +592,4 @@ Génère :
   return { ok: true, model: res.model };
 }
 
-module.exports = { PRESETS, REFERENCE_SEED, seedReferences, createCampaign, listCampaigns, currentCampaign, campaignStats, campaignStatus, cadenceOf, enrollAll, regenerateKit, mondayOf, buildKit, kitSponsoring };
+module.exports = { PRESETS, REFERENCE_SEED, seedReferences, seedProjects, createCampaign, listCampaigns, currentCampaign, campaignStats, campaignStatus, cadenceOf, enrollAll, regenerateKit, mondayOf, buildKit, kitSponsoring };

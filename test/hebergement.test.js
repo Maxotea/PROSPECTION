@@ -23,7 +23,7 @@ function demarrer(env) {
   return new Promise((resolve, reject) => {
     const p = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', 'server.js'], {
       cwd: RACINE,
-      env: { ...process.env, ...env },
+      env: { ...process.env, NODE_ENV: 'test', ...env }, // pas de boucles planifiées ni de projet livré qui s'ouvre tout seul
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let sortie = '';

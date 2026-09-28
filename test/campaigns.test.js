@@ -152,3 +152,26 @@ test('Le kit d’un projet n’a ni tiret cadratin ni jargon de vente vidéo', (
   assert.match(kit.emails[0].body, /cal\.example\/otea/); // le lien agenda est repris
   assert.match(kit.emails[1].body, /des marques et collectivités françaises/); // sans référence : formule générique
 });
+
+test('Un projet livré avec l’app s’ouvre tout seul, rattache ses fiches, et une seule fois', () => {
+  const avant = Number(get('SELECT COUNT(*) AS n FROM contacts').n);
+  const ouverts = campaigns.seedProjects();
+  assert.strictEqual(ouverts.length, 1);
+  assert.strictEqual(ouverts[0].code, 'sponsoring_hyrox');
+  assert.strictEqual(ouverts[0].id, projet.id); // le projet déjà ouvert est réutilisé, pas dupliqué
+  assert.ok(ouverts[0].fiches >= 40, `${ouverts[0].fiches} fiches livrées`);
+  assert.strictEqual(ouverts[0].crees, ouverts[0].fiches);
+  const rattachees = Number(get('SELECT COUNT(*) AS n FROM contacts WHERE campaign_id = ?', projet.id).n);
+  assert.strictEqual(rattachees, ouverts[0].fiches);
+  assert.strictEqual(Number(get('SELECT COUNT(*) AS n FROM contacts').n), avant + ouverts[0].fiches);
+  const avecEmail = Number(get(`SELECT COUNT(*) AS n FROM contacts WHERE campaign_id = ? AND email != ''`, projet.id).n);
+  assert.ok(avecEmail >= 30, `${avecEmail} fiches avec email`);
+  const huber = get(`SELECT * FROM contacts WHERE last_name = 'Huber' AND campaign_id = ?`, projet.id);
+  assert.match(huber.icebreaker, /PUMA/);
+  assert.match(huber.notes, /Pierre Huiban/);
+  assert.strictEqual(huber.segment, 'grand_compte');
+  assert.ok(huber.next_action_at >= '2026-09-28');
+  // Deuxième démarrage : plus rien à faire, même si le projet a été supprimé entre-temps.
+  assert.deepStrictEqual(campaigns.seedProjects(), []);
+  assert.strictEqual(Number(get('SELECT COUNT(*) AS n FROM campaigns').n), 2);
+});

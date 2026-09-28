@@ -92,6 +92,12 @@ const agenda = require('./src/integrations/agenda');
 playbooks.seedTemplates(dbApi);
 playbooks.seedSequences(dbApi);
 campaigns.seedReferences();
+// Les projets livrés avec l'app s'ouvrent tout seuls au premier démarrage, avec leurs fiches.
+if (process.env.NODE_ENV !== 'test') {
+  for (const p of campaigns.seedProjects()) {
+    console.log(`[projet] ${p.name} ouvert : ${p.crees} fiche(s) rattachée(s), ${p.fusionnes} déjà connue(s)`);
+  }
+}
 
 // Reprise unique des textes enregistrés avant l'interdiction du tiret cadratin.
 // Retouche cosmétique : elle ne doit jamais empêcher l'app de démarrer.

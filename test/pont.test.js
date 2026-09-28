@@ -31,7 +31,7 @@ test.before(() => new Promise((resolve, reject) => {
   dossier = fs.mkdtempSync(path.join(os.tmpdir(), 'chasse-pont-'));
   const p = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', 'server.js'], {
     cwd: RACINE,
-    env: { ...process.env, DATA_DIR: dossier, PORT: String(PORT), HOST: '127.0.0.1', CODE_ACCES: MOT_DE_PASSE },
+    env: { ...process.env, NODE_ENV: 'test', DATA_DIR: dossier, PORT: String(PORT), HOST: '127.0.0.1', CODE_ACCES: MOT_DE_PASSE }, // NODE_ENV=test : pas de boucles planifiées ni de projet livré qui s'ouvre tout seul
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let sortie = '';
