@@ -271,6 +271,51 @@ test('CRM : les relances froides en retard tiennent sur une ligne, pas de doublo
   assert.strictEqual(peu.filter((c) => /^crm:relance:/.test(c)).length, 4, 'le chaud + trois froids, ligne par ligne');
 });
 
+test('CRM : une demande à laquelle tu as répondu depuis Gmail sort de la liste, les vieilles demandes tiennent sur une ligne', () => {
+  nettoyer();
+  const jour = 24;
+  const demande = (c, contenu, heures) => run(`INSERT INTO inbox (contact_id, source, content, created_at, updated_at) VALUES (?, 'gmail-auto', ?, ?, ?)`, c.id, contenu, il_y_a(heures), il_y_a(heures));
+  const bruno = dbApi.insertContact({ first_name: 'Bruno', last_name: 'G', company: 'Com Moveo', email: 'bruno@commoveo.fr', segment: 'pme', stage: 'contacte' });
+  const cecile = dbApi.insertContact({ first_name: 'Cécile', last_name: 'C', company: 'Accor', email: 'cecile@accor.com', segment: 'grand_compte', stage: 'contacte' });
+  const sabrina = dbApi.insertContact({ first_name: 'Sabrina', last_name: 'S', company: 'Allianz', email: 'sabrina@allianz.fr', segment: 'pme', stage: 'contacte' });
+  const beatrice = dbApi.insertContact({ first_name: 'Béatrice', last_name: 'E', company: 'Agence Béatrice', email: 'agence@beatrice.fr', segment: 'pme', stage: 'en_discussion' });
+  const nadia = dbApi.insertContact({ first_name: 'Nadia', last_name: 'Nwafo', company: 'Memorem', email: 'nadia@memorem.fr', segment: 'pme', stage: 'contacte' });
+  demande(bruno, 'Bruno a répondu : « On remet ça ? »', 37 * jour);
+  demande(cecile, 'Cécile a répondu : pas de projet pour l’instant', 39 * jour);
+  demande(sabrina, 'Sabrina a répondu : sinistre refusé', 24 * jour);
+  demande(beatrice, 'Béatrice a répondu : je dois valider le devis', 8 * jour);
+  demande(nadia, 'Nadia a répondu : on peut se voir jeudi ?', 3 * jour);
+  const radar = radarGmail({
+    moi: 'maxime@otea.fr', recus: [], repondus: [],
+    // Bruno a eu sa réponse le lendemain, Béatrice aussi ; Cécile et Sabrina rien depuis.
+    ecritsA: { 'Bruno@ComMoveo.fr': Date.now() - 36 * 86400000, 'agence@beatrice.fr': Date.now() - 7 * 86400000, 'cecile@accor.com': Date.now() - 50 * 86400000 },
+  });
+
+  const items = journee.signauxCrm(today, radar);
+  const lignes = items.filter((i) => i.emoji === '📥');
+  const cles = lignes.map((i) => i.cle);
+  assert.ok(!lignes.some((i) => /Bruno|Béatrice/.test(i.titre + i.pourquoi)), 'tu leur as répondu depuis Gmail : la balle est chez eux');
+  const lot = lignes.find((i) => i.cle === `crm:demandes_anciennes:${today}`);
+  assert.ok(lot, 'Cécile et Sabrina attendent depuis plus de trois semaines : une seule ligne');
+  assert.strictEqual(lot.titre, 'Répondre ou classer 2 demandes de plus de 3 semaines');
+  assert.match(lot.pourquoi, /Cécile C \(Accor\), Sabrina S \(Allianz\), la plus ancienne reçue il y a 39 j/);
+  assert.strictEqual(lot.importance, 2, 'important, plus vital');
+  assert.ok(lot.actions.some((a) => a.href === '#/inbox'));
+  const recente = lignes.find((i) => /Nadia Nwafo/.test(i.titre));
+  assert.ok(recente && recente.importance === 3, 'la demande de Nadia, sans réponse depuis 3 jours, reste vitale');
+  assert.strictEqual(cles.length, 2);
+
+  // Une seule vieille demande garde sa ligne, mais elle n'est plus en rouge.
+  run(`UPDATE inbox SET status = 'traite' WHERE contact_id = ?`, sabrina.id);
+  const seule = journee.signauxCrm(today, radar).filter((i) => i.emoji === '📥');
+  assert.ok(!seule.some((i) => i.cle.startsWith('crm:demandes_anciennes:')));
+  const accor = seule.find((i) => /Accor/.test(i.titre));
+  assert.ok(accor && accor.importance === 2);
+
+  // Sans radar Gmail branché, rien ne disparaît.
+  assert.ok(journee.signauxCrm(today).some((i) => /Béatrice/.test(i.titre)));
+});
+
 // ================================================================ WhatsApp et appels
 test('WhatsApp : seules les conversations où le dernier mot n’est pas de toi comptent', () => {
   const entrees = [

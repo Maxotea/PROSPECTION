@@ -277,7 +277,9 @@ async function chercherRecents(imap, days) {
   }
 }
 
-async function lireBoiteRecente(cfg, { days = 10, maxMessages = 400 } = {}) {
+// Le dossier Envoyés est lu plus loin que la boîte de réception : une demande
+// reçue il y a un mois et à laquelle tu as répondu doit sortir de la liste.
+async function lireBoiteRecente(cfg, { days = 10, maxMessages = 400, joursEnvoyes = 45, maxEnvoyes = 1500 } = {}) {
   const imap = await open(cfg);
   try {
     await imap.command('SELECT INBOX');
@@ -308,9 +310,9 @@ async function lireBoiteRecente(cfg, { days = 10, maxMessages = 400 } = {}) {
     const folder = await findSentFolder(imap);
     if (folder) {
       await imap.command(`SELECT ${quoteStr(folder)}`);
-      const since = new Date(Date.now() - days * 86400000);
+      const since = new Date(Date.now() - Math.max(days, joursEnvoyes) * 86400000);
       const search = await imap.command(`UID SEARCH SINCE ${imapDate(since)}`);
-      const envoyes = uidsDe(search).slice(-maxMessages);
+      const envoyes = uidsDe(search).slice(-Math.max(maxMessages, maxEnvoyes));
       for (let i = 0; i < envoyes.length; i += CHUNK) {
         const fetch = await imap.command(`UID FETCH ${envoyes.slice(i, i + CHUNK).join(',')} (BODY.PEEK[HEADER.FIELDS (TO DATE IN-REPLY-TO REFERENCES)])`);
         for (const e of fetch) {
