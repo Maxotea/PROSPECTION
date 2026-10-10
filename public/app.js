@@ -126,23 +126,50 @@ async function celebrate(res) {
 // ---------------------------------------------------------------- routeur
 const VIEWS = { journee: vJournee, qg: vQG, chasse: vChasse, autopilot: vAutopilot, campagnes: vCampagnes, pipeline: vPipeline, contacts: vContacts, inbox: vInbox, import: vImport, reglages: vReglages };
 
+// Pendant qu'une vue charge : sa silhouette, plutôt qu'un écran vide.
+function squeletteVue() {
+  return `<div class="squelette" aria-hidden="true">
+    <div class="sq sq-titre"></div><div class="sq sq-ligne"></div>
+    <div class="sq-grille"><div class="sq sq-carte"></div><div class="sq sq-carte"></div></div>
+    <div class="sq sq-carte"></div>
+  </div><p class="sr-only">Chargement…</p>`;
+}
+
+let vuePrecedente = null;
 async function render() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
   // La page d'accueil est la journée : c'est elle qu'on ouvre le matin.
   const hash = location.hash.replace('#/', '') || 'journee';
   const name = VIEWS[hash] ? hash : 'journee';
-  $$('#sidebar a').forEach((a) => a.classList.toggle('active', a.dataset.view === name));
-  // Sur téléphone la barre du bas défile : l'onglet courant doit toujours être sous les yeux.
-  const actif = $('#sidebar a.active');
-  if (actif && matchMedia('(max-width: 700px)').matches) actif.scrollIntoView({ inline: 'center', block: 'nearest' });
+  $$('#sidebar > a[data-view], #tabbar a[data-view]').forEach((a) => {
+    const ici = a.dataset.view === name;
+    a.classList.toggle('active', ici);
+    if (ici) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+  });
+  document.documentElement.classList.remove('nav-ouverte');
   const view = $('#view');
-  view.innerHTML = '<p class="muted">Chargement…</p>';
+  const changeDeVue = vuePrecedente !== name;
+  vuePrecedente = name;
+  // Changement d'écran : fondu enchaîné quand le navigateur sait le faire, sinon rien.
+  const poserSquelette = () => { view.innerHTML = squeletteVue(); view.classList.remove('vue-entree'); };
+  const sansAnimation = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (changeDeVue && document.startViewTransition && !sansAnimation) {
+    try { await document.startViewTransition(poserSquelette).updateCallbackDone; } catch { poserSquelette(); }
+  } else poserSquelette();
+  if (changeDeVue) {
+    window.scrollTo(0, 0);
+    // Un autre écran : la fiche ouverte sur le précédent se range.
+    if (!$('#drawer').classList.contains('hidden')) closeDrawer();
+  }
   try {
     if (!S) await refreshState();
     await VIEWS[name](view);
+    view.classList.add('vue-entree');
   } catch (e) {
-    view.innerHTML = `<div class="card"><h2>💥 Oups</h2><p>${esc(e.message)}</p></div>`;
+    view.innerHTML = `<div class="card erreur" role="alert"><h2>Cet écran n’a pas pu s’afficher</h2><p>${esc(e.message)}</p><div class="row" style="margin-top:12px"><button class="primary" id="err-reessayer">Réessayer</button></div></div>`;
+    $('#err-reessayer').onclick = render;
   }
+  if (window.habillerVue) window.habillerVue(name);
 }
 addEventListener('hashchange', render);
 
@@ -153,7 +180,7 @@ async function vQG(view) {
   const boss = S.boss;
   const segments = Array.from({ length: boss.goal }, (_, i) => `<div class="boss-seg ${i < boss.count ? 'full' : ''}"></div>`).join('');
   const onboarding = k.contacts_total === 0 ? `
-    <div class="card onboarding" style="border-color:rgba(234,179,8,.4)">
+    <div class="card onboarding" style="border-color:var(--or-trait)">
       <h2>👋 Bienvenue dans OTEA Moteur</h2>
       <p class="muted">3 étapes pour lancer la machine :</p>
       <ol>
@@ -167,12 +194,12 @@ async function vQG(view) {
   view.innerHTML = `
     <div class="view-header spread">
       <div><h1>🏰 Quartier général</h1><div class="sub">Salut chasseur. ${S.streak.alive_today ? 'Streak sécurisée pour aujourd’hui ✅' : 'Ta streak attend une action aujourd’hui 👀'}</div></div>
-      <a href="#/chasse"><button class="primary big">⚔️ LANCER LE MODE CHASSE</button></a>
+      <a href="#/chasse"><button class="primary big">⚔️ Lancer La Chasse</button></a>
     </div>
     ${onboarding}
     <div class="grid" style="grid-template-columns: 1.4fr 1fr; align-items:start">
       <div class="grid">
-        <div class="card" style="border-color:${S.journee && S.journee.vitaux ? 'rgba(220,38,38,.5)' : 'rgba(234,179,8,.4)'}">
+        <div class="card" style="border-color:${S.journee && S.journee.vitaux ? 'var(--alerte-trait)' : 'var(--or-trait)'}">
           <div class="spread">
             <div>
               <h2 style="margin-bottom:2px">☀️ Ma journée</h2>
@@ -210,7 +237,7 @@ async function vQG(view) {
         </div>
       </div>
       <div class="grid">
-        <div class="card" style="border-color:${S.autopilot.enabled ? 'rgba(5,150,105,.5)' : 'var(--border)'}">
+        <div class="card" style="border-color:${S.autopilot.enabled ? 'var(--succes-trait)' : 'var(--border)'}">
           <div class="spread">
             <div>
               <h2 style="margin-bottom:2px">🤖 Autopilote ${S.autopilot.enabled ? '<span class="chip ok">ACTIF</span>' : S.autopilot.configured ? '<span class="chip">en veille</span>' : '<span class="chip due">à brancher</span>'}</h2>
@@ -328,7 +355,7 @@ function funnel(stages) {
     const pct = Math.round((s.count / max) * 100);
     const mix = 35 + Math.round((i / Math.max(rows.length - 1, 1)) * 60);
     return `<div class="funnel-row"><div class="f-label">${s.emoji} ${esc(s.label)}</div>
-      <div class="f-bar"><i style="width:${pct}%; background: color-mix(in srgb, #8b5cf6 ${mix}%, #232a52)"></i></div>
+      <div class="f-bar"><i style="width:${pct}%; background: color-mix(in srgb, var(--accent) ${mix}%, var(--trait-fort))"></i></div>
       <div class="f-n">${s.count}</div></div>`;
   }).join('');
 }
@@ -341,7 +368,7 @@ async function vChasse(view) {
   if (!hunt) {
     await refreshState();
     view.innerHTML = `
-      <div class="view-header"><h1>⚔️ Mode Chasse</h1><div class="sub">L'app te sert les prospects prioritaires un par un, avec le bon message pré-rempli. Toi, tu dégaines.</div></div>
+      <div class="view-header"><h1>⚔️ La Chasse</h1><div class="sub">L'app te sert les prospects prioritaires un par un, avec le bon message pré-rempli. Toi, tu dégaines.</div></div>
       <div class="card hunt-empty">
         <div class="big-emoji">🏹</div>
         <h2>Prêt à chasser ?</h2>
@@ -350,8 +377,8 @@ async function vChasse(view) {
           <label class="field">Taille de session
             <select id="hunt-size"><option value="5">5 cibles</option><option value="10" selected>10 cibles</option><option value="15">15 cibles</option><option value="25">25 cibles</option></select>
           </label>
-          <button class="primary big" id="hunt-start" style="margin-top:14px">🎯 SESSION PROSPECTION</button>
-          <button class="gold big" id="hunt-start-calls" style="margin-top:14px">📞 SESSION D'APPELS (${Math.max(S.calls.goal - S.calls.done, 0)})</button>
+          <button class="primary big" id="hunt-start" style="margin-top:14px">🎯 Session prospection</button>
+          <button class="gold big" id="hunt-start-calls" style="margin-top:14px">📞 Session d'appels (${Math.max(S.calls.goal - S.calls.done, 0)})</button>
         </div>
       </div>`;
     const start = async (mode, limit) => {
@@ -416,7 +443,7 @@ async function vChasse(view) {
       </div>
       ${c.notes ? `<div class="hunt-note">📝 ${esc(c.notes)}</div>` : ''}
       ${c.icebreaker
-        ? `<div class="hunt-note" style="border-color:rgba(139,92,246,.5);background:rgba(139,92,246,.08)">💎 <b>Ton lien avec ${esc(c.first_name)} :</b> ${esc(c.icebreaker)} <span class="faint small">(injecté en 1re ligne du message via {accroche})</span></div>`
+        ? `<div class="hunt-note" style="border-color:var(--accent-trait);background:var(--accent-doux)">💎 <b>Ton lien avec ${esc(c.first_name)} :</b> ${esc(c.icebreaker)} <span class="faint small">(injecté en 1re ligne du message via {accroche})</span></div>`
         : (!c.is_former_client ? `
         <div class="hunt-note">
           <b>💎 Pas encore d'icebreaker</b> : trouve un lien avant de contacter : ancien employeur, ville, école, sport, destination…
@@ -670,7 +697,7 @@ async function vCampagnes(view) {
       </div>
     </div>`;
   })() : `
-    <div class="card" style="border-color:rgba(234,179,8,.4)">
+    <div class="card" style="border-color:var(--or-trait)">
       <h2>📅 Lance ta première semaine thématique</h2>
       <p class="muted">Le principe : chaque semaine, UN secteur, UN persona, TES références en avant : partout (emails, LinkedIn, post). Grande distribution avec le Galec, hôtellerie avec Pullman, collectivités avec Puteaux…</p>
       <p class="muted small">Choisis un secteur ci-dessous 👇 et la campagne se crée avec sa recette Sales Nav, sa séquence email et son kit de diffusion.</p>
@@ -705,8 +732,8 @@ async function vCampagnes(view) {
     <div class="card" style="margin-top:14px">
       <div class="spread"><h2>⭐ Tes références (les preuves qui vendent)</h2><button id="ref-new">➕ Ajouter</button></div>
       ${toVerify.length ? `<p class="small" style="color:var(--gold2)">⚠️ ${toVerify.length} référence(s) issues de la dictée vocale à vérifier/corriger (orthographe, détail) : clique dessus.</p>` : ''}
-      <div class="badges-strip">
-        ${references.map((r) => `<button class="ghost" data-ref-edit="${r.id}" style="border:1px solid ${r.verified ? 'var(--border2)' : 'rgba(234,179,8,.5)'};border-radius:10px;padding:8px 12px;text-align:left;max-width:230px">
+      <div class="ref-strip">
+        ${references.map((r) => `<button class="ref-tile${r.verified ? '' : ' a-verifier'}" data-ref-edit="${r.id}">
           <div><b>${r.verified ? '⭐' : '⚠️'} ${esc(r.name)}</b><div class="muted small">${esc(r.detail.slice(0, 70))}</div></div>
         </button>`).join('')}
       </div>
@@ -939,7 +966,9 @@ async function vContacts(view) {
           </tr>`).join('')}
         </tbody>
       </table>
-      ${contacts.length === 0 ? '<p class="muted" style="padding:14px">Aucun contact : passe par <a href="#/import">Imports</a> pour remplir ton terrain de chasse.</p>' : ''}
+      ${contacts.length === 0 ? (total === 0 && !cFilter.search && !cFilter.segment && !cFilter.stage && !cFilter.origin
+        ? '<div class="vide-etat" style="margin:14px 4px"><b>Ton terrain de chasse est vide.</b><br>Importe tes anciens clients (Pennylane) ou un export LinkedIn, ou crée un contact à la main.<div class="row" style="justify-content:center;margin-top:12px"><a class="btn primary" href="#/import">Importer des contacts</a></div></div>'
+        : '<div class="vide-etat" style="margin:14px 4px">Aucun contact ne correspond à ces filtres. Élargis la recherche ou retire un filtre.</div>') : ''}
       ${pagination}
     </div>`;
 
@@ -987,9 +1016,19 @@ async function vContacts(view) {
 
   // Édition directe : typologie, étape, prochaine action
   $$('[data-seg-id]', view).forEach((sel) => {
+    let avant = sel.value;
     sel.onchange = async () => {
-      try { await api(`/contacts/${sel.dataset.segId}`, { method: 'PATCH', body: { segment: sel.value } }); fx.play('pop'); }
-      catch (e) { fx.error(e.message); vContacts(view); }
+      const id = sel.dataset.segId;
+      const ancien = avant;
+      try {
+        await api(`/contacts/${id}`, { method: 'PATCH', body: { segment: sel.value } });
+        avant = sel.value;
+        fx.play('pop');
+        fx.toast('Typologie changée', '', 4000, { action: { label: 'Annuler', faire: async () => {
+          try { await api(`/contacts/${id}`, { method: 'PATCH', body: { segment: ancien } }); vContacts(view); }
+          catch (e) { fx.error(e.message); }
+        } } });
+      } catch (e) { fx.error(e.message); vContacts(view); }
     };
   });
   $$('[data-stage-id]', view).forEach((sel) => {
@@ -1108,12 +1147,16 @@ function newContactModal(after) {
 }
 
 // ================================================================ FICHE CONTACT (drawer)
+let ficheDeclencheur = null; // l'élément d'où l'on vient, pour y rendre le focus à la fermeture
 async function openContact(id) {
   const backdrop = $('#drawer-backdrop');
   const drawer = $('#drawer');
+  if (drawer.classList.contains('hidden')) ficheDeclencheur = document.activeElement;
   backdrop.classList.remove('hidden');
   drawer.classList.remove('hidden');
-  drawer.innerHTML = '<p class="muted">Chargement…</p>';
+  document.documentElement.classList.add('fiche-ouverte');
+  $$('tr.rowc').forEach((tr) => tr.classList.toggle('courant', tr.dataset.id === String(id)));
+  drawer.innerHTML = '<div class="squelette" style="padding-top:20px" aria-hidden="true"><div class="sq sq-titre"></div><div class="sq sq-ligne"></div><div class="sq sq-carte"></div><div class="sq sq-carte"></div></div><p class="sr-only">Chargement de la fiche…</p>';
   backdrop.onclick = closeDrawer;
 
   let data;
@@ -1128,7 +1171,7 @@ async function openContact(id) {
         <h1 style="font-size:22px">${esc(c.first_name)} ${esc(c.last_name)} ${c.is_former_client ? '💰' : ''}</h1>
         <div class="muted">${esc(c.job_title || '')}${c.job_title && c.company ? ' · ' : ''}${esc(c.company || '')}</div>
       </div>
-      <button class="ghost" id="d-close">✖</button>
+      <button class="ghost ico-btn" id="d-close" title="Fermer la fiche (Échap)" aria-label="Fermer la fiche"><svg class="ico" aria-hidden="true"><use href="#i-fermer"/></svg></button>
     </div>
     <div class="row" style="margin:10px 0">
       ${segChip(c.segment)}
@@ -1339,6 +1382,10 @@ async function openContact(id) {
 function closeDrawer() {
   $('#drawer').classList.add('hidden');
   $('#drawer-backdrop').classList.add('hidden');
+  document.documentElement.classList.remove('fiche-ouverte');
+  $$('tr.rowc.courant').forEach((tr) => tr.classList.remove('courant'));
+  if (ficheDeclencheur && document.contains(ficheDeclencheur)) ficheDeclencheur.focus();
+  ficheDeclencheur = null;
 }
 
 // Modale devis Pennylane
@@ -1367,7 +1414,7 @@ function quoteModal(contact, after) {
         <label class="field">Ville<input id="q-city" value="${esc(contact.city || '')}"></label>
       </div>
     </details>
-    <div id="q-error" class="hidden" style="color:var(--red2);background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.4);border-radius:9px;padding:9px 12px;margin:8px 0;font-size:13px"></div>
+    <div id="q-error" class="hidden" style="color:var(--red2);background:var(--alerte-doux);border:1px solid var(--alerte-trait);border-radius:9px;padding:9px 12px;margin:8px 0;font-size:13px"></div>
     <div class="row" style="justify-content:flex-end;margin-top:10px"><button class="primary big" id="q-go">🚀 Créer le devis</button></div>`);
 
   const recalc = () => {
@@ -1552,7 +1599,7 @@ async function vAutopilot(view) {
   const tpls = (await api('/templates?all=1')).templates; // inclut les templates de campagne
 
   const notConfigured = !ap.configured ? `
-    <div class="card" style="border-color:rgba(234,179,8,.5)">
+    <div class="card" style="border-color:var(--or-trait)">
       <h2>🔌 Branche ton Gmail (2 minutes)</h2>
       <ol>
         <li>Active la <b>validation en 2 étapes</b> sur ton compte Google (si pas déjà fait) ;</li>
@@ -1587,7 +1634,7 @@ async function vAutopilot(view) {
     </div>
 
     ${awaiting.length ? `
-    <div class="card" style="margin-top:14px;border-color:rgba(234,179,8,.45)">
+    <div class="card" style="margin-top:14px;border-color:var(--or-trait)">
       <div class="spread"><h2>👀 À valider (${awaiting.length})</h2>
         <div class="row">
           <button class="primary" id="ap-revue" title="Lire et valider chaque email l'un après l'autre, gros boutons, faisable d'une main">👀 Un par un</button>
@@ -1604,8 +1651,10 @@ async function vAutopilot(view) {
               <button class="ghost" data-ob-cancel="${o.id}" title="Annuler cet envoi">✖</button>
             </div>
           </div>
-          <input class="ob-edit" data-ob-subject="${o.id}" value="${esc(o.subject)}" style="margin:6px 0">
-          <textarea class="ob-edit" data-ob-body="${o.id}" rows="5">${esc(o.body)}</textarea>
+          <details class="ob-lire ob-edit"><summary>« ${esc(o.subject)} » · lire et modifier</summary>
+            <input data-ob-subject="${o.id}" value="${esc(o.subject)}" style="margin:6px 0;width:100%">
+            <textarea data-ob-body="${o.id}" rows="6">${esc(o.body)}</textarea>
+          </details>
         </div>`).join('')}
     </div>` : ''}
 
@@ -1656,11 +1705,11 @@ async function vAutopilot(view) {
       </div>
     </div>
 
-    <div class="card" style="margin-top:14px">
-      <h2>📜 Journal d'envoi</h2>
+    <details class="card" style="margin-top:14px">
+      <summary><h2 style="display:inline">📜 Journal d'envoi</h2> <span class="muted small">· les 15 derniers envois</span></summary>
       ${recent.filter((o) => ['sent', 'failed', 'cancelled'].includes(o.status)).slice(0, 15).map((o) => `
         <div class="small" style="padding:3px 0">${OUTBOX_STATUS[o.status]} · ${esc(o.first_name || '')} ${esc(o.last_name || '')} · « ${esc(o.subject)} » ${o.sent_at ? '· ' + fmtDateTime(o.sent_at) : ''}${o.error ? ` <span style="color:var(--red2)">${esc(o.error.slice(0, 90))}</span>` : ''}</div>`).join('') || '<p class="muted small">Rien envoyé pour l’instant.</p>'}
-    </div>`;
+    </details>`;
 
   // --- interrupteurs
   $('#ap-enabled').onchange = async (e) => {
@@ -2064,7 +2113,7 @@ async function vImport(view) {
     const box = $('#rep-warn');
     if (!avertissements || !avertissements.length) { box.innerHTML = ''; return; }
     box.innerHTML = avertissements.map((a) => `
-      <div style="color:var(--gold2);background:rgba(234,179,8,.1);border:1px solid rgba(234,179,8,.4);border-radius:9px;padding:10px 12px;font-size:13px;margin-top:8px">
+      <div style="color:var(--gold2);background:var(--or-doux);border:1px solid var(--or-trait);border-radius:9px;padding:10px 12px;font-size:13px;margin-top:8px">
         <b>${a.source === 'appels' ? '📞 Appels' : '💬 WhatsApp'}</b> : ${esc(a.message)}
       </div>`).join('');
   };
@@ -2372,7 +2421,7 @@ async function vReglages(view) {
           <button data-mailtest="send_test" class="gold">📤 M'envoyer un email de test</button>
         </div>
         <p class="small" id="t-mail" style="font-weight:700"></p>
-        <div id="mail-err" class="hidden" style="color:var(--red2);background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.4);border-radius:9px;padding:10px 12px;font-size:13px;margin-top:8px"></div>
+        <div id="mail-err" class="hidden" style="color:var(--red2);background:var(--alerte-doux);border:1px solid var(--alerte-trait);border-radius:9px;padding:10px 12px;font-size:13px;margin-top:8px"></div>
         <p class="muted small">💡 Les boutons de test enregistrent automatiquement tes réglages avant de tester. Démarre avec un cap bas (10-15/jour) puis monte progressivement : c'est la meilleure protection de ta délivrabilité.</p>
       </div>
       <div class="card">
@@ -2586,22 +2635,22 @@ async function vReglages(view) {
 }
 
 // ---------------------------------------------------------------- init
+function dessinerBoutonSon() {
+  const coupe = localStorage.getItem('chasse_sounds') === '0';
+  const b = $('#sound-toggle');
+  b.innerHTML = `<svg class="ico" aria-hidden="true"><use href="#i-${coupe ? 'muet' : 'son'}"/></svg>`;
+  b.title = coupe ? 'Sons coupés' : 'Sons activés';
+  b.setAttribute('aria-label', coupe ? 'Remettre les sons' : 'Couper les sons');
+  b.setAttribute('aria-pressed', coupe ? 'false' : 'true');
+}
 $('#sound-toggle').onclick = () => {
   const on = localStorage.getItem('chasse_sounds') !== '0';
   localStorage.setItem('chasse_sounds', on ? '0' : '1');
-  $('#sound-toggle').textContent = on ? '🔇' : '🔊';
+  dessinerBoutonSon();
+  fx.toast(on ? 'Sons coupés' : 'Sons remis', '', 1800);
   if (!on) fx.play('pop');
 };
-$('#sound-toggle').textContent = localStorage.getItem('chasse_sounds') === '0' ? '🔇' : '🔊';
-
-// Barre du bas (téléphone) : le fondu du bord droit disparaît quand on est au bout.
-{
-  const barre = $('#sidebar');
-  const auBout = () => barre.classList.toggle('fin', barre.scrollLeft + barre.clientWidth >= barre.scrollWidth - 2);
-  barre.addEventListener('scroll', auBout, { passive: true });
-  addEventListener('resize', auBout);
-  auBout();
-}
+dessinerBoutonSon();
 
 // Échap ferme ce qui est ouvert : d'abord la fenêtre du dessus, sinon la fiche contact.
 addEventListener('keydown', (e) => {
@@ -2620,6 +2669,8 @@ addEventListener('keydown', (e) => {
   nommer(document);
 }
 
+$('#view').innerHTML = squeletteVue();
 refreshState().then(render).catch((e) => {
-  $('#view').innerHTML = `<div class="card"><h2>💥 Impossible de joindre le serveur</h2><p>${esc(e.message)}</p></div>`;
+  $('#view').innerHTML = `<div class="card erreur" role="alert"><h2>OTEA Moteur ne répond pas</h2><p>${esc(e.message)}</p><div class="row" style="margin-top:12px"><button class="primary" id="err-recharger">Recharger</button></div></div>`;
+  $('#err-recharger').onclick = () => location.reload();
 });

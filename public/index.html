@@ -2,44 +2,112 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="theme-color" content="#0a0d18">
-  <title>⚙️ OTEA Moteur</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚔️</text></svg>">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#f5f3ee" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#111214" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
+  <title>OTEA Moteur</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23c2410c'/><circle cx='16' cy='16' r='8' fill='none' stroke='white' stroke-width='2.5'/><circle cx='16' cy='16' r='2.5' fill='white'/></svg>">
+  <link rel="preload" href="/fonts/bricolage-grotesque.woff2" as="font" type="font/woff2" crossorigin>
+  <!-- Le thème (clair, sombre ou auto) est posé avant le premier affichage : pas de flash blanc le soir. -->
+  <script src="/theme.js"></script>
   <link rel="stylesheet" href="/app.css">
 </head>
 <body>
+  <!-- Les icônes de l'app : un seul trait, dessinées une fois, réutilisées partout. -->
+  <svg xmlns="http://www.w3.org/2000/svg" class="sprite" aria-hidden="true" focusable="false">
+    <defs>
+      <symbol id="i-journee" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4"/></symbol>
+      <symbol id="i-qg" viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="9" rx="1.6"/><rect x="13.5" y="3" width="7.5" height="5" rx="1.6"/><rect x="13.5" y="11" width="7.5" height="10" rx="1.6"/><rect x="3" y="15" width="7.5" height="6" rx="1.6"/></symbol>
+      <symbol id="i-chasse" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.6"/><path d="M12 1.5v4.5M12 18v4.5M1.5 12H6M18 12h4.5"/></symbol>
+      <symbol id="i-autopilot" viewBox="0 0 24 24"><path d="M21.5 2.5 10.8 13.2"/><path d="M21.5 2.5 15 21l-4.2-7.8L3 9z"/></symbol>
+      <symbol id="i-campagnes" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="16.5" rx="2.2"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4M7.5 14h3M13.5 14h3M7.5 17.5h3"/></symbol>
+      <symbol id="i-pipeline" viewBox="0 0 24 24"><rect x="3" y="3" width="5" height="18" rx="1.6"/><rect x="10" y="3" width="5" height="12" rx="1.6"/><rect x="17" y="3" width="4" height="7" rx="1.6"/></symbol>
+      <symbol id="i-contacts" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.4 3.3-5.5 6.5-5.5s5.9 2.1 6.5 5.5M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.8c1.9.7 3.2 2.6 3.5 5.2"/></symbol>
+      <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M3 13l2.6-8h12.8L21 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 13h5l1.5 3h5l1.5-3h5"/></symbol>
+      <symbol id="i-import" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></symbol>
+      <symbol id="i-reglages" viewBox="0 0 24 24"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></symbol>
+      <symbol id="i-loupe" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></symbol>
+      <symbol id="i-menu" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></symbol>
+      <symbol id="i-clair" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4"/></symbol>
+      <symbol id="i-lune" viewBox="0 0 24 24"><path d="M20.5 14.5A8.5 8.5 0 1 1 9.5 3.5a7 7 0 0 0 11 11z"/></symbol>
+      <symbol id="i-auto" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" class="plein"/></symbol>
+      <symbol id="i-son" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></symbol>
+      <symbol id="i-muet" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="m17 9 5 6M22 9l-5 6"/></symbol>
+      <symbol id="i-replier" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2.2"/><path d="M9 4v16M15.5 10 13.5 12l2 2"/></symbol>
+      <symbol id="i-clavier" viewBox="0 0 24 24"><rect x="2.5" y="6" width="19" height="12" rx="2.2"/><path d="M6.5 10h.01M10 10h.01M14 10h.01M17.5 10h.01M7.5 14h9"/></symbol>
+      <symbol id="i-fermer" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7"/></symbol>
+      <symbol id="i-horloge" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+      <symbol id="i-fleche" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+      <symbol id="i-eclair" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+      <symbol id="i-crayon" viewBox="0 0 24 24"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></symbol>
+      <symbol id="i-poubelle" viewBox="0 0 24 24"><path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13M10 11v5.5M14 11v5.5"/></symbol>
+    </defs>
+  </svg>
+
+  <a class="lien-evitement" href="#view">Aller au contenu</a>
+
   <div id="app">
-    <nav id="sidebar">
-      <div class="logo">⚙️ <span>OTEA MOTEUR</span></div>
-      <a href="#/journee" data-view="journee" data-court="Journée">☀️ <span>Ma journée</span></a>
-      <a href="#/qg" data-view="qg" data-court="QG">🏰 <span>Quartier général</span></a>
-      <a href="#/chasse" data-view="chasse" data-court="Chasse">🎯 <span>Mode Chasse</span></a>
-      <a href="#/autopilot" data-view="autopilot" data-court="Pilote">🤖 <span>Autopilote</span></a>
-      <a href="#/campagnes" data-view="campagnes" data-court="Campagne">📅 <span>Campagnes</span></a>
-      <a href="#/pipeline" data-view="pipeline" data-court="Pipeline">📊 <span>Pipeline</span></a>
-      <a href="#/contacts" data-view="contacts" data-court="Contacts">👥 <span>Contacts</span></a>
-      <a href="#/inbox" data-view="inbox" data-court="Réponses">📥 <span>Réponses</span></a>
-      <a href="#/import" data-view="import" data-court="Imports">📦 <span>Imports</span></a>
-      <a href="#/reglages" data-view="reglages" data-court="Réglages">⚙️ <span>Réglages</span></a>
+    <nav id="sidebar" aria-label="Navigation principale">
+      <div class="nav-tete">
+        <a class="logo" href="#/journee" aria-label="OTEA Moteur, retour à Ma journée">
+          <span class="logo-mark" aria-hidden="true"><svg class="ico"><use href="#i-chasse"/></svg></span>
+          <span class="logo-texte">OTEA <b>Moteur</b></span>
+        </a>
+        <button class="ghost ico-btn" id="nav-replier" type="button" aria-label="Replier le menu" title="Replier le menu"><svg class="ico" aria-hidden="true"><use href="#i-replier"/></svg></button>
+      </div>
+      <button class="nav-recherche" id="nav-palette" type="button" aria-label="Rechercher ou aller à un écran (Ctrl K)">
+        <svg class="ico" aria-hidden="true"><use href="#i-loupe"/></svg><span>Rechercher, aller à…</span><kbd class="kbd-cmd" aria-hidden="true">⌘K</kbd>
+      </button>
+      <a href="#/journee" data-view="journee" data-court="Journée"><svg class="ico" aria-hidden="true"><use href="#i-journee"/></svg><span>Ma journée</span></a>
+      <a href="#/qg" data-view="qg" data-court="QG"><svg class="ico" aria-hidden="true"><use href="#i-qg"/></svg><span>Quartier général</span></a>
+      <div class="nav-groupe" aria-hidden="true">Prospection</div>
+      <a href="#/chasse" data-view="chasse" data-court="Chasse"><svg class="ico" aria-hidden="true"><use href="#i-chasse"/></svg><span>La Chasse</span></a>
+      <a href="#/autopilot" data-view="autopilot" data-court="Pilote"><svg class="ico" aria-hidden="true"><use href="#i-autopilot"/></svg><span>Autopilote</span></a>
+      <a href="#/campagnes" data-view="campagnes" data-court="Campagnes"><svg class="ico" aria-hidden="true"><use href="#i-campagnes"/></svg><span>Campagnes</span></a>
+      <div class="nav-groupe" aria-hidden="true">CRM</div>
+      <a href="#/pipeline" data-view="pipeline" data-court="Pipeline"><svg class="ico" aria-hidden="true"><use href="#i-pipeline"/></svg><span>Pipeline</span></a>
+      <a href="#/contacts" data-view="contacts" data-court="Contacts"><svg class="ico" aria-hidden="true"><use href="#i-contacts"/></svg><span>Contacts</span></a>
+      <a href="#/inbox" data-view="inbox" data-court="Réponses"><svg class="ico" aria-hidden="true"><use href="#i-inbox"/></svg><span>Réponses</span></a>
+      <div class="nav-groupe" aria-hidden="true">Outils</div>
+      <a href="#/import" data-view="import" data-court="Imports"><svg class="ico" aria-hidden="true"><use href="#i-import"/></svg><span>Imports</span></a>
+      <a href="#/reglages" data-view="reglages" data-court="Réglages"><svg class="ico" aria-hidden="true"><use href="#i-reglages"/></svg><span>Réglages</span></a>
       <div class="sidebar-footer">
         <div id="side-level"></div>
-        <button id="sound-toggle" class="ghost" title="Sons">🔊</button>
+        <div class="nav-outils">
+          <button id="theme-toggle" class="ghost ico-btn" type="button" title="Thème" aria-label="Changer de thème"><svg class="ico" aria-hidden="true"><use href="#i-auto"/></svg></button>
+          <button id="sound-toggle" class="ghost ico-btn" type="button" title="Sons" aria-label="Couper ou remettre les sons"><svg class="ico" aria-hidden="true"><use href="#i-son"/></svg></button>
+          <button id="aide-raccourcis" class="ghost ico-btn" type="button" title="Raccourcis clavier" aria-label="Voir les raccourcis clavier"><svg class="ico" aria-hidden="true"><use href="#i-clavier"/></svg></button>
+        </div>
       </div>
     </nav>
-    <main id="view" aria-live="polite"></main>
+    <main id="view" aria-live="polite" tabindex="-1"></main>
   </div>
+
+  <!-- Téléphone : les moteurs du quotidien sous le pouce, le reste derrière « Plus ». -->
+  <nav id="tabbar" aria-label="Navigation rapide">
+    <a href="#/journee" data-view="journee"><svg class="ico" aria-hidden="true"><use href="#i-journee"/></svg><span>Journée</span></a>
+    <a href="#/chasse" data-view="chasse"><svg class="ico" aria-hidden="true"><use href="#i-chasse"/></svg><span>Chasse</span></a>
+    <a href="#/contacts" data-view="contacts"><svg class="ico" aria-hidden="true"><use href="#i-contacts"/></svg><span>Contacts</span></a>
+    <a href="#/autopilot" data-view="autopilot"><svg class="ico" aria-hidden="true"><use href="#i-autopilot"/></svg><span>Pilote</span></a>
+    <button type="button" id="tab-plus" aria-haspopup="true" aria-expanded="false" aria-controls="sidebar"><svg class="ico" aria-hidden="true"><use href="#i-menu"/></svg><span>Plus</span></button>
+  </nav>
+  <div id="nav-voile" class="hidden"></div>
 
   <div id="drawer-backdrop" class="hidden"></div>
   <aside id="drawer" class="hidden" aria-label="Fiche contact"></aside>
   <div id="modal-root"></div>
-  <div id="toasts" aria-live="assertive"></div>
-  <canvas id="confetti"></canvas>
+  <div id="palette-root"></div>
+  <div id="toasts" role="status" aria-live="polite"></div>
+  <canvas id="confetti" aria-hidden="true"></canvas>
 
   <script src="/game.js"></script>
   <script src="/journee.js"></script>
   <script src="/app.js"></script>
+  <script src="/ui.js"></script>
 </body>
 </html>

@@ -4,6 +4,8 @@ Un outil de travail **local, zéro dépendance**, sur une seule adresse : le mat
 
 *L'app s'appelait « La Chasse ». Elle a grandi : La Chasse est devenue son moteur de prospection, OTEA Moteur est l'ensemble.*
 
+**Identité visuelle « Affût »** : papier chaud le jour, ardoise le soir (thème clair, sombre ou automatique), un seul signal fort, l'orange de chasse, réservé à l'action principale et à ce qui est vital. Le matin, Ma journée s'ouvre sur les trois choses à faire en premier. `Ctrl K` (ou `⌘K`) ouvre la palette : un écran, un contact, une action ; `?` affiche tous les raccourcis. Détail des couleurs, des polices et des règles d'usage : [`docs/design.md`](docs/design.md).
+
 Quatre moteurs :
 
 0. **☀️ Ma journée** : la to-do du matin, faite par la machine au lieu de la tête. Elle lit **Gmail** (les mails sans réponse), **WhatsApp** et **les appels** du Mac (les conversations où le dernier mot n'est pas de toi, les appels manqués jamais rappelés), et le **CRM** (relances dues, devis à relancer ou à faire, factures à émettre), classe chaque chose par **importance** et par **durée**, et la place dans la journée : les courtes ce matin, la grosse pierre, les moyennes cet après-midi. Le brief part par mail chaque matin.

@@ -36,12 +36,26 @@ const fx = (() => {
   function play(name) { if (soundOn()) { try { sounds[name] && sounds[name](); } catch { /* autoplay bloqué : tant pis */ } } }
 
   // ------------------------------------------------ toasts
-  function toast(html, cls = '', ms = 3200) {
+  // Une confirmation discrète. Avec { action: { label, faire } }, elle porte un
+  // bouton (« Annuler ») et reste un peu plus longtemps pour laisser le temps de cliquer.
+  function toast(html, cls = '', ms = 3200, { action } = {}) {
     const el = document.createElement('div');
     el.className = `toast ${cls}`;
-    el.innerHTML = html;
+    if (cls === 'err') el.setAttribute('role', 'alert');
+    el.innerHTML = `<span class="toast-texte">${html}</span>`;
+    let minuterie = null;
+    const fermer = () => { clearTimeout(minuterie); el.classList.add('out'); setTimeout(() => el.remove(), 260); };
+    if (action) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'toast-action';
+      b.textContent = action.label;
+      b.onclick = () => { fermer(); action.faire(); };
+      el.appendChild(b);
+      ms = Math.max(ms, 6500);
+    }
     document.getElementById('toasts').appendChild(el);
-    setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 350); }, ms);
+    minuterie = setTimeout(fermer, ms);
     return el;
   }
 
@@ -52,7 +66,7 @@ const fx = (() => {
   let rafId = null;
   function resize() { canvas.width = innerWidth; canvas.height = innerHeight; }
   addEventListener('resize', resize); resize();
-  const COLORS = ['#eab308', '#8b5cf6', '#34d399', '#f87171', '#60a5fa', '#facc15'];
+  const COLORS = ['#c2410c', '#ff6b2c', '#c99a2e', '#e0b04a', '#23704f', '#2f5d8a'];
   const sansAnimation = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
   function confetti(count = 120, { spread = 1 } = {}) {
     if (sansAnimation()) return; // réglage système « réduire les animations » respecté
@@ -97,11 +111,12 @@ const fx = (() => {
       <div class="c-emoji">${emoji}</div>
       <h2>${title}</h2>
       <p class="muted">${sub || ''}</p>
-      <p style="margin-top:16px"><button class="primary big">${btn}</button></p>
+      <p style="margin-top:16px"><button class="gold big">${btn}</button></p>
     </div>`;
     wrap.querySelector('button').onclick = () => wrap.remove();
     wrap.addEventListener('click', (e) => { if (e.target === wrap) wrap.remove(); });
     root.appendChild(wrap);
+    wrap.querySelector('button').focus();
   }
 
   // ------------------------------------------------ API publique
@@ -149,7 +164,7 @@ const fx = (() => {
       setTimeout(() => confetti(200), 1400);
     },
     error(msg) {
-      toast(`⚠️ ${msg}`, 'err', 6500);
+      toast(msg, 'err', 7000);
       play('err');
     },
   };

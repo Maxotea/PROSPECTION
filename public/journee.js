@@ -62,27 +62,80 @@ function jItemHtml(it, P) {
       </div>
       <div class="j-decide">
         ${it.tache_id ? `<button class="ghost" title="Modifier" data-j-edit="${it.tache_id}">✏️</button>` : ''}
-        <button class="ghost" title="Plus tard" data-j-tard="${esc(it.cle)}">⏰</button>
-        <button class="ghost" title="Ignorer : ne plus me le proposer" data-j-ignore="${esc(it.cle)}">🙈</button>
-        <button class="gold" title="Fait" data-j-fait="${esc(it.cle)}">✅</button>
+        <button class="ghost" title="Plus tard" aria-label="Reporter : ${esc(it.titre)}" data-j-tard="${esc(it.cle)}">${jIco('horloge')}</button>
+        <button class="ghost" title="Ignorer : ne plus me le proposer" aria-label="Ignorer : ${esc(it.titre)}" data-j-ignore="${esc(it.cle)}">${jIco('fermer')}</button>
+        <button class="gold" title="Fait" aria-label="Fait : ${esc(it.titre)}" data-j-fait="${esc(it.cle)}">${jIco('check')}</button>
       </div>
     </div>`;
 }
 
-function jBlocHtml(code, P) {
+function jIco(nom) { return `<svg class="ico" aria-hidden="true"><use href="#i-${nom}"/></svg>`; }
+
+// Même barème que le serveur pour classer : importance, puis urgence, puis argent en jeu.
+function jScore(it) { return it.importance * 100 + (it.urgence || 0) * 20 + Math.min(50, Math.round((it.argent || 0) / 200)); }
+
+// Le matin, en un coup d'œil : les trois choses qui comptent le plus, chacune
+// avec son action directe (ouvrir, reporter à demain, fait).
+function jTop3(P) {
+  const tout = [...P.blocs.matin, ...P.blocs.pierre, ...P.blocs.apres_midi].sort((a, b) => jScore(b) - jScore(a));
+  return { tout, top: tout.slice(0, 3) };
+}
+function jEssentielHtml(P) {
+  const { tout, top } = jTop3(P);
+  const ouvrir = (it) => {
+    const a = it.actions[0];
+    if (!a) return '';
+    if (a.type === 'contact') return `<button data-j-contact="${a.id}">Ouvrir ${jIco('fleche')}</button>`;
+    if (a.type === 'repondre_mail') return `<button data-j-mail="${a.uid}" data-j-cle="${esc(it.cle)}">Répondre ${jIco('fleche')}</button>`;
+    if (a.type === 'lien') {
+      const externe = /^https?:/i.test(a.href);
+      return `<a class="btn" href="${esc(a.href)}" ${externe ? 'target="_blank" rel="noopener"' : ''}>Ouvrir ${jIco('fleche')}</a>`;
+    }
+    return '';
+  };
+  const reste = Math.max(0, tout.length - top.length);
+  return `
+    <section class="j-essentiel" aria-labelledby="j-ess-titre">
+      <div class="j-ess-tete">
+        <h2 id="j-ess-titre">L'essentiel du jour</h2>
+        <span class="muted">${top.length ? `${top.length === 1 ? 'La chose' : `Les ${top.length} choses`} à faire en premier${reste ? ` · ${reste} autre${reste > 1 ? 's' : ''} plus bas` : ''}` : ''}</span>
+      </div>
+      ${top.length ? `<ol class="j-ess-liste">${top.map((it, i) => {
+        const imp = P.vocabulaire.importances[it.importance];
+        return `<li class="j-ess ${it.importance >= 3 ? 'vital' : ''}" data-j-item="${esc(it.cle)}">
+          <span class="j-ess-rang" aria-hidden="true">${i + 1}</span>
+          <div>
+            <div class="j-ess-titre">${esc(it.titre)}</div>
+            <div class="j-ess-meta">${it.importance >= 3 ? `<span class="chip due">${esc(imp.label)}</span>` : ''}<span>${jDuree(it.minutes)}</span>${it.pourquoi ? `<span>${esc(it.pourquoi)}</span>` : ''}</div>
+          </div>
+          <div class="j-ess-actions">
+            ${ouvrir(it)}
+            <button class="ghost" data-j-demain="${esc(it.cle)}" title="Reporter à demain">${jIco('horloge')} Demain</button>
+            <button class="primary j-fait-btn" data-j-fait="${esc(it.cle)}" aria-label="Fait : ${esc(it.titre)}">${jIco('check')} Fait</button>
+          </div>
+        </li>`;
+      }).join('')}</ol>`
+      : `<div class="j-ess-vide"><div class="vide-etat"><b>Rien d'urgent ce matin.</b><br>${P.faits_aujourdhui ? `${P.faits_aujourdhui} chose${P.faits_aujourdhui > 1 ? 's' : ''} déjà faite${P.faits_aujourdhui > 1 ? 's' : ''}. ` : ''}C'est le bon moment pour provoquer des réponses.<div class="row" style="justify-content:center;margin-top:12px"><a class="btn primary" href="#/chasse">Lancer La Chasse</a></div></div></div>`}
+    </section>`;
+}
+
+function jBlocHtml(code, P, dejaEnHaut = new Set()) {
   const b = P.vocabulaire.blocs[code];
-  const liste = P.blocs[code];
+  // Ce qui est déjà dans « L'essentiel » n'est pas répété plus bas.
+  const liste = P.blocs[code].filter((it) => !dejaEnHaut.has(it.cle));
+  const remonte = P.blocs[code].length - liste.length;
+  const minutes = liste.reduce((t, it) => t + (Number(it.minutes) || 0), 0);
   const ouvert = code !== 'plus_tard' || !P.blocs.matin.length;
   return `
     <section class="card j-bloc j-${code}">
       <div class="spread">
         <h2>${b.emoji} ${esc(b.titre)}</h2>
-        <span class="chip ${liste.length && code === 'pierre' ? 'former' : ''}">${liste.length}${liste.length ? ` · ≈ ${jDuree(P.minutes[code])}` : ''}</span>
+        <span class="chip ${liste.length && code === 'pierre' ? 'former' : ''}">${liste.length}${liste.length ? ` · ≈ ${jDuree(minutes)}` : ''}</span>
       </div>
       <p class="muted small j-aide">${esc(b.aide)}</p>
       ${code === 'plus_tard' && liste.length && !ouvert
         ? `<details><summary class="muted small" style="cursor:pointer">Voir les ${liste.length} choses qui peuvent attendre</summary>${liste.map((it) => jItemHtml(it, P)).join('')}</details>`
-        : liste.length ? liste.map((it) => jItemHtml(it, P)).join('') : `<p class="muted small j-vide">${code === 'matin' ? 'Rien de court en attente. Belle matinée.' : code === 'pierre' ? 'Pas de grosse pierre aujourd’hui : ajoute-la dans le vide-cerveau si tu en as une en tête.' : code === 'apres_midi' ? 'Rien de moyen.' : 'Rien.'}</p>`}
+        : liste.length ? liste.map((it) => jItemHtml(it, P)).join('') : `<p class="muted small j-vide">${remonte ? `Tout est dans l'essentiel, en haut de la page.` : code === 'matin' ? 'Rien de court en attente. Belle matinée.' : code === 'pierre' ? 'Pas de grosse pierre aujourd’hui : ajoute-la dans le vide-cerveau si tu en as une en tête.' : code === 'apres_midi' ? 'Rien de moyen.' : 'Rien.'}</p>`}
     </section>`;
 }
 
@@ -113,13 +166,13 @@ function jAgendaHtml(A) {
       const ev = x.ev;
       const couleur = ev.couleur && A.palette[ev.couleur] ? A.palette[ev.couleur].hex : '';
       lignes.push(`<div class="j-ev">
-        <span class="j-ev-h mono">${ev.journee ? 'journée' : `${esc(ev.heure)}<span class="faint">–${esc(ev.heure_fin)}</span>`}</span>
+        <span class="j-ev-h mono">${ev.journee ? 'journée' : `${esc(ev.heure)}<span class="faint">-${esc(ev.heure_fin)}</span>`}</span>
         <span class="j-ev-dot" style="background:${couleur || 'var(--border2)'}"></span>
         <span class="j-ev-t">${ev.niveau !== null && ev.niveau !== undefined ? N[ev.niveau].emoji + ' ' : ''}${esc(ev.titre || '(sans titre)')}${ev.calendrier_nom ? ` <span class="faint small">· ${esc(ev.calendrier_nom)}</span>` : ''}${ev.lieu ? ` <span class="faint small">📍 ${esc(ev.lieu)}</span>` : ''}</span>
         <span class="j-ev-niv">${boutonsNiveau(ev)}</span>
       </div>`);
     } else {
-      lignes.push(`<div class="j-ev j-libre"><span class="j-ev-h mono">${esc(jHeure(x.c.debut))}<span class="faint">–${esc(jHeure(x.c.fin))}</span></span><span class="j-ev-dot"></span><span class="j-ev-t muted">libre · ${jDuree(x.c.minutes)}</span></div>`);
+      lignes.push(`<div class="j-ev j-libre"><span class="j-ev-h mono">${esc(jHeure(x.c.debut))}<span class="faint">-${esc(jHeure(x.c.fin))}</span></span><span class="j-ev-dot"></span><span class="j-ev-t muted">libre · ${jDuree(x.c.minutes)}</span></div>`);
     }
   }
   const libreTotal = cren.reduce((s, c) => s + c.minutes, 0);
@@ -159,6 +212,7 @@ function dessinerJournee(view) {
     ? `${total} chose${total > 1 ? 's' : ''} à faire${P.vitaux ? `, dont <b style="color:var(--red2)">${P.vitaux} vitale${P.vitaux > 1 ? 's' : ''}</b>` : ''}${P.argent ? ` · ${eur(P.argent)} en jeu` : ''}${P.faits_aujourdhui ? ` · ✅ ${P.faits_aujourdhui} déjà fait${P.faits_aujourdhui > 1 ? 's' : ''}` : ''}`
     : `Rien qui attend. ${P.faits_aujourdhui ? `✅ ${P.faits_aujourdhui} fait${P.faits_aujourdhui > 1 ? 's' : ''} aujourd'hui. ` : ''}Va provoquer des réponses : <a href="#/chasse">Mode Chasse</a>.`;
 
+  const enHaut = new Set(jTop3(P).top.map((it) => it.cle));
   view.innerHTML = `
     <div class="view-header spread">
       <div><h1>☀️ ${esc(P.jour_long.charAt(0).toUpperCase() + P.jour_long.slice(1))}</h1><div class="sub">${titre}</div></div>
@@ -167,23 +221,25 @@ function dessinerJournee(view) {
         <button class="ghost" id="j-brief" title="Le brief du matin, tel qu'il part par mail">📨 Le brief</button>
       </div>
     </div>
-    <div class="card">
-      <div class="j-radar"><span class="muted small">Radar :</span>${radar}<span class="muted small">· CRM lu en direct</span></div>
-      <div class="j-radar" style="margin-top:8px"><span class="muted small">Brief :</span>${briefChip(P.brief)}</div>
-    </div>
-    ${jAgendaHtml(P.agenda)}
-    <div class="card" style="margin-top:14px">
-      <h3>🧠 Vide-cerveau</h3>
+    ${jEssentielHtml(P)}
+    <div class="card" style="margin-top:16px">
+      <h3><label for="j-texte">🧠 Vide-cerveau</label></h3>
       <div class="j-capture">
         <input id="j-texte" placeholder="Une chose à faire, en une ligne : « monter la vidéo du Loft 3h !! avant le 12/09 »" autocomplete="off">
         <button class="primary" id="j-add">Ajouter</button>
       </div>
       <p class="muted small" style="margin:6px 0 0">Astuces : <b>!</b> important, <b>!!</b> vital · <b>2h</b>, <b>30 min</b> pour la durée · <b>demain</b>, <b>vendredi</b>, <b>avant le 12/09</b> pour l'échéance. Sans rien, l'app devine à partir des mots (montage = long, devis = moyen, mail = court).</p>
     </div>
-    <div class="j-blocs" style="margin-top:14px">
-      <div class="j-col">${jBlocHtml('matin', P)}${jBlocHtml('apres_midi', P)}</div>
-      <div class="j-col">${jBlocHtml('pierre', P)}${jBlocHtml('plus_tard', P)}</div>
-    </div>`;
+    <div class="j-blocs" style="margin-top:16px">
+      <div class="j-col">${jBlocHtml('matin', P, enHaut)}${jBlocHtml('apres_midi', P, enHaut)}</div>
+      <div class="j-col">${jBlocHtml('pierre', P, enHaut)}${jBlocHtml('plus_tard', P, enHaut)}</div>
+    </div>
+    ${jAgendaHtml(P.agenda)}
+    <details class="card j-sources" style="margin-top:16px">
+      <summary>Ce que l'app a lu ce matin : sources et brief</summary>
+      <div class="j-radar"><span class="muted small">Radar :</span>${radar}<span class="muted small">· CRM lu en direct</span></div>
+      <div class="j-radar" style="margin-top:8px"><span class="muted small">Brief :</span>${briefChip(P.brief)}</div>
+    </details>`;
 
   const recharger = async () => { jPlan = await api('/journee'); dessinerJournee(view); };
 
@@ -239,18 +295,30 @@ function dessinerJournee(view) {
 
   const decider = async (cle, statut, extra = {}) => {
     const it = trouverItem(cle);
+    const ligne = $(`[data-j-item="${CSS.escape(cle)}"]`, view);
+    if (ligne) ligne.style.opacity = '.45';
     try {
       const r = await api('/journee/decision', { method: 'POST', body: { cle, statut, titre: it ? it.titre : '', ...extra } });
       if (r.celebration) await celebrate(r.celebration);
-      if (statut === 'fait') fx.toast(`✅ ${it ? esc(it.titre) : 'Fait'}`);
-      else if (statut === 'plus_tard') fx.toast(`⏰ Remis au ${r.jusqu_au.slice(8, 10)}/${r.jusqu_au.slice(5, 7)}`);
-      else fx.toast('🙈 Ignoré : il ne reviendra plus');
+      // On ne propose d'annuler que si rien d'autre n'a bougé (pas d'XP gagnée,
+      // pas de tâche supprimée) : le retour en arrière est alors exact.
+      const tache = cle.startsWith('tache:');
+      const reversible = statut === 'plus_tard' || (statut === 'fait' && !r.celebration) || (statut === 'ignore' && !tache);
+      const annuler = reversible ? { action: { label: 'Annuler', faire: async () => {
+        try { await api('/journee/decision', { method: 'POST', body: { cle, statut: 'annuler' } }); fx.toast('Remis dans ta journée'); await recharger(); }
+        catch (e) { fx.error(e.message); }
+      } } } : {};
+      const titre = it ? esc(it.titre) : '';
+      if (statut === 'fait') fx.toast(`Fait : ${titre || 'bien joué'}`, '', 3200, annuler);
+      else if (statut === 'plus_tard') fx.toast(`Reporté au ${r.jusqu_au.slice(8, 10)}/${r.jusqu_au.slice(5, 7)}`, '', 3200, annuler);
+      else fx.toast('Ignoré : il ne reviendra plus', '', 3200, annuler);
       await recharger();
-    } catch (e) { fx.error(e.message); }
+    } catch (e) { if (ligne) ligne.style.opacity = ''; fx.error(e.message); }
   };
 
   $$('[data-j-fait]', view).forEach((b) => { b.onclick = () => decider(b.dataset.jFait, 'fait'); });
   $$('[data-j-ignore]', view).forEach((b) => { b.onclick = () => decider(b.dataset.jIgnore, 'ignore'); });
+  $$('[data-j-demain]', view).forEach((b) => { b.onclick = () => decider(b.dataset.jDemain, 'plus_tard', { jours: 1 }); });
   $$('[data-j-tard]', view).forEach((b) => {
     b.onclick = () => {
       const cle = b.dataset.jTard;
