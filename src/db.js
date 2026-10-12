@@ -309,6 +309,7 @@ function ensureColumn(table, col, ddl) {
 }
 ensureColumn('contacts', 'campaign_id', 'campaign_id INTEGER DEFAULT 0');
 ensureColumn('templates', 'campaign_id', 'campaign_id INTEGER DEFAULT 0');
+ensureColumn('campaigns', 'ends_on', `ends_on TEXT DEFAULT ''`);      // vide = campagne d'une semaine ; sinon un projet long, en cours jusqu'à cette date
 ensureColumn('contacts', 'icebreaker', `icebreaker TEXT DEFAULT ''`);   // le lien trouvé avec la personne
 ensureColumn('contacts', 'profile', `profile TEXT DEFAULT ''`);         // données brutes FullEnrich (JSON)
 

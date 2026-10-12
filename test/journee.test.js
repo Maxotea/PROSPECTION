@@ -241,6 +241,7 @@ test('Gmail : un mail d’humain sans réponse devient une chose à faire, le re
 test('CRM : les relances froides en retard tiennent sur une ligne, pas de doublon avec une demande, une réponse automatique n’est pas une demande', () => {
   nettoyer();
   const chaud = dbApi.insertContact({ first_name: 'Claire', last_name: 'Arnaud', company: 'Le Galec', segment: 'grand_compte', stage: 'en_discussion', next_action: 'Relancer', next_action_at: addDays(today, -2) });
+  const ancien = dbApi.insertContact({ first_name: 'Patricia', last_name: 'Blanc', company: 'Eiffage', segment: 'grand_compte', stage: 'contacte', is_former_client: 1, next_action: 'Reprendre contact', next_action_at: addDays(today, -27) });
   const froids = [];
   for (let i = 0; i < 5; i++) froids.push(dbApi.insertContact({ first_name: `Prospect${i}`, last_name: 'Froid', company: `Boîte ${i}`, segment: 'pme', stage: i % 2 ? 'contacte' : 'a_contacter', next_action: 'Reprendre contact', next_action_at: addDays(today, -(20 - i)) }));
   const ecrit = dbApi.insertContact({ first_name: 'Nadia', last_name: 'Nwafo', company: 'Memorem', segment: 'pme', stage: 'contacte', next_action: 'Relance 2', next_action_at: addDays(today, -1) });
@@ -253,9 +254,10 @@ test('CRM : les relances froides en retard tiennent sur une ligne, pas de doublo
   assert.ok(!cles.some((c) => froids.some((f) => c.startsWith(`crm:relance:${f.id}:`))), 'aucune ligne par prospect froid');
   const groupe = items.find((i) => i.cle === `crm:relances:${today}`);
   assert.ok(groupe, 'les cinq relances froides tiennent sur une ligne');
-  assert.strictEqual(groupe.titre, 'Relances de prospection : 5 contacts');
+  assert.strictEqual(groupe.titre, 'Relances de prospection : 6 contacts', 'l’ancien client à reprendre depuis 27 j est dans le lot, pas en rouge tout seul');
+  assert.ok(!cles.some((c) => c.startsWith(`crm:relance:${ancien.id}:`)));
   assert.strictEqual(groupe.importance, 2, 'important, jamais vital');
-  assert.match(groupe.pourquoi, /Prospect0 Froid, Prospect1 Froid, Prospect2 Froid et 2 autres, la plus ancienne en retard de 20 j/);
+  assert.match(groupe.pourquoi, /et 3 autres, la plus ancienne en retard de 27 j/);
   assert.ok(groupe.actions.some((a) => a.href === '#/chasse'));
   assert.ok(!cles.some((c) => c.startsWith(`crm:relance:${ecrit.id}:`)), 'Nadia a écrit : on lui répond, on ne la relance pas');
   const demandes = items.filter((i) => i.cle.startsWith('crm:demande:'));
@@ -263,7 +265,7 @@ test('CRM : les relances froides en retard tiennent sur une ligne, pas de doublo
   assert.match(demandes[0].titre, /Nadia Nwafo/);
 
   // Trois relances froides ou moins : chacune garde sa ligne.
-  for (const f of froids.slice(3)) run('UPDATE contacts SET next_action_at = ? WHERE id = ?', addDays(today, 5), f.id);
+  for (const f of [...froids.slice(3), ancien]) run('UPDATE contacts SET next_action_at = ? WHERE id = ?', addDays(today, 5), f.id);
   const peu = journee.signauxCrm(today).map((i) => i.cle);
   assert.ok(!peu.includes(`crm:relances:${today}`));
   assert.strictEqual(peu.filter((c) => /^crm:relance:/.test(c)).length, 4, 'le chaud + trois froids, ligne par ligne');

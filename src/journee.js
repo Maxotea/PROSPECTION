@@ -603,6 +603,8 @@ function agendaDuJour(radar, today, now) {
 
 // Au-delà de ce nombre, les relances froides en retard tiennent sur une ligne.
 const RELANCES_GROUPEES = 3;
+// Passé ce retard, même une relance de contact chaud rejoint le lot.
+const RELANCE_VIEILLE_J = 7;
 function relanceItem(c, retard) {
   return item({
     cle: `crm:relance:${c.id}:${c.next_action_at}`, source: 'crm', emoji: '🔁',
@@ -675,7 +677,9 @@ function signauxCrm(today) {
     if (contactsAvecDevis.has(c.id)) continue;   // déjà couvert par la relance de devis
     if (contactsAvecDemande.has(c.id)) continue; // il a écrit : c'est une réponse, pas une relance
     const retard = joursDeRetard(c.next_action_at, today);
-    if (!chaleurContact(c)) { froides.push({ c, retard }); continue; }
+    // Un ancien client à « reprendre contact » depuis trois semaines n'est plus une
+    // urgence individuelle : il rejoint le lot, seul un contact chaud à jour garde sa ligne.
+    if (!chaleurContact(c) || retard >= RELANCE_VIEILLE_J) { froides.push({ c, retard }); continue; }
     items.push(relanceItem(c, retard));
   }
   if (froides.length <= RELANCES_GROUPEES) {
