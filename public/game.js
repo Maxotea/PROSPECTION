@@ -45,6 +45,11 @@ const fx = (() => {
     el.innerHTML = `<span class="toast-texte">${html}</span>`;
     let minuterie = null;
     const fermer = () => { clearTimeout(minuterie); el.classList.add('out'); setTimeout(() => el.remove(), 260); };
+    el.fermer = fermer;
+    // Survolé ou atteint au clavier, il reste : le temps de lire et de cliquer.
+    el.addEventListener('pointerenter', () => clearTimeout(minuterie));
+    el.addEventListener('focusin', () => clearTimeout(minuterie));
+    el.addEventListener('pointerleave', () => { clearTimeout(minuterie); minuterie = setTimeout(fermer, 2500); });
     if (action) {
       const b = document.createElement('button');
       b.type = 'button';
@@ -66,10 +71,15 @@ const fx = (() => {
   let rafId = null;
   function resize() { canvas.width = innerWidth; canvas.height = innerHeight; }
   addEventListener('resize', resize); resize();
-  const COLORS = ['#c2410c', '#ff6b2c', '#c99a2e', '#e0b04a', '#23704f', '#2f5d8a'];
+  // Les couleurs des confettis viennent des jetons du thème courant (jetons.css).
+  const couleurs = () => {
+    const cs = getComputedStyle(document.documentElement);
+    return ['--accent', '--accent-texte', '--or', '--or-texte', '--succes', '--info'].map((j) => cs.getPropertyValue(j).trim()).filter(Boolean);
+  };
   const sansAnimation = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
   function confetti(count = 120, { spread = 1 } = {}) {
     if (sansAnimation()) return; // réglage système « réduire les animations » respecté
+    const COLORS = couleurs();
     for (let i = 0; i < count; i++) {
       particles.push({
         x: canvas.width / 2 + (Math.random() - 0.5) * canvas.width * 0.6 * spread,

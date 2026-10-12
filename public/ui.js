@@ -210,7 +210,7 @@
       { titre: 'Raccourcis clavier', sous: 'Tout ce qui se fait sans souris', ico: 'clavier', cles: 'aide clavier', faire: aideRaccourcis },
     ];
   }
-  const normaliser = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const normaliser = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
   function ouvrirPalette() {
     if (palette) return;
@@ -293,6 +293,8 @@
     [['N'], 'Nouveau contact'], [['T'], 'Ajouter une chose à faire'],
     [['1', '…', '5'], 'La Chasse : les actions sur la cible affichée'],
     [['['], 'Replier ou déplier le menu'],
+    [[touche, 'Z'], 'Annuler la dernière action (suppression, fait, report, changement d’étape)'],
+    [['←', '→'], 'Pipeline : déplacer la carte sélectionnée d’une étape'],
     [['Échap'], 'Fermer la fenêtre, la fiche ou la palette'],
     [['?'], 'Cette aide'],
   ];
@@ -302,7 +304,7 @@
       <h2>Raccourcis clavier</h2>
       <p class="muted small">Tout se fait aussi sans souris. Les lettres ne marchent pas pendant que tu écris dans un champ.</p>
       <dl class="raccourcis">${RACCOURCIS.map(([ks, quoi]) => `<dt>${ks.map((k) => k === '…' ? '<span class="muted">à</span>' : `<kbd>${esc(k)}</kbd>`).join(' ')}</dt><dd>${esc(quoi)}</dd>`).join('')}</dl>
-      <div class="row" style="justify-content:flex-end;margin-top:18px"><button class="primary" data-fermer>Compris</button></div>`);
+      <div class="row fin mt-5"><button class="primary" data-fermer>Compris</button></div>`);
     $('[data-fermer]', m).onclick = () => fermerFenetre(m);
     $('[data-fermer]', m).focus();
   }
@@ -313,6 +315,12 @@
     const cible = e.target;
     const enSaisie = cible && (cible.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(cible.tagName));
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); if (palette) palette.fermer(); else ouvrirPalette(); return; }
+    // Ctrl Z hors d'un champ : le dernier « Annuler » proposé, même si sa confirmation a disparu.
+    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && !enSaisie && !palette) {
+      if (dernierRetour) { e.preventDefault(); revenirEnArriere(); }
+      return;
+    }
+    if (e.key === 'Tab') { garderLeFocus(e); return; }
     if (e.key === 'Escape' && racine.classList.contains('nav-ouverte')) { feuilleNav(false); return; }
     if (enSaisie || e.metaKey || e.ctrlKey || e.altKey || palette) return;
     if ($('#modal-root .modal-backdrop')) return; // une fenêtre est ouverte : on ne navigue pas derrière
@@ -331,6 +339,51 @@
     if (k === 't') { e.preventDefault(); allerPuis('journee', '#j-texte', (el) => el.focus()); }
   });
 
+  // Tab reste dans la fenêtre ouverte (ou dans la fiche quand elle couvre
+  // l'écran) : au clavier, on ne se perd pas derrière le voile.
+  function garderLeFocus(e) {
+    const fenetres = $$('#modal-root .modal');
+    let boite = fenetres[fenetres.length - 1];
+    if (!boite) {
+      const fiche = $('#drawer');
+      const voile = $('#drawer-backdrop');
+      if (fiche.classList.contains('hidden') || getComputedStyle(voile).display === 'none') return;
+      boite = fiche;
+    }
+    const focusables = $$('a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])', boite)
+      .filter((el) => el.offsetParent !== null || el === document.activeElement);
+    if (!focusables.length) return;
+    const premier = focusables[0];
+    const dernier = focusables[focusables.length - 1];
+    if (!boite.contains(document.activeElement)) { e.preventDefault(); premier.focus(); return; }
+    if (e.shiftKey && document.activeElement === premier) { e.preventDefault(); dernier.focus(); }
+    else if (!e.shiftKey && document.activeElement === dernier) { e.preventDefault(); premier.focus(); }
+  }
+
+  // ------------------------------------------------------------ clavier virtuel
+  // Sur iPhone et iPad, le clavier cache le bas de l'écran sans le dire à la
+  // page. On mesure ce qu'il cache (--clavier) : la fiche, les fenêtres et la
+  // palette remontent au-dessus, la barre du bas s'efface, et le champ touché
+  // reste visible.
+  if (window.visualViewport) {
+    const vv = window.visualViewport;
+    const mesurer = () => {
+      const cache = Math.max(0, Math.round(innerHeight - vv.height - vv.offsetTop));
+      const ouvert = cache > 120;
+      racine.style.setProperty('--clavier', ouvert ? `${cache}px` : '0px');
+      racine.classList.toggle('clavier-ouvert', ouvert);
+    };
+    vv.addEventListener('resize', mesurer);
+    vv.addEventListener('scroll', mesurer);
+    mesurer();
+    addEventListener('focusin', (e) => {
+      if (!e.target.matches || !e.target.matches('input, textarea, select')) return;
+      if (!matchMedia('(pointer: coarse)').matches) return;
+      const doux = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+      setTimeout(() => { if (document.activeElement === e.target) e.target.scrollIntoView({ block: 'center', behavior: doux ? 'smooth' : 'auto' }); }, 320);
+    });
+  }
+
   // ------------------------------------------------------------ premier lancement
   // Une seule fois par appareil : ce qui a changé et où sont les choses.
   function bienvenue() {
@@ -345,7 +398,7 @@
           <li><div><b>${estMac ? '⌘' : 'Ctrl'} K pour tout trouver.</b><br><span class="muted">Un contact, un écran, une action : tape quelques lettres et Entrée. Sur iPhone, c'est dans « Plus ».</span></div></li>
           <li><div><b>Les fiches s'ouvrent sur le côté.</b><br><span class="muted">Tu restes sur ta liste et tu passes d'un contact à l'autre. Échap pour fermer.</span></div></li>
         </ol>
-        <div class="row" style="justify-content:flex-end"><button class="ghost" data-raccourcis>Voir les raccourcis</button><button class="primary" data-fermer>C'est parti</button></div>
+        <div class="row fin"><button class="ghost" data-raccourcis>Voir les raccourcis</button><button class="primary" data-fermer>C'est parti</button></div>
       </div>`);
     $('[data-fermer]', m).onclick = () => fermerFenetre(m);
     $('[data-raccourcis]', m).onclick = () => { fermerFenetre(m); aideRaccourcis(); };

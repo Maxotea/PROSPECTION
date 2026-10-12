@@ -19,7 +19,9 @@ qu'on ouvre tous les matins. Il doit se lire en un coup d'œil, rester dense san
 
 ## Où ça vit
 
-- `public/app.css` : tous les jetons (couleurs des deux thèmes, tailles, espacements, arrondis, ombres) en tête de fichier. On change un jeton, pas un composant.
+- `public/jetons.css` : **la seule source** des couleurs (deux thèmes), tailles de texte, espacements, arrondis, ombres, durées d'animation et zones sûres de l'iPhone. On change un jeton, pas un composant. `test/jetons.test.js` refuse toute valeur écrite en dur ailleurs et recalcule les contrastes WCAG AA des deux thèmes.
+- `public/app.css` : les composants, qui ne font qu'assembler les jetons, plus quelques utilitaires de marge (`mt-3`, `fin`, `flex-1`…) à la place des styles écrits dans le JS.
+- `public/connexion.css` et `connexion.js` : la page de connexion (mêmes jetons, mêmes thèmes), seule page servie sans code avec ses fichiers publics.
 - `public/theme.js` : pose le thème choisi avant le premier affichage (clair, sombre ou auto qui suit l'appareil).
 - `public/ui.js` : la coque (menu repliable, barre basse au téléphone, palette de commandes, raccourcis, premier lancement, icônes des titres).
 
@@ -31,3 +33,12 @@ qu'on ouvre tous les matins. Il doit se lire en un coup d'œil, rester dense san
 - **Navigation** : barre latérale repliable sur ordinateur, rail d'icônes sur iPad, barre basse à cinq onglets sur iPhone avec « Plus » pour le reste.
 - **Retours** : squelettes pendant le chargement, confirmations discrètes avec « Annuler » quand le retour en arrière est exact, erreurs qui disent ce qui s'est passé et quoi faire.
 - **Mouvement** : fondu entre écrans (View Transitions quand le navigateur sait le faire), tout coupé si l'appareil demande moins d'animations.
+
+## Passe 2 : ce qui a été resserré
+
+- **Annuler pour de vrai.** Fait, Demain, Ignorer, supprimer (contact, tâche, devis, campagne, séquence, template, référence, demande), changer d'étape (pipeline, liste, fiche, Chasse) : chaque confirmation porte « Annuler ». Le serveur photographie l'état avant l'action (`src/annulation.js`) et le remet à l'identique, XP, badges et quêtes compris. Plus de « Es-tu sûr ? » : l'action part, le retour reste ouvert 15 minutes. `Ctrl Z` (`⌘Z` sur Mac) rejoue le dernier. Testé dans `test/annuler.test.js`.
+- **Retour immédiat.** La ligne décidée s'efface tout de suite, la carte du pipeline change de colonne avant la réponse du serveur ; en cas de refus, l'écran se redessine tel qu'il est vraiment.
+- **Clavier partout.** Lignes de contacts atteignables au clavier (Entrée ouvre, flèches haut et bas), tris de colonnes en vrais boutons, cartes du pipeline déplaçables avec les flèches gauche et droite, focus gardé dans les fenêtres et la fiche en feuille, plus aucun bouton dans un lien.
+- **iPhone.** Zones sûres (encoche, barre d'accueil, paysage) via `--sur-*`. Clavier virtuel mesuré (`--clavier`) : la fiche, les fenêtres et la palette remontent au-dessus, la barre du bas s'efface, le champ touché reste visible.
+- **Textes longs.** Pastilles qui passent à la ligne, emails coupés proprement avec le texte entier au survol, sociétés sur deux lignes au plus dans les listes et le pipeline.
+- **Rythme.** Marges de mise en page sur la grille de 4 px ; les demi-pas (2, 6, 10, 14 px) restent à l'intérieur des contrôles.
