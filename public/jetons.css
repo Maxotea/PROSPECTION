@@ -1,0 +1,214 @@
+/* OTEA Moteur · identité « Affût » · les jetons
+   ------------------------------------------------------------------
+   Le poste d'affût du chasseur : calme, précis, prêt à tirer.
+   Papier chaud le jour, ardoise le soir. Un seul signal fort, l'orange
+   de chasse, réservé à l'action principale et à ce qui est vital.
+   L'or ne parle que du jeu (XP, boss, badges). Le reste est en encre.
+
+   Ce fichier est la SEULE source des couleurs, tailles de texte, ombres,
+   arrondis et espacements. app.css et la page de connexion ne font que s'y
+   référer (un test le vérifie). Pour changer une teinte, un rythme ou un
+   arrondi, on change le jeton ici.
+
+   Contrastes (WCAG AA, 4,5:1 minimum pour le texte courant), recalculés
+   par test/jetons.test.js à chaque lancement de la suite :
+   clair  · encre 16:1, encre-2 6,1:1, encre-3 5,1:1, orange texte 5,1:1,
+            texte blanc sur bouton orange 5,2:1
+   sombre · encre 15,7:1, encre-2 7,7:1, encre-3 5,5:1, orange texte 7,5:1,
+            texte sur bouton orange 6,8:1
+   Détail et règles d'usage : docs/design.md */
+
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  src: url('/fonts/bricolage-grotesque.woff2') format('woff2');
+  font-weight: 400 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* --- Clair (le jour) --- */
+  --fond: #f5f3ee;
+  --surface: #ffffff;
+  --surface-2: #faf9f6;
+  --creux: #efece5;
+  --champ: #ffffff;
+  --trait: #e2ded4;
+  --trait-fort: #cfc9bc;
+  --encre: #17181c;
+  --encre-2: #565b66;
+  --encre-3: #62677a;
+  --accent: #c2410c;
+  --accent-hover: #a8380a;
+  --accent-texte: #b83d08;
+  --accent-doux: #fbe9df;
+  --sur-accent: #ffffff;
+  --or: #c99a2e;
+  --or-texte: #8a6510;
+  --or-doux: #f7efd9;
+  --succes: #23704f;
+  --succes-doux: #e3f1ea;
+  --sur-succes: #ffffff;
+  --alerte: #c2261f;
+  --alerte-doux: #fbe6e4;
+  --info: #2f5d8a;
+  --info-doux: #e4edf6;
+  --fort: #17181c;          /* bouton « fort » : encre pleine */
+  --sur-fort: #f5f3ee;
+  --seg-defaut: #64748b;    /* typologie sans couleur connue */
+  --voile: rgba(23, 24, 28, .36);
+  --ombre-1: 0 1px 2px rgba(23, 24, 28, .05);
+  --ombre-2: 0 1px 2px rgba(23, 24, 28, .05), 0 10px 28px rgba(23, 24, 28, .07);
+  --ombre-3: 0 28px 70px rgba(23, 24, 28, .22), 0 2px 6px rgba(23, 24, 28, .08);
+  --ombre-relief: 0 1px 2px rgba(23, 24, 28, .12);
+  --squelette: linear-gradient(90deg, #ebe8e0 0%, #f4f2ec 50%, #ebe8e0 100%);
+  --nav-fond: #efece5;
+}
+
+/* --- Sombre (le soir) : suit l'appareil, sauf choix contraire dans l'app --- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="clair"]) {
+    --fond: #111214; --surface: #18191d; --surface-2: #1e2024; --creux: #0d0e10; --champ: #101114;
+    --trait: #2a2c33; --trait-fort: #3a3d46;
+    --encre: #edebe6; --encre-2: #a9acb5; --encre-3: #8c909b;
+    --accent: #ff6b2c; --accent-hover: #ff8248; --accent-texte: #ff8a52; --accent-doux: rgba(255, 107, 44, .14); --sur-accent: #1a0a02;
+    --or: #e0b04a; --or-texte: #e0b04a; --or-doux: rgba(224, 176, 74, .13);
+    --succes: #4cc38a; --succes-doux: rgba(76, 195, 138, .13); --sur-succes: #06140d;
+    --alerte: #ff7b7b; --alerte-doux: rgba(255, 123, 123, .13);
+    --info: #7fb0e0; --info-doux: rgba(127, 176, 224, .13);
+    --fort: #edebe6; --sur-fort: #111214;
+    --seg-defaut: #8c96a8;
+    --voile: rgba(0, 0, 0, .55);
+    --ombre-1: 0 1px 2px rgba(0, 0, 0, .4);
+    --ombre-2: 0 1px 2px rgba(0, 0, 0, .35), 0 10px 28px rgba(0, 0, 0, .3);
+    --ombre-3: 0 28px 70px rgba(0, 0, 0, .6), 0 2px 6px rgba(0, 0, 0, .4);
+    --ombre-relief: 0 1px 2px rgba(0, 0, 0, .5);
+    --squelette: linear-gradient(90deg, #1d1f23 0%, #26282d 50%, #1d1f23 100%);
+    --nav-fond: #0d0e10;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="sombre"] {
+  --fond: #111214; --surface: #18191d; --surface-2: #1e2024; --creux: #0d0e10; --champ: #101114;
+  --trait: #2a2c33; --trait-fort: #3a3d46;
+  --encre: #edebe6; --encre-2: #a9acb5; --encre-3: #8c909b;
+  --accent: #ff6b2c; --accent-hover: #ff8248; --accent-texte: #ff8a52; --accent-doux: rgba(255, 107, 44, .14); --sur-accent: #1a0a02;
+  --or: #e0b04a; --or-texte: #e0b04a; --or-doux: rgba(224, 176, 74, .13);
+  --succes: #4cc38a; --succes-doux: rgba(76, 195, 138, .13); --sur-succes: #06140d;
+  --alerte: #ff7b7b; --alerte-doux: rgba(255, 123, 123, .13);
+  --info: #7fb0e0; --info-doux: rgba(127, 176, 224, .13);
+  --fort: #edebe6; --sur-fort: #111214;
+  --seg-defaut: #8c96a8;
+  --voile: rgba(0, 0, 0, .55);
+  --ombre-1: 0 1px 2px rgba(0, 0, 0, .4);
+  --ombre-2: 0 1px 2px rgba(0, 0, 0, .35), 0 10px 28px rgba(0, 0, 0, .3);
+  --ombre-3: 0 28px 70px rgba(0, 0, 0, .6), 0 2px 6px rgba(0, 0, 0, .4);
+  --ombre-relief: 0 1px 2px rgba(0, 0, 0, .5);
+  --squelette: linear-gradient(90deg, #1d1f23 0%, #26282d 50%, #1d1f23 100%);
+  --nav-fond: #0d0e10;
+  color-scheme: dark;
+}
+:root[data-theme="clair"] { color-scheme: light; }
+
+:root {
+  /* Traits et voiles teintés, calculés depuis la palette du thème courant */
+  --or-trait: color-mix(in srgb, var(--or) 55%, transparent);
+  --alerte-trait: color-mix(in srgb, var(--alerte) 50%, transparent);
+  --succes-trait: color-mix(in srgb, var(--succes) 50%, transparent);
+  --accent-trait: color-mix(in srgb, var(--accent) 50%, transparent);
+  --survol: color-mix(in srgb, var(--encre) 6%, transparent);
+  --selection: color-mix(in srgb, var(--accent) 7%, transparent);
+  --accent-survol: color-mix(in srgb, var(--accent) 22%, transparent);
+
+  /* Ombres composées (toujours à partir des jetons ci-dessus) */
+  --ombre-accent: var(--ombre-relief), 0 4px 12px color-mix(in srgb, var(--accent) 25%, transparent);
+  --filet: inset 0 0 0 1px var(--trait);
+  --filet-accent: inset 0 0 0 1px var(--accent-trait);
+  --filet-or: inset 0 0 0 1px var(--or-trait);
+  --repere: inset 3px 0 0 var(--accent);
+  --halo-alerte: 0 0 0 3px var(--alerte-doux);
+  --focus: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
+
+  /* Noms historiques, encore utilisés par quelques styles écrits dans le JS */
+  --bg: var(--fond);
+  --bg2: var(--creux);
+  --card: var(--surface);
+  --card2: var(--surface-2);
+  --border: var(--trait);
+  --border2: var(--trait-fort);
+  --text: var(--encre);
+  --muted: var(--encre-2);
+  --faint: var(--encre-3);
+  --accent2: var(--accent-texte);
+  --gold: var(--or);
+  --gold2: var(--or-texte);
+  --green: var(--succes);
+  --green2: var(--succes);
+  --red: var(--alerte);
+  --red2: var(--alerte);
+  --amber: var(--accent);
+
+  /* Typographie : deux familles, pas une de plus */
+  --f-titre: 'Bricolage Grotesque', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --f-texte: system-ui, -apple-system, 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --t-2xs: 11px;      /* surtitres en capitales, libellés du rail */
+  --t-xs: 12px;       /* pastilles, légendes */
+  --t-sm: 13.5px;     /* texte secondaire */
+  --t-ui: 14px;       /* boutons, menus, tableaux */
+  --t-base: 15px;     /* texte courant */
+  --t-champ: 15px;    /* saisie (16 px au téléphone, sinon Safari zoome) */
+  --t-md: 16.5px;     /* titres de carte */
+  --t-lg: 19px;
+  --t-xl: 24px;
+  --t-2xl: 32px;      /* titre d'écran */
+  --t-3xl: 44px;      /* grands chiffres */
+  --t-affiche: 56px;  /* célébrations */
+
+  /* Espacements : rythme de 4 px pour la mise en page.
+     Les demi-pas (2, 6, 10, 14 px) ne servent qu'à l'intérieur des contrôles. */
+  --e-05: 2px; --e-1: 4px; --e-15: 6px; --e-2: 8px; --e-25: 10px; --e-3: 12px; --e-35: 14px;
+  --e-4: 16px; --e-5: 20px; --e-6: 24px; --e-7: 32px; --e-8: 48px; --e-9: 64px;
+
+  /* Arrondis */
+  --r-xxs: 4px; --r-xs: 6px; --r-sm: 8px; --r-md: 10px; --r-lg: 14px; --r-xl: 20px; --r-feuille: 22px; --r-pastille: 11px; --r-plein: 999px;
+
+  /* Dimensions */
+  --ico: 20px;
+  --ico-lg: 22px;
+  --tactile: 44px;
+  --ctrl: 38px;
+  --ctrl-sm: 32px;
+  --ctrl-lg: 48px;
+  --nav-l: 252px;
+  --nav-rail: 76px;
+  --fiche-l: 460px;
+  --lecture: 76ch;
+
+  /* Mouvement : court et sobre, coupé si l'appareil le demande */
+  --anim: cubic-bezier(.2, .8, .2, 1);
+  --d-1: .12s;
+  --d-2: .2s;
+  --d-3: .28s;
+
+  /* Zones sûres de l'iPhone (encoche, barre d'accueil) */
+  --sur-haut: env(safe-area-inset-top, 0px);
+  --sur-bas: env(safe-area-inset-bottom, 0px);
+  --sur-gauche: env(safe-area-inset-left, 0px);
+  --sur-droite: env(safe-area-inset-right, 0px);
+  /* Hauteur cachée par le clavier virtuel (posée par ui.js, 0 sans clavier) */
+  --clavier: 0px;
+
+  --masque-viseur: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='8'/%3E%3Ccircle cx='12' cy='12' r='2.6'/%3E%3Cpath d='M12 1.5v4.5M12 18v4.5M1.5 12H6M18 12h4.5'/%3E%3C/svg%3E");
+}
+
+/* Au doigt : contrôles à 44 px et texte un cran plus grand. */
+@media (pointer: coarse) {
+  :root { --ctrl: var(--tactile); --ctrl-sm: var(--tactile); --t-base: 16px; --t-champ: 16px; }
+}
+/* Téléphone : l'échelle se resserre en haut et s'ouvre en bas. */
+@media (max-width: 700px) {
+  :root {
+    --t-xs: 12.5px; --t-sm: 14px; --t-ui: 15px; --t-base: 16.5px; --t-champ: 16px;
+    --t-2xl: 26px; --t-3xl: 36px; --t-affiche: 48px;
+  }
+}

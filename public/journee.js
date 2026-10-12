@@ -62,27 +62,80 @@ function jItemHtml(it, P) {
       </div>
       <div class="j-decide">
         ${it.tache_id ? `<button class="ghost" title="Modifier" data-j-edit="${it.tache_id}">✏️</button>` : ''}
-        <button class="ghost" title="Plus tard" data-j-tard="${esc(it.cle)}">⏰</button>
-        <button class="ghost" title="Ignorer : ne plus me le proposer" data-j-ignore="${esc(it.cle)}">🙈</button>
-        <button class="gold" title="Fait" data-j-fait="${esc(it.cle)}">✅</button>
+        <button class="ghost" title="Plus tard" aria-label="Reporter : ${esc(it.titre)}" data-j-tard="${esc(it.cle)}">${jIco('horloge')}</button>
+        <button class="ghost" title="Ignorer : ne plus me le proposer" aria-label="Ignorer : ${esc(it.titre)}" data-j-ignore="${esc(it.cle)}">${jIco('fermer')}</button>
+        <button class="gold" title="Fait" aria-label="Fait : ${esc(it.titre)}" data-j-fait="${esc(it.cle)}">${jIco('check')}</button>
       </div>
     </div>`;
 }
 
-function jBlocHtml(code, P) {
+function jIco(nom) { return `<svg class="ico" aria-hidden="true"><use href="#i-${nom}"/></svg>`; }
+
+// Même barème que le serveur pour classer : importance, puis urgence, puis argent en jeu.
+function jScore(it) { return it.importance * 100 + (it.urgence || 0) * 20 + Math.min(50, Math.round((it.argent || 0) / 200)); }
+
+// Le matin, en un coup d'œil : les trois choses qui comptent le plus, chacune
+// avec son action directe (ouvrir, reporter à demain, fait).
+function jTop3(P) {
+  const tout = [...P.blocs.matin, ...P.blocs.pierre, ...P.blocs.apres_midi].sort((a, b) => jScore(b) - jScore(a));
+  return { tout, top: tout.slice(0, 3) };
+}
+function jEssentielHtml(P) {
+  const { tout, top } = jTop3(P);
+  const ouvrir = (it) => {
+    const a = it.actions[0];
+    if (!a) return '';
+    if (a.type === 'contact') return `<button data-j-contact="${a.id}">Ouvrir ${jIco('fleche')}</button>`;
+    if (a.type === 'repondre_mail') return `<button data-j-mail="${a.uid}" data-j-cle="${esc(it.cle)}">Répondre ${jIco('fleche')}</button>`;
+    if (a.type === 'lien') {
+      const externe = /^https?:/i.test(a.href);
+      return `<a class="btn" href="${esc(a.href)}" ${externe ? 'target="_blank" rel="noopener"' : ''}>Ouvrir ${jIco('fleche')}</a>`;
+    }
+    return '';
+  };
+  const reste = Math.max(0, tout.length - top.length);
+  return `
+    <section class="j-essentiel" aria-labelledby="j-ess-titre">
+      <div class="j-ess-tete">
+        <h2 id="j-ess-titre">L'essentiel du jour</h2>
+        <span class="muted">${top.length ? `${top.length === 1 ? 'La chose' : `Les ${top.length} choses`} à faire en premier${reste ? ` · ${reste} autre${reste > 1 ? 's' : ''} plus bas` : ''}` : ''}</span>
+      </div>
+      ${top.length ? `<ol class="j-ess-liste">${top.map((it, i) => {
+        const imp = P.vocabulaire.importances[it.importance];
+        return `<li class="j-ess ${it.importance >= 3 ? 'vital' : ''}" data-j-item="${esc(it.cle)}">
+          <span class="j-ess-rang" aria-hidden="true">${i + 1}</span>
+          <div>
+            <div class="j-ess-titre">${esc(it.titre)}</div>
+            <div class="j-ess-meta">${it.importance >= 3 ? `<span class="chip due">${esc(imp.label)}</span>` : ''}<span>${jDuree(it.minutes)}</span>${it.pourquoi ? `<span>${esc(it.pourquoi)}</span>` : ''}</div>
+          </div>
+          <div class="j-ess-actions">
+            ${ouvrir(it)}
+            <button class="ghost" data-j-demain="${esc(it.cle)}" title="Reporter à demain">${jIco('horloge')} Demain</button>
+            <button class="primary j-fait-btn" data-j-fait="${esc(it.cle)}" aria-label="Fait : ${esc(it.titre)}">${jIco('check')} Fait</button>
+          </div>
+        </li>`;
+      }).join('')}</ol>`
+      : `<div class="j-ess-vide"><div class="vide-etat"><b>Rien d'urgent ce matin.</b><br>${P.faits_aujourdhui ? `${P.faits_aujourdhui} chose${P.faits_aujourdhui > 1 ? 's' : ''} déjà faite${P.faits_aujourdhui > 1 ? 's' : ''}. ` : ''}C'est le bon moment pour provoquer des réponses.<div class="row centre mt-3"><a class="btn primary" href="#/chasse">Lancer La Chasse</a></div></div></div>`}
+    </section>`;
+}
+
+function jBlocHtml(code, P, dejaEnHaut = new Set()) {
   const b = P.vocabulaire.blocs[code];
-  const liste = P.blocs[code];
+  // Ce qui est déjà dans « L'essentiel » n'est pas répété plus bas.
+  const liste = P.blocs[code].filter((it) => !dejaEnHaut.has(it.cle));
+  const remonte = P.blocs[code].length - liste.length;
+  const minutes = liste.reduce((t, it) => t + (Number(it.minutes) || 0), 0);
   const ouvert = code !== 'plus_tard' || !P.blocs.matin.length;
   return `
     <section class="card j-bloc j-${code}">
       <div class="spread">
         <h2>${b.emoji} ${esc(b.titre)}</h2>
-        <span class="chip ${liste.length && code === 'pierre' ? 'former' : ''}">${liste.length}${liste.length ? ` · ≈ ${jDuree(P.minutes[code])}` : ''}</span>
+        <span class="chip ${liste.length && code === 'pierre' ? 'former' : ''}">${liste.length}${liste.length ? ` · ≈ ${jDuree(minutes)}` : ''}</span>
       </div>
       <p class="muted small j-aide">${esc(b.aide)}</p>
       ${code === 'plus_tard' && liste.length && !ouvert
-        ? `<details><summary class="muted small" style="cursor:pointer">Voir les ${liste.length} choses qui peuvent attendre</summary>${liste.map((it) => jItemHtml(it, P)).join('')}</details>`
-        : liste.length ? liste.map((it) => jItemHtml(it, P)).join('') : `<p class="muted small j-vide">${code === 'matin' ? 'Rien de court en attente. Belle matinée.' : code === 'pierre' ? 'Pas de grosse pierre aujourd’hui : ajoute-la dans le vide-cerveau si tu en as une en tête.' : code === 'apres_midi' ? 'Rien de moyen.' : 'Rien.'}</p>`}
+        ? `<details><summary class="muted small cliquable">Voir les ${liste.length} choses qui peuvent attendre</summary>${liste.map((it) => jItemHtml(it, P)).join('')}</details>`
+        : liste.length ? liste.map((it) => jItemHtml(it, P)).join('') : `<p class="muted small j-vide">${remonte ? `Tout est dans l'essentiel, en haut de la page.` : code === 'matin' ? 'Rien de court en attente. Belle matinée.' : code === 'pierre' ? 'Pas de grosse pierre aujourd’hui : ajoute-la dans le vide-cerveau si tu en as une en tête.' : code === 'apres_midi' ? 'Rien de moyen.' : 'Rien.'}</p>`}
     </section>`;
 }
 
@@ -95,7 +148,7 @@ function jHeure(iso) {
 // l'urgence de chaque événement changeable d'un clic (c'est sa couleur là-bas).
 function jAgendaHtml(A) {
   if (!A.branche) {
-    return `<div class="card" style="margin-top:14px"><div class="spread"><div><h3 style="margin-bottom:2px">🗓️ Ton agenda</h3><p class="muted small" style="margin:0">${esc(A.erreur || 'Pas encore branché.')} Une fois branché, ta journée se lit ici et tes tâches se posent sur tes créneaux libres, colorées par urgence.</p></div><a href="#/reglages"><button>⚙️ Brancher</button></a></div></div>`;
+    return `<div class="card mt-4"><div class="spread"><div><h3 class="mb-1">🗓️ Ton agenda</h3><p class="muted small m-0">${esc(A.erreur || 'Pas encore branché.')} Une fois branché, ta journée se lit ici et tes tâches se posent sur tes créneaux libres, colorées par urgence.</p></div><a class="btn" href="#/reglages">⚙️ Brancher</a></div></div>`;
   }
   const N = A.niveaux;
   const boutonsNiveau = (ev) => [3, 2, 1, 0].map((n) => `<button class="ghost j-niv ${ev.niveau === n ? 'actif' : ''}" data-j-niv="${n}" data-j-ev="${esc(ev.id)}" data-j-cal="${esc(ev.calendrier || '')}" title="${esc(N[n].label)}">${N[n].emoji}</button>`).join('')
@@ -113,20 +166,20 @@ function jAgendaHtml(A) {
       const ev = x.ev;
       const couleur = ev.couleur && A.palette[ev.couleur] ? A.palette[ev.couleur].hex : '';
       lignes.push(`<div class="j-ev">
-        <span class="j-ev-h mono">${ev.journee ? 'journée' : `${esc(ev.heure)}<span class="faint">–${esc(ev.heure_fin)}</span>`}</span>
-        <span class="j-ev-dot" style="background:${couleur || 'var(--border2)'}"></span>
+        <span class="j-ev-h mono">${ev.journee ? 'journée' : `${esc(ev.heure)}<span class="faint">-${esc(ev.heure_fin)}</span>`}</span>
+        <span class="j-ev-dot" style="background:${couleur || 'var(--trait-fort)'}"></span>
         <span class="j-ev-t">${ev.niveau !== null && ev.niveau !== undefined ? N[ev.niveau].emoji + ' ' : ''}${esc(ev.titre || '(sans titre)')}${ev.calendrier_nom ? ` <span class="faint small">· ${esc(ev.calendrier_nom)}</span>` : ''}${ev.lieu ? ` <span class="faint small">📍 ${esc(ev.lieu)}</span>` : ''}</span>
         <span class="j-ev-niv">${boutonsNiveau(ev)}</span>
       </div>`);
     } else {
-      lignes.push(`<div class="j-ev j-libre"><span class="j-ev-h mono">${esc(jHeure(x.c.debut))}<span class="faint">–${esc(jHeure(x.c.fin))}</span></span><span class="j-ev-dot"></span><span class="j-ev-t muted">libre · ${jDuree(x.c.minutes)}</span></div>`);
+      lignes.push(`<div class="j-ev j-libre"><span class="j-ev-h mono">${esc(jHeure(x.c.debut))}<span class="faint">-${esc(jHeure(x.c.fin))}</span></span><span class="j-ev-dot"></span><span class="j-ev-t muted">libre · ${jDuree(x.c.minutes)}</span></div>`);
     }
   }
   const libreTotal = cren.reduce((s, c) => s + c.minutes, 0);
   return `
-    <div class="card" style="margin-top:14px">
+    <div class="card mt-4">
       <div class="spread">
-        <div><h3 style="margin-bottom:2px">🗓️ Aujourd'hui dans l'agenda</h3><p class="muted small" style="margin:0">${evs.length ? `${evs.length} événement${evs.length > 1 ? 's' : ''}` : 'Rien de prévu'} · ${libreTotal ? `${jDuree(libreTotal)} de libre d'ici ${esc(String(Math.floor(A.heures.fin / 60)).padStart(2, '0'))}:${esc(String(A.heures.fin % 60).padStart(2, '0'))}` : 'plus de créneau libre aujourd’hui'} · clique un rond pour changer l'urgence, elle change de couleur dans Google Agenda</p></div>
+        <div><h3 class="mb-1">🗓️ Aujourd'hui dans l'agenda</h3><p class="muted small m-0">${evs.length ? `${evs.length} événement${evs.length > 1 ? 's' : ''}` : 'Rien de prévu'} · ${libreTotal ? `${jDuree(libreTotal)} de libre d'ici ${esc(String(Math.floor(A.heures.fin / 60)).padStart(2, '0'))}:${esc(String(A.heures.fin % 60).padStart(2, '0'))}` : 'plus de créneau libre aujourd’hui'} · clique un rond pour changer l'urgence, elle change de couleur dans Google Agenda</p></div>
         <button class="gold" id="j-caler-tout" ${cren.length ? '' : 'disabled'} title="Pose les courtes au plus tôt, la grosse pierre dans le plus grand trou, les moyennes ensuite">🗓️ Caler ma journée</button>
       </div>
       <div class="j-agenda">${lignes.join('') || '<p class="muted small j-vide">Journée vide.</p>'}</div>
@@ -140,8 +193,8 @@ function jSemaineHtml(A) {
   if (!sem.length) return '';
   const N = A.niveaux;
   const jour = (d) => { const [y, m, j] = d.split('-').map(Number); const x = new Date(y, m - 1, j); return `${['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'][x.getDay()]}. ${x.getDate()}`; };
-  const lignes = sem.slice(0, 8).map((ev) => `<div class="j-ev"><span class="j-ev-h mono">${esc(jour(ev.jour))}${ev.heure ? ` <span class="faint">${esc(ev.heure)}</span>` : ''}</span><span class="j-ev-dot" style="background:${ev.niveau >= 2 ? N[ev.niveau].couleur && A.palette[N[ev.niveau].couleur] ? A.palette[N[ev.niveau].couleur].hex : 'var(--border2)' : 'var(--border2)'}"></span><span class="j-ev-t">${ev.niveau >= 2 ? N[ev.niveau].emoji + ' ' : ''}${esc(ev.titre)}${ev.lieu ? ` <span class="faint small">📍 ${esc(ev.lieu)}</span>` : ''}</span></div>`);
-  return `<h4 style="margin:14px 0 4px">📆 Cette semaine</h4><div class="j-agenda">${lignes.join('')}</div>`;
+  const lignes = sem.slice(0, 8).map((ev) => `<div class="j-ev"><span class="j-ev-h mono">${esc(jour(ev.jour))}${ev.heure ? ` <span class="faint">${esc(ev.heure)}</span>` : ''}</span><span class="j-ev-dot" style="background:${ev.niveau >= 2 ? N[ev.niveau].couleur && A.palette[N[ev.niveau].couleur] ? A.palette[N[ev.niveau].couleur].hex : 'var(--trait-fort)' : 'var(--trait-fort)'}"></span><span class="j-ev-t">${ev.niveau >= 2 ? N[ev.niveau].emoji + ' ' : ''}${esc(ev.titre)}${ev.lieu ? ` <span class="faint small">📍 ${esc(ev.lieu)}</span>` : ''}</span></div>`);
+  return `<h4 class="mt-4 mb-1">📆 Cette semaine</h4><div class="j-agenda">${lignes.join('')}</div>`;
 }
 
 function dessinerJournee(view) {
@@ -156,9 +209,10 @@ function dessinerJournee(view) {
   }).join('');
   const total = P.total;
   const titre = total
-    ? `${total} chose${total > 1 ? 's' : ''} à faire${P.vitaux ? `, dont <b style="color:var(--red2)">${P.vitaux} vitale${P.vitaux > 1 ? 's' : ''}</b>` : ''}${P.argent ? ` · ${eur(P.argent)} en jeu` : ''}${P.faits_aujourdhui ? ` · ✅ ${P.faits_aujourdhui} déjà fait${P.faits_aujourdhui > 1 ? 's' : ''}` : ''}`
+    ? `${total} chose${total > 1 ? 's' : ''} à faire${P.vitaux ? `, dont <b class="texte-alerte">${P.vitaux} vitale${P.vitaux > 1 ? 's' : ''}</b>` : ''}${P.argent ? ` · ${eur(P.argent)} en jeu` : ''}${P.faits_aujourdhui ? ` · ✅ ${P.faits_aujourdhui} déjà fait${P.faits_aujourdhui > 1 ? 's' : ''}` : ''}`
     : `Rien qui attend. ${P.faits_aujourdhui ? `✅ ${P.faits_aujourdhui} fait${P.faits_aujourdhui > 1 ? 's' : ''} aujourd'hui. ` : ''}Va provoquer des réponses : <a href="#/chasse">Mode Chasse</a>.`;
 
+  const enHaut = new Set(jTop3(P).top.map((it) => it.cle));
   view.innerHTML = `
     <div class="view-header spread">
       <div><h1>☀️ ${esc(P.jour_long.charAt(0).toUpperCase() + P.jour_long.slice(1))}</h1><div class="sub">${titre}</div></div>
@@ -167,23 +221,25 @@ function dessinerJournee(view) {
         <button class="ghost" id="j-brief" title="Le brief du matin, tel qu'il part par mail">📨 Le brief</button>
       </div>
     </div>
-    <div class="card">
-      <div class="j-radar"><span class="muted small">Radar :</span>${radar}<span class="muted small">· CRM lu en direct</span></div>
-      <div class="j-radar" style="margin-top:8px"><span class="muted small">Brief :</span>${briefChip(P.brief)}</div>
-    </div>
-    ${jAgendaHtml(P.agenda)}
-    <div class="card" style="margin-top:14px">
-      <h3>🧠 Vide-cerveau</h3>
+    ${jEssentielHtml(P)}
+    <div class="card mt-4">
+      <h3><label for="j-texte">🧠 Vide-cerveau</label></h3>
       <div class="j-capture">
         <input id="j-texte" placeholder="Une chose à faire, en une ligne : « monter la vidéo du Loft 3h !! avant le 12/09 »" autocomplete="off">
-        <button class="primary" id="j-add">Ajouter</button>
+        <button class="gold" id="j-add">Ajouter</button>
       </div>
-      <p class="muted small" style="margin:6px 0 0">Astuces : <b>!</b> important, <b>!!</b> vital · <b>2h</b>, <b>30 min</b> pour la durée · <b>demain</b>, <b>vendredi</b>, <b>avant le 12/09</b> pour l'échéance. Sans rien, l'app devine à partir des mots (montage = long, devis = moyen, mail = court).</p>
+      <p class="muted small mt-2 mb-0">Astuces : <b>!</b> important, <b>!!</b> vital · <b>2h</b>, <b>30 min</b> pour la durée · <b>demain</b>, <b>vendredi</b>, <b>avant le 12/09</b> pour l'échéance. Sans rien, l'app devine à partir des mots (montage = long, devis = moyen, mail = court).</p>
     </div>
-    <div class="j-blocs" style="margin-top:14px">
-      <div class="j-col">${jBlocHtml('matin', P)}${jBlocHtml('apres_midi', P)}</div>
-      <div class="j-col">${jBlocHtml('pierre', P)}${jBlocHtml('plus_tard', P)}</div>
-    </div>`;
+    <div class="j-blocs mt-4">
+      <div class="j-col">${jBlocHtml('matin', P, enHaut)}${jBlocHtml('apres_midi', P, enHaut)}</div>
+      <div class="j-col">${jBlocHtml('pierre', P, enHaut)}${jBlocHtml('plus_tard', P, enHaut)}</div>
+    </div>
+    ${jAgendaHtml(P.agenda)}
+    <details class="card j-sources mt-4">
+      <summary>Ce que l'app a lu ce matin : sources et brief</summary>
+      <div class="j-radar"><span class="muted small">Radar :</span>${radar}<span class="muted small">· CRM lu en direct</span></div>
+      <div class="j-radar mt-2"><span class="muted small">Brief :</span>${briefChip(P.brief)}</div>
+    </details>`;
 
   const recharger = async () => { jPlan = await api('/journee'); dessinerJournee(view); };
 
@@ -207,7 +263,7 @@ function dessinerJournee(view) {
         <h2>📨 Le brief du matin</h2>
         <p class="muted small">Calculé ${r.brief ? `ce matin${r.brief.envoye_le ? ` et envoyé sur ton Gmail à ${new Date(r.brief.envoye_le).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}` : ''}` : 'à l’instant'}. Il part chaque matin par mail à l'heure choisie dans Réglages.</p>
         <div class="j-brief">${esc(r.texte)}</div>
-        <div class="row" style="justify-content:flex-end;margin-top:12px">
+        <div class="row fin mt-3">
           <button id="jb-copy">📋 Copier</button>
           <button class="primary" id="jb-send">📨 Me l'envoyer maintenant</button>
         </div>`);
@@ -237,20 +293,31 @@ function dessinerJournee(view) {
   $('#j-add').onclick = ajouter;
   $('#j-texte').onkeydown = (e) => { if (e.key === 'Enter') ajouter(); };
 
+  // Mise à jour optimiste : la ligne s'efface tout de suite, le serveur suit.
+  // Chaque décision (même celle qui rapporte de l'XP ou efface une tâche) se
+  // rattrape avec « Annuler » : le serveur remet l'état exact d'avant.
   const decider = async (cle, statut, extra = {}) => {
     const it = trouverItem(cle);
+    const lignes = $$(`[data-j-item="${CSS.escape(cle)}"]`, view);
+    lignes.forEach((l) => { l.classList.add('j-part'); l.setAttribute('aria-hidden', 'true'); });
     try {
       const r = await api('/journee/decision', { method: 'POST', body: { cle, statut, titre: it ? it.titre : '', ...extra } });
+      const titre = it ? esc(it.titre) : '';
+      const message = statut === 'fait' ? `Fait : ${titre || 'bien joué'}`
+        : statut === 'plus_tard' ? `Reporté au ${r.jusqu_au.slice(8, 10)}/${r.jusqu_au.slice(5, 7)}${titre ? ` : ${titre}` : ''}`
+          : 'Ignoré : il ne reviendra plus';
+      confirmerAvecRetour(message, r, recharger);
       if (r.celebration) await celebrate(r.celebration);
-      if (statut === 'fait') fx.toast(`✅ ${it ? esc(it.titre) : 'Fait'}`);
-      else if (statut === 'plus_tard') fx.toast(`⏰ Remis au ${r.jusqu_au.slice(8, 10)}/${r.jusqu_au.slice(5, 7)}`);
-      else fx.toast('🙈 Ignoré : il ne reviendra plus');
       await recharger();
-    } catch (e) { fx.error(e.message); }
+    } catch (e) {
+      lignes.forEach((l) => { l.classList.remove('j-part'); l.removeAttribute('aria-hidden'); });
+      fx.error(e.message);
+    }
   };
 
   $$('[data-j-fait]', view).forEach((b) => { b.onclick = () => decider(b.dataset.jFait, 'fait'); });
   $$('[data-j-ignore]', view).forEach((b) => { b.onclick = () => decider(b.dataset.jIgnore, 'ignore'); });
+  $$('[data-j-demain]', view).forEach((b) => { b.onclick = () => decider(b.dataset.jDemain, 'plus_tard', { jours: 1 }); });
   $$('[data-j-tard]', view).forEach((b) => {
     b.onclick = () => {
       const cle = b.dataset.jTard;
@@ -260,7 +327,7 @@ function dessinerJournee(view) {
       const m = modal(`
         <h2>⏰ Plus tard</h2>
         <p class="muted small">${it ? esc(it.titre) : ''}</p>
-        <div class="row" style="flex-wrap:wrap">
+        <div class="row ">
           <button data-jours="1">Demain</button>
           <button data-jours="2">Dans 2 jours</button>
           <button data-jours="${versLundi}">Lundi prochain</button>
@@ -332,12 +399,12 @@ function jCalerModal(cle, apres) {
   const m = modal(`
     <h2>📅 ${cale ? 'Déplacer' : 'Caler'} dans l'agenda</h2>
     <p class="muted small">${esc(it.titre)} · ${jDuree(minutes)} · ${jPlan.vocabulaire.importances[it.importance].emoji} la couleur suivra l'urgence</p>
-    ${creneaux.length ? `<div class="grid" style="gap:6px;margin-top:8px">${creneaux.map((c, i) => `<label class="chip" style="cursor:pointer;justify-content:flex-start"><input type="radio" name="jc-cren" value="${esc(c.debut)}" ${i === 0 ? 'checked' : ''}> ${esc(jHeure(c.debut))} → ${esc(jHeure(c.fin))} <span class="faint">· ${jDuree(c.minutes)} de libre</span></label>`).join('')}</div>` : '<p class="muted small">Plus de créneau libre aujourd’hui dans tes heures de travail. Choisis une heure à la main :</p>'}
-    <div class="form-grid" style="margin-top:10px">
+    ${creneaux.length ? `<div class="grid gap-2 mt-2">${creneaux.map((c, i) => `<label class="chip cliquable debut"><input type="radio" name="jc-cren" value="${esc(c.debut)}" ${i === 0 ? 'checked' : ''}> ${esc(jHeure(c.debut))} → ${esc(jHeure(c.fin))} <span class="faint">· ${jDuree(c.minutes)} de libre</span></label>`).join('')}</div>` : '<p class="muted small">Plus de créneau libre aujourd’hui dans tes heures de travail. Choisis une heure à la main :</p>'}
+    <div class="form-grid mt-3">
       <label class="field">Ou à cette heure<input id="jc-heure" type="time" value=""></label>
       <label class="field">Durée (min)<input id="jc-min" type="number" min="15" step="5" value="${minutes}"></label>
     </div>
-    <div class="spread" style="margin-top:12px">
+    <div class="spread mt-3">
       ${cale ? '<button class="danger" id="jc-del">🗑 Retirer de l’agenda</button>' : '<span></span>'}
       <button class="primary" id="jc-ok">📅 ${cale ? 'Déplacer' : 'Caler'}</button>
     </div>`);
@@ -369,14 +436,14 @@ function jEditerTache(id, apres) {
   const V = jPlan.vocabulaire;
   const m = modal(`
     <h2>✏️ Modifier</h2>
-    <div class="form-grid" style="margin-top:10px">
+    <div class="form-grid mt-3">
       <label class="field wide">Quoi<input id="jt-texte" value="${esc(it.titre)}"></label>
       <label class="field">Durée<select id="jt-duree">${Object.values(V.durees).map((d) => `<option value="${d.code}" ${d.code === it.duree ? 'selected' : ''}>${d.emoji} ${d.label} (${d.aide})</option>`).join('')}</select></label>
       <label class="field">Minutes <span class="faint">(0 = par défaut)</span><input id="jt-min" type="number" min="0" value="${Number(it.minutes) || 0}"></label>
       <label class="field">Importance<select id="jt-imp">${[3, 2, 1].map((i) => `<option value="${i}" ${i === it.importance ? 'selected' : ''}>${V.importances[i].emoji} ${V.importances[i].label}</option>`).join('')}</select></label>
       <label class="field">Pour le<input id="jt-ech" type="date" value="${esc(it.echeance || '')}"></label>
     </div>
-    <div class="spread" style="margin-top:12px">
+    <div class="spread mt-3">
       <button class="danger" id="jt-del">🗑 Supprimer</button>
       <button class="primary" id="jt-save">💾 Enregistrer</button>
     </div>`);
@@ -390,7 +457,7 @@ function jEditerTache(id, apres) {
     } catch (e) { fx.error(e.message); }
   };
   $('#jt-del', m).onclick = async () => {
-    try { await api(`/journee/taches/${id}`, { method: 'DELETE' }); m.remove(); await apres(); }
+    try { const r = await api(`/journee/taches/${id}`, { method: 'DELETE' }); m.remove(); confirmerAvecRetour('Tâche supprimée', r, apres); await apres(); }
     catch (e) { fx.error(e.message); }
   };
 }
@@ -409,12 +476,12 @@ async function jRepondreMail(uid, cle, apres) {
   m.querySelector('.modal').innerHTML = `
     <h2>✨ Répondre à ${esc(r.contact ? r.contact.nom : (r.from.name || r.from.email))}</h2>
     <p class="muted small">${esc(qui)} · « ${esc(r.subject)} »${r.brouillon.source === 'claude' ? ' · brouillon rédigé par l’IA' : ' · brouillon depuis un template (ajoute une clé IA dans Réglages pour du sur-mesure)'}</p>
-    <details open><summary class="muted small" style="cursor:pointer">Le mail reçu</summary><div class="j-mail-recu">${esc(r.texte_recu || '(pas de texte lisible : ouvre-le dans Gmail)')}</div></details>
-    <div class="form-grid" style="margin-top:10px">
+    <details open><summary class="muted small cliquable">Le mail reçu</summary><div class="j-mail-recu">${esc(r.texte_recu || '(pas de texte lisible : ouvre-le dans Gmail)')}</div></details>
+    <div class="form-grid mt-3">
       <label class="field wide">Objet<input id="jm-subj" value="${esc(r.brouillon.subject || '')}"></label>
       <label class="field wide"><span>Ta réponse</span><textarea id="jm-body" rows="10">${esc(r.brouillon.body || '')}</textarea></label>
     </div>
-    <div class="row" style="justify-content:flex-end;margin-top:12px;flex-wrap:wrap">
+    <div class="row fin mt-3">
       <button id="jm-copy">📋 Copier</button>
       <a class="btn" href="https://mail.google.com/mail/u/0/#search/rfc822msgid:${encodeURIComponent(String(r.message_id || '').replace(/^<|>$/g, ''))}" target="_blank" rel="noopener">📬 Ouvrir dans Gmail</a>
       <button class="gold" id="jm-done">✅ J'ai répondu ailleurs</button>
@@ -422,7 +489,7 @@ async function jRepondreMail(uid, cle, apres) {
     </div>`;
   $('#jm-copy', m).onclick = async () => { await copyText($('#jm-body', m).value); fx.toast('📋 Copié'); };
   $('#jm-done', m).onclick = async () => {
-    try { await api('/journee/decision', { method: 'POST', body: { cle, statut: 'fait', titre: it ? it.titre : '' } }); m.remove(); fx.toast('✅ Marqué fait'); await apres(); }
+    try { const r = await api('/journee/decision', { method: 'POST', body: { cle, statut: 'fait', titre: it ? it.titre : '' } }); m.remove(); confirmerAvecRetour('Marqué fait', r, apres); await apres(); }
     catch (e) { fx.error(e.message); }
   };
   $('#jm-send', m).onclick = async () => {

@@ -88,6 +88,8 @@ const { seedDemo } = require('./seed');
 const migrationTirets = require('./src/migrations/tirets');
 const journee = require('./src/journee');
 const agenda = require('./src/integrations/agenda');
+const annulation = require('./src/annulation');
+const { avecRetour, cible, ciblesContact } = annulation;
 
 playbooks.seedTemplates(dbApi);
 playbooks.seedSequences(dbApi);
@@ -196,20 +198,73 @@ function noteEchec(ip) {
   tentatives.set(ip, t);
 }
 
-function loginPage(wrong) {
-  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>⚙️ OTEA Moteur : accès</title>
-  <style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0a0d18;color:#e9edff;font:16px system-ui,sans-serif}
-  .box{background:#131830;border:1px solid #242c52;border-radius:16px;padding:32px 36px;text-align:center;max-width:340px}
-  input{font:inherit;font-size:26px;letter-spacing:8px;text-align:center;text-transform:uppercase;width:100%;padding:10px;border-radius:10px;border:1px solid #34406e;background:#0e1222;color:#e9edff;margin:14px 0}
-  button{font:inherit;font-weight:700;width:100%;padding:12px;border-radius:10px;border:0;background:linear-gradient(135deg,#7c3aed,#8b5cf6);color:#fff;cursor:pointer}
-  .err{color:#f87171;font-size:14px}</style></head><body>
-  <form class="box" method="POST" action="/acces">
-    <div style="font-size:44px">⚙️</div><h2 style="margin:6px 0">OTEA Moteur</h2>
-    <p style="color:#93a0c9;font-size:14px">${EN_LIGNE ? 'Entre ton mot de passe.' : 'Entre le code affiché dans la fenêtre noire de ton ordinateur.'}</p>
-    ${wrong ? `<p class="err">${wrong === 'bloque' ? '⏳ Trop d’essais. Réessaie dans quelques minutes.' : '❌ Mauvais code, réessaie.'}</p>` : ''}
-    <input name="code" type="${EN_LIGNE ? 'password' : 'text'}" maxlength="${EN_LIGNE ? 128 : 6}" autofocus autocomplete="${EN_LIGNE ? 'current-password' : 'off'}" placeholder="••••••" style="${EN_LIGNE ? 'letter-spacing:4px;font-size:20px;text-transform:none' : ''}">
-    <button type="submit">Entrer</button>
-  </form></body></html>`;
+// La page de connexion : seule page servie sans être connecté. Elle reprend
+// l'identité Affût (jetons, police, thèmes clair et sombre) avec ses propres
+// fichiers publics, et dit toujours ce qui s'est passé ET quoi faire.
+// Ces fichiers ne contiennent aucune donnée : ils passent sans code.
+const FICHIERS_PUBLICS = new Set(['/jetons.css', '/connexion.css', '/connexion.js', '/theme.js', '/fonts/bricolage-grotesque.woff2']);
+
+function loginPage({ erreur = '', restants = MAX_TENTATIVES, minutes = 0 } = {}) {
+  const motDePasse = EN_LIGNE;
+  const quoi = motDePasse ? 'mot de passe' : 'code';
+  const ouLeTrouver = motDePasse
+    ? 'C’est celui que tu as choisi en mettant OTEA Moteur en ligne. Tu le retrouves dans les réglages de ton hébergeur, à la ligne CODE_ACCES.'
+    : 'Il s’affiche dans la fenêtre noire de ton ordinateur, au démarrage d’OTEA Moteur : 6 lettres ou chiffres.';
+  const essais = restants > 1 ? `Encore ${restants} essais avant une pause de 15 minutes.` : 'Dernier essai avant une pause de 15 minutes.';
+  let alerte = '';
+  if (erreur === 'bloque') {
+    alerte = `<div class="c-alerte" role="alert" id="c-erreur">
+      <b>Trop d’essais ratés depuis cet appareil.</b>
+      <p>Par sécurité, l’accès est en pause pendant encore ${minutes > 1 ? `${minutes} minutes` : 'une minute'}. Attends, puis réessaie avec le bon ${quoi}. ${ouLeTrouver}</p>
+    </div>`;
+  } else if (erreur) {
+    alerte = `<div class="c-alerte" role="alert" id="c-erreur">
+      <b>${motDePasse ? 'Ce mot de passe ne correspond pas.' : 'Ce code ne correspond pas.'}</b>
+      <p>${motDePasse ? 'Vérifie les majuscules (et la touche de verrouillage), puis retape-le.' : 'Recopie-le lettre par lettre depuis la fenêtre noire. Majuscules ou minuscules, peu importe.'} ${essais}</p>
+    </div>`;
+  }
+  return `<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f5f3ee" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#111214" media="(prefers-color-scheme: dark)">
+  <meta name="robots" content="noindex">
+  <title>Connexion · OTEA Moteur</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23c2410c'/><circle cx='16' cy='16' r='8' fill='none' stroke='white' stroke-width='2.5'/><circle cx='16' cy='16' r='2.5' fill='white'/></svg>">
+  <link rel="preload" href="/fonts/bricolage-grotesque.woff2" as="font" type="font/woff2" crossorigin>
+  <script src="/theme.js"></script>
+  <link rel="stylesheet" href="/jetons.css">
+  <link rel="stylesheet" href="/connexion.css">
+</head>
+<body>
+  <main class="c-page">
+    <form class="c-carte" method="POST" action="/acces" novalidate>
+      <div class="c-marque">
+        <span class="c-logo" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.6"/><path d="M12 1.5v4.5M12 18v4.5M1.5 12H6M18 12h4.5"/></svg></span>
+        <span class="c-nom">OTEA <b>Moteur</b></span>
+      </div>
+      <h1>${motDePasse ? 'Entre ton mot de passe' : 'Entre ton code d’accès'}</h1>
+      <p class="c-aide" id="c-aide">${ouLeTrouver}</p>
+      ${alerte}
+      <label class="c-champ" for="c-code">
+        <span>${motDePasse ? 'Mot de passe' : 'Code d’accès'}</span>
+        <span class="c-saisie">
+          <input id="c-code" name="code" type="${motDePasse ? 'password' : 'text'}" maxlength="${motDePasse ? 128 : 6}" required autofocus
+            autocomplete="${motDePasse ? 'current-password' : 'one-time-code'}" ${motDePasse ? '' : 'autocapitalize="characters" spellcheck="false" inputmode="text" class="c-code-court" placeholder="ABC234"'}
+            aria-describedby="${erreur ? 'c-erreur ' : ''}c-aide" ${erreur ? 'aria-invalid="true"' : ''} ${erreur === 'bloque' ? 'disabled' : ''}>
+          ${motDePasse ? '<button type="button" class="c-voir" id="c-voir" aria-controls="c-code" aria-pressed="false" hidden>Afficher</button>' : ''}
+        </span>
+      </label>
+      <button type="submit" class="c-entrer" ${erreur === 'bloque' ? 'disabled' : ''}>Entrer</button>
+      <p class="c-pied">Tu restes connecté 30 jours sur cet appareil.</p>
+    </form>
+  </main>
+  <script src="/connexion.js"></script>
+</body>
+</html>`;
 }
 
 // ---------------------------------------------------------------- utilitaires HTTP
@@ -303,11 +358,30 @@ route('POST', '/api/journee/taches', async (req) => {
   return { tache: journee.ajouterTache(b.texte, b) };
 });
 route('PATCH', '/api/journee/taches/:id', async (req, params) => ({ tache: journee.modifierTache(Number(params.id), await readBody(req)) }));
-route('DELETE', '/api/journee/taches/:id', async (req, params) => journee.supprimerTache(Number(params.id)));
+route('DELETE', '/api/journee/taches/:id', async (req, params) => avecRetour('Tâche supprimée',
+  [cible('journee_taches', 'id = ?', Number(params.id))],
+  () => journee.supprimerTache(Number(params.id))));
+
+// Ce qu'une décision de « Ma journée » peut toucher : la décision elle-même,
+// la tâche du vide-cerveau, et le contact quand un « fait » vaut une relance.
+function ciblesDecision(cle) {
+  const cibles = [{ ...cible('journee_decisions', 'cle = ?', cle), cle: 'cle' }];
+  const t = cle.match(/^tache:(\d+)$/);
+  const relance = cle.match(/^crm:relance:(\d+):/);
+  const devis = cle.match(/^crm:devis:(\d+)$/);
+  if (t) cibles.push(cible('journee_taches', 'id = ?', Number(t[1])));
+  if (relance) cibles.push(cible('contacts', 'id = ?', Number(relance[1])));
+  if (devis) cibles.push(cible('contacts', 'id = (SELECT contact_id FROM deals WHERE id = ?)', Number(devis[1])));
+  return cibles;
+}
 route('POST', '/api/journee/decision', async (req) => {
   const b = await readBody(req);
   if (!b.cle) throw httpError(400, 'Signal inconnu.');
-  return journee.decider(String(b.cle), String(b.statut || ''), { jours: b.jours, titre: b.titre });
+  const cle = String(b.cle);
+  const statut = String(b.statut || '');
+  const faire = () => journee.decider(cle, statut, { jours: b.jours, titre: b.titre });
+  if (statut === 'annuler') return faire();
+  return avecRetour({ fait: 'Fait', plus_tard: 'Reporté', ignore: 'Ignoré' }[statut] || statut, ciblesDecision(cle), faire);
 });
 route('POST', '/api/journee/mail/:uid/reponse', async (req, params) => {
   const b = await readBody(req);
@@ -392,27 +466,34 @@ route('PATCH', '/api/contacts/:id', async (req, params) => {
   const body = await readBody(req);
   const existing = get('SELECT * FROM contacts WHERE id = ?', params.id);
   if (!existing) throw httpError(404, 'Contact introuvable');
-  let celebration = null;
-  if (body.stage && body.stage !== existing.stage) {
-    celebration = game.logAction({ contact_id: existing.id, type: 'stage_change', note: `${existing.stage} → ${body.stage}`, meta: { manual: true } });
-  }
-  const contact = dbApi.updateContact(params.id, body);
-  return { contact, celebration };
+  return avecRetour('Fiche modifiée', [cible('contacts', 'id = ?', existing.id)], () => {
+    let celebration = null;
+    if (body.stage && body.stage !== existing.stage) {
+      celebration = game.logAction({ contact_id: existing.id, type: 'stage_change', note: `${existing.stage} → ${body.stage}`, meta: { manual: true } });
+    }
+    const contact = dbApi.updateContact(params.id, body);
+    return { contact, celebration };
+  });
 });
 
-route('DELETE', '/api/contacts/:id', async (req, params) => {
+route('DELETE', '/api/contacts/:id', async (req, params) => avecRetour('Contact supprimé', ciblesContact(Number(params.id)), () => {
   run('DELETE FROM contacts WHERE id = ?', params.id);
   return { ok: true };
-});
+}));
 
 route('POST', '/api/contacts/bulk', async (req) => {
   const { ids = [], patch = {}, action = 'patch' } = await readBody(req);
+  const liste = ids.map(Number).filter(Boolean);
   if (action === 'delete') {
-    for (const id of ids) run('DELETE FROM contacts WHERE id = ?', id);
-    return { ok: true, count: ids.length };
+    return avecRetour(`${liste.length} contact(s) supprimé(s)`, liste.flatMap(ciblesContact), () => {
+      for (const id of liste) run('DELETE FROM contacts WHERE id = ?', id);
+      return { ok: true, count: liste.length };
+    });
   }
-  for (const id of ids) dbApi.updateContact(id, patch);
-  return { ok: true, count: ids.length };
+  return avecRetour(`${liste.length} contact(s) modifié(s)`, liste.map((id) => cible('contacts', 'id = ?', id)), () => {
+    for (const id of liste) dbApi.updateContact(id, patch);
+    return { ok: true, count: liste.length };
+  });
 });
 
 // ---- import CSV (les lignes arrivent déjà mappées par le front)
@@ -470,16 +551,23 @@ route('GET', '/api/queue', async (req, params, query) => {
   return { queue: queue.map((c) => ({ ...c, hints: playbooks.icebreakerHints(c, settings) })) };
 });
 
+// ---- retour en arrière : le bouton « Annuler » des confirmations
+route('POST', '/api/annuler/:id', async (req, params) => annulation.annuler(Number(params.id)));
+
 // ---- actions (cœur de la gamification)
 route('POST', '/api/actions', async (req) => {
   const body = await readBody(req);
   if (!USER_ACTIONS.includes(body.type)) throw httpError(400, `Type d'action non autorisé : ${body.type}`);
-  const res = game.logAction({ contact_id: body.contact_id || null, deal_id: body.deal_id || null, type: body.type, note: body.note || '', meta: body.meta || {} });
-  // Une réponse (ou une disqualification) loggée à la main stoppe la séquence Autopilote du contact.
-  if (body.contact_id && ['reponse_recue', 'rdv_pris', 'disqualifie'].includes(body.type)) {
-    autopilot.stopForContact(body.contact_id, body.type === 'disqualifie' ? 'disqualifié' : 'a répondu 🎉', body.type === 'disqualifie' ? 'stopped' : 'replied');
-  }
-  return res;
+  const id = Number(body.contact_id) || 0;
+  const cibles = id ? [cible('contacts', 'id = ?', id), cible('enrollments', 'contact_id = ?', id), cible('outbox', 'contact_id = ?', id)] : [];
+  return avecRetour(body.type, cibles, () => {
+    const res = game.logAction({ contact_id: body.contact_id || null, deal_id: body.deal_id || null, type: body.type, note: body.note || '', meta: body.meta || {} });
+    // Une réponse (ou une disqualification) loggée à la main stoppe la séquence Autopilote du contact.
+    if (body.contact_id && ['reponse_recue', 'rdv_pris', 'disqualifie'].includes(body.type)) {
+      autopilot.stopForContact(body.contact_id, body.type === 'disqualifie' ? 'disqualifié' : 'a répondu 🎉', body.type === 'disqualifie' ? 'stopped' : 'replied');
+    }
+    return res;
+  });
 });
 
 // ---- templates (par défaut : sans les templates de campagne, générés à part)
@@ -501,10 +589,10 @@ route('PATCH', '/api/templates/:id', async (req, params) => {
   if (sets.length) run(`UPDATE templates SET ${sets.map((f) => `${f} = ?`).join(', ')} WHERE id = ?`, ...sets.map((f) => b[f]), params.id);
   return { template: get('SELECT * FROM templates WHERE id = ?', params.id) };
 });
-route('DELETE', '/api/templates/:id', async (req, params) => {
+route('DELETE', '/api/templates/:id', async (req, params) => avecRetour('Template supprimé', [cible('templates', 'id = ?', Number(params.id))], () => {
   run('DELETE FROM templates WHERE id = ? AND builtin = 0', params.id);
   return { ok: true };
-});
+}));
 route('POST', '/api/templates/render', async (req) => {
   const { template_id, code, contact_id } = await readBody(req);
   const tpl = template_id ? get('SELECT * FROM templates WHERE id = ?', template_id) : get('SELECT * FROM templates WHERE code = ?', code);
@@ -533,23 +621,25 @@ route('PATCH', '/api/deals/:id', async (req, params) => {
   const b = await readBody(req);
   const deal = get('SELECT * FROM deals WHERE id = ?', params.id);
   if (!deal) throw httpError(404, 'Deal introuvable');
-  let celebration = null;
-  const fields = ['title', 'amount', 'currency'];
-  const sets = fields.filter((f) => b[f] !== undefined);
-  if (sets.length) run(`UPDATE deals SET ${sets.map((f) => `${f} = ?`).join(', ')}, updated_at = ? WHERE id = ?`, ...sets.map((f) => b[f]), nowIso(), params.id);
-  if (b.status && b.status !== deal.status) {
-    run(`UPDATE deals SET status = ?, updated_at = ?, invoiced_at = CASE WHEN ? = 'facture' THEN ? ELSE invoiced_at END WHERE id = ?`,
-      b.status, nowIso(), b.status, nowIso(), params.id);
-    if (b.status === 'devis_envoye') celebration = game.logAction({ contact_id: deal.contact_id, deal_id: deal.id, type: 'devis_envoye', note: deal.title });
-    if (b.status === 'accepte') celebration = game.logAction({ contact_id: deal.contact_id, deal_id: deal.id, type: 'devis_accepte', note: deal.title });
-    if (b.status === 'facture') celebration = game.logAction({ contact_id: deal.contact_id, deal_id: deal.id, type: 'facture', note: `${deal.title} : ${deal.amount} €` });
-  }
-  return { deal: get('SELECT * FROM deals WHERE id = ?', params.id), celebration };
+  return avecRetour('Devis modifié', [cible('deals', 'id = ?', deal.id), cible('contacts', 'id = ?', deal.contact_id)], () => {
+    let celebration = null;
+    const fields = ['title', 'amount', 'currency'];
+    const sets = fields.filter((f) => b[f] !== undefined);
+    if (sets.length) run(`UPDATE deals SET ${sets.map((f) => `${f} = ?`).join(', ')}, updated_at = ? WHERE id = ?`, ...sets.map((f) => b[f]), nowIso(), params.id);
+    if (b.status && b.status !== deal.status) {
+      run(`UPDATE deals SET status = ?, updated_at = ?, invoiced_at = CASE WHEN ? = 'facture' THEN ? ELSE invoiced_at END WHERE id = ?`,
+        b.status, nowIso(), b.status, nowIso(), params.id);
+      if (b.status === 'devis_envoye') celebration = game.logAction({ contact_id: deal.contact_id, deal_id: deal.id, type: 'devis_envoye', note: deal.title });
+      if (b.status === 'accepte') celebration = game.logAction({ contact_id: deal.contact_id, deal_id: deal.id, type: 'devis_accepte', note: deal.title });
+      if (b.status === 'facture') celebration = game.logAction({ contact_id: deal.contact_id, deal_id: deal.id, type: 'facture', note: `${deal.title} : ${deal.amount} €` });
+    }
+    return { deal: get('SELECT * FROM deals WHERE id = ?', params.id), celebration };
+  });
 });
-route('DELETE', '/api/deals/:id', async (req, params) => {
+route('DELETE', '/api/deals/:id', async (req, params) => avecRetour('Devis supprimé', [cible('deals', 'id = ?', Number(params.id))], () => {
   run('DELETE FROM deals WHERE id = ?', params.id);
   return { ok: true };
-});
+}));
 
 // ---- inbox (demandes entrantes)
 route('GET', '/api/inbox', async () => ({
@@ -575,7 +665,9 @@ route('PATCH', '/api/inbox/:id', async (req, params) => {
   }
   return { request: get('SELECT * FROM inbox WHERE id = ?', params.id), celebration };
 });
-route('DELETE', '/api/inbox/:id', async (req, params) => { run('DELETE FROM inbox WHERE id = ?', params.id); return { ok: true }; });
+route('DELETE', '/api/inbox/:id', async (req, params) => avecRetour('Demande supprimée', [cible('inbox', 'id = ?', Number(params.id))], () => {
+  run('DELETE FROM inbox WHERE id = ?', params.id); return { ok: true };
+}));
 
 // ---- IA (rédaction)
 route('POST', '/api/ai/draft', async (req) => {
@@ -645,6 +737,15 @@ route('GET', '/api/sequences', async () => {
   }));
   return { sequences };
 });
+// Une séquence emporte ses étapes, ses enrôlements et leurs emails en attente.
+function ciblesSequence(id) {
+  return [
+    cible('sequences', 'id = ?', id),
+    cible('sequence_steps', 'sequence_id = ?', id),
+    cible('enrollments', 'sequence_id = ?', id),
+    cible('outbox', 'enrollment_id IN (SELECT id FROM enrollments WHERE sequence_id = ?)', id),
+  ];
+}
 route('POST', '/api/sequences', async (req) => {
   const b = await readBody(req);
   const { lastId } = run('INSERT INTO sequences (code, name, segment, description, builtin, created_at) VALUES (?, ?, ?, ?, 0, ?)',
@@ -679,8 +780,10 @@ route('PATCH', '/api/sequences/:id', async (req, params) => {
 route('DELETE', '/api/sequences/:id', async (req, params) => {
   const n = Number(get(`SELECT COUNT(*) AS n FROM enrollments WHERE sequence_id = ? AND status = 'active'`, params.id).n);
   if (n > 0) throw httpError(400, `${n} contact(s) encore actifs dans cette séquence : stoppe-les d'abord.`);
-  run('DELETE FROM sequences WHERE id = ? AND builtin = 0', params.id);
-  return { ok: true };
+  return avecRetour('Séquence supprimée', ciblesSequence(Number(params.id)), () => {
+    run('DELETE FROM sequences WHERE id = ? AND builtin = 0', params.id);
+    return { ok: true };
+  });
 });
 route('POST', '/api/sequences/:id/enroll', async (req, params) => {
   const b = await readBody(req);
@@ -734,9 +837,13 @@ route('POST', '/api/outbox/approve_all', async () => ({ approved: autopilot.appr
 route('POST', '/api/outbox/:id/cancel', async (req, params) => {
   const item = get('SELECT * FROM outbox WHERE id = ?', params.id);
   if (!item) throw httpError(404, 'Introuvable');
-  run(`UPDATE outbox SET status = 'cancelled' WHERE id = ? AND status IN ('awaiting_review','queued')`, params.id);
-  if (item.enrollment_id) run(`UPDATE enrollments SET status = 'paused', stop_reason = 'email annulé manuellement', updated_at = ? WHERE id = ?`, nowIso(), item.enrollment_id);
-  return { ok: true };
+  const cibles = [cible('outbox', 'id = ?', item.id)];
+  if (item.enrollment_id) cibles.push(cible('enrollments', 'id = ?', item.enrollment_id));
+  return avecRetour('Email retiré', cibles, () => {
+    run(`UPDATE outbox SET status = 'cancelled' WHERE id = ? AND status IN ('awaiting_review','queued')`, params.id);
+    if (item.enrollment_id) run(`UPDATE enrollments SET status = 'paused', stop_reason = 'email annulé manuellement', updated_at = ? WHERE id = ?`, nowIso(), item.enrollment_id);
+    return { ok: true };
+  });
 });
 route('POST', '/api/autopilot/tick', async (req) => {
   const b = await readBody(req);
@@ -888,11 +995,19 @@ route('DELETE', '/api/campaigns/:id', async (req, params) => {
   if (!c) return { ok: true };
   const active = Number(get(`SELECT COUNT(*) AS n FROM enrollments WHERE sequence_id = ? AND status = 'active'`, c.sequence_id).n);
   if (active > 0) throw httpError(400, `${active} contact(s) encore en séquence sur cette campagne : stoppe-les d'abord (vue Autopilote).`);
-  run('DELETE FROM templates WHERE campaign_id = ?', params.id);
-  if (c.sequence_id) run('DELETE FROM sequences WHERE id = ?', c.sequence_id);
-  run('UPDATE contacts SET campaign_id = 0 WHERE campaign_id = ?', params.id);
-  run('DELETE FROM campaigns WHERE id = ?', params.id);
-  return { ok: true };
+  const cibles = [
+    cible('campaigns', 'id = ?', c.id),
+    ...(c.sequence_id ? ciblesSequence(c.sequence_id) : []),
+    cible('templates', 'campaign_id = ?', c.id),
+    cible('contacts', 'campaign_id = ?', c.id),
+  ];
+  return avecRetour('Campagne supprimée', cibles, () => {
+    run('DELETE FROM templates WHERE campaign_id = ?', params.id);
+    if (c.sequence_id) run('DELETE FROM sequences WHERE id = ?', c.sequence_id);
+    run('UPDATE contacts SET campaign_id = 0 WHERE campaign_id = ?', params.id);
+    run('DELETE FROM campaigns WHERE id = ?', params.id);
+    return { ok: true };
+  });
 });
 route('POST', '/api/campaigns/:id/enroll', async (req, params) => campaigns.enrollAll(Number(params.id)));
 route('POST', '/api/campaigns/:id/regenerate', async (req, params) => campaigns.regenerateKit(Number(params.id)));
@@ -919,7 +1034,9 @@ route('PATCH', '/api/references/:id', async (req, params) => {
     params.id);
   return { ok: true };
 });
-route('DELETE', '/api/references/:id', async (req, params) => { run('DELETE FROM refs WHERE id = ?', params.id); return { ok: true }; });
+route('DELETE', '/api/references/:id', async (req, params) => avecRetour('Référence supprimée', [cible('refs', 'id = ?', Number(params.id))], () => {
+  run('DELETE FROM refs WHERE id = ?', params.id); return { ok: true };
+}));
 
 // ---- démo
 route('POST', '/api/demo', async () => seedDemo(false));
@@ -990,7 +1107,7 @@ const server = http.createServer(async (req, res) => {
         const minutes = bloque(ip);
         if (minutes) {
           res.writeHead(429, { 'Content-Type': 'text/html; charset=utf-8' });
-          res.end(loginPage('bloque'));
+          res.end(loginPage({ erreur: 'bloque', minutes }));
           return;
         }
         const chunks = [];
@@ -1006,15 +1123,20 @@ const server = http.createServer(async (req, res) => {
             res.end();
           } else {
             noteEchec(ip);
+            const minutesPause = bloque(ip);
             res.writeHead(401, { 'Content-Type': 'text/html; charset=utf-8' });
-            res.end(loginPage(true));
+            res.end(minutesPause
+              ? loginPage({ erreur: 'bloque', minutes: minutesPause })
+              : loginPage({ erreur: 'faux', restants: MAX_TENTATIVES - ((tentatives.get(ip) || {}).n || 0) }));
           }
         });
         return;
       }
       if (u.pathname.startsWith('/api')) { json(res, 401, { error: EN_LIGNE ? 'Session expirée : recharge la page et saisis ton mot de passe.' : "Accès verrouillé : ouvre la page d'accueil et saisis le code affiché sur l'ordinateur." }); return; }
-      res.writeHead(401, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(loginPage(false));
+      if (req.method === 'GET' && FICHIERS_PUBLICS.has(u.pathname)) { serveStatic(res, u.pathname); return; }
+      const pause = bloque(adresseDe(req));
+      res.writeHead(401, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end(loginPage(pause ? { erreur: 'bloque', minutes: pause } : {}));
       return;
     }
   }

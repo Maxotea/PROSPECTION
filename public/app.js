@@ -73,6 +73,33 @@ function modal(html) {
 // l'écoutent (événement « fermer »), pour rafraîchir la vue derrière.
 function fermerFenetre(wrap) { wrap.dispatchEvent(new Event('fermer')); wrap.remove(); }
 
+// ---------------------------------------------------------------- annuler
+// Une action qui efface ou fait changer d'étape renvoie un jeton de retour.
+// La confirmation porte alors « Annuler », qui remet tout en place côté
+// serveur, XP comprise. Ctrl Z (⌘Z sur Mac) rejoue le dernier retour proposé.
+let dernierRetour = null;
+function confirmerAvecRetour(message, res, apres, ms = 6500) {
+  const jeton = res && res.annulation;
+  if (!jeton) return fx.toast(message, '', ms);
+  const retour = { jeton, apres, fait: false, toast: null };
+  dernierRetour = retour;
+  retour.toast = fx.toast(message, '', ms, { action: { label: 'Annuler', faire: () => revenirEnArriere(retour) } });
+  return retour.toast;
+}
+async function revenirEnArriere(retour = dernierRetour) {
+  if (!retour || retour.fait) return false;
+  retour.fait = true;
+  if (dernierRetour === retour) dernierRetour = null;
+  if (retour.toast && retour.toast.fermer) retour.toast.fermer();
+  try {
+    await api(`/annuler/${retour.jeton}`, { method: 'POST' });
+    fx.toast('Annulé : tout est revenu comme avant.', '', 2600);
+    await refreshState();
+    if (retour.apres) await retour.apres();
+    return true;
+  } catch (e) { fx.error(e.message); return false; }
+}
+
 // ---------------------------------------------------------------- état global
 let S = null;             // état de jeu global (GET /api/state)
 let templatesCache = null;
@@ -90,12 +117,13 @@ function renderSideLevel() {
   el.innerHTML = `
     <div>Niv. <b>${S.level.level}</b> · <span class="lvl-title">${esc(S.level.title)}</span></div>
     <div class="bar" title="${S.xp_total} XP"><i style="width:${Math.round(S.level.progress * 100)}%"></i></div>
-    <div class="muted" style="margin-top:3px">⚡ ${S.xp_total} XP · 🔥 ${S.streak.current}j</div>`;
+    <div class="muted mt-1">⚡ ${S.xp_total} XP · 🔥 ${S.streak.current}j</div>`;
 }
 
 function segChip(code) {
-  const seg = (S && S.segments[code]) || { label: code, emoji: '❓', color: '#64748b' };
-  return `<span class="chip seg" style="--seg:${seg.color}">${seg.emoji} ${esc(seg.label)}</span>`;
+  const seg = (S && S.segments[code]) || { label: code, emoji: '❓', color: '' };
+  // La couleur d'une typologie est une donnée (réglable) : sans elle, le jeton --seg-defaut prend le relais.
+  return `<span class="chip seg"${seg.color ? ` style="--seg:${esc(seg.color)}"` : ''}>${seg.emoji} ${esc(seg.label)}</span>`;
 }
 function stageLabel(code) {
   const st = (S && S.stages.find((s) => s.code === code)) || { label: code, emoji: '' };
@@ -126,23 +154,50 @@ async function celebrate(res) {
 // ---------------------------------------------------------------- routeur
 const VIEWS = { journee: vJournee, qg: vQG, chasse: vChasse, autopilot: vAutopilot, campagnes: vCampagnes, pipeline: vPipeline, contacts: vContacts, inbox: vInbox, import: vImport, reglages: vReglages };
 
+// Pendant qu'une vue charge : sa silhouette, plutôt qu'un écran vide.
+function squeletteVue() {
+  return `<div class="squelette" aria-hidden="true">
+    <div class="sq sq-titre"></div><div class="sq sq-ligne"></div>
+    <div class="sq-grille"><div class="sq sq-carte"></div><div class="sq sq-carte"></div></div>
+    <div class="sq sq-carte"></div>
+  </div><p class="sr-only">Chargement…</p>`;
+}
+
+let vuePrecedente = null;
 async function render() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
   // La page d'accueil est la journée : c'est elle qu'on ouvre le matin.
   const hash = location.hash.replace('#/', '') || 'journee';
   const name = VIEWS[hash] ? hash : 'journee';
-  $$('#sidebar a').forEach((a) => a.classList.toggle('active', a.dataset.view === name));
-  // Sur téléphone la barre du bas défile : l'onglet courant doit toujours être sous les yeux.
-  const actif = $('#sidebar a.active');
-  if (actif && matchMedia('(max-width: 700px)').matches) actif.scrollIntoView({ inline: 'center', block: 'nearest' });
+  $$('#sidebar > a[data-view], #tabbar a[data-view]').forEach((a) => {
+    const ici = a.dataset.view === name;
+    a.classList.toggle('active', ici);
+    if (ici) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+  });
+  document.documentElement.classList.remove('nav-ouverte');
   const view = $('#view');
-  view.innerHTML = '<p class="muted">Chargement…</p>';
+  const changeDeVue = vuePrecedente !== name;
+  vuePrecedente = name;
+  // Changement d'écran : fondu enchaîné quand le navigateur sait le faire, sinon rien.
+  const poserSquelette = () => { view.innerHTML = squeletteVue(); view.classList.remove('vue-entree'); };
+  const sansAnimation = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (changeDeVue && document.startViewTransition && !sansAnimation) {
+    try { await document.startViewTransition(poserSquelette).updateCallbackDone; } catch { poserSquelette(); }
+  } else poserSquelette();
+  if (changeDeVue) {
+    window.scrollTo(0, 0);
+    // Un autre écran : la fiche ouverte sur le précédent se range.
+    if (!$('#drawer').classList.contains('hidden')) closeDrawer();
+  }
   try {
     if (!S) await refreshState();
     await VIEWS[name](view);
+    view.classList.add('vue-entree');
   } catch (e) {
-    view.innerHTML = `<div class="card"><h2>💥 Oups</h2><p>${esc(e.message)}</p></div>`;
+    view.innerHTML = `<div class="card erreur" role="alert"><h2>Cet écran n’a pas pu s’afficher</h2><p>${esc(e.message)}</p><div class="row mt-3"><button class="primary" id="err-reessayer">Réessayer</button></div></div>`;
+    $('#err-reessayer').onclick = render;
   }
+  if (window.habillerVue) window.habillerVue(name);
 }
 addEventListener('hashchange', render);
 
@@ -153,7 +208,7 @@ async function vQG(view) {
   const boss = S.boss;
   const segments = Array.from({ length: boss.goal }, (_, i) => `<div class="boss-seg ${i < boss.count ? 'full' : ''}"></div>`).join('');
   const onboarding = k.contacts_total === 0 ? `
-    <div class="card onboarding" style="border-color:rgba(234,179,8,.4)">
+    <div class="card onboarding bord-or">
       <h2>👋 Bienvenue dans OTEA Moteur</h2>
       <p class="muted">3 étapes pour lancer la machine :</p>
       <ol>
@@ -167,20 +222,20 @@ async function vQG(view) {
   view.innerHTML = `
     <div class="view-header spread">
       <div><h1>🏰 Quartier général</h1><div class="sub">Salut chasseur. ${S.streak.alive_today ? 'Streak sécurisée pour aujourd’hui ✅' : 'Ta streak attend une action aujourd’hui 👀'}</div></div>
-      <a href="#/chasse"><button class="primary big">⚔️ LANCER LE MODE CHASSE</button></a>
+      <a class="btn primary big" href="#/chasse">⚔️ Lancer La Chasse</a>
     </div>
     ${onboarding}
-    <div class="grid" style="grid-template-columns: 1.4fr 1fr; align-items:start">
+    <div class="grid qg-grille">
       <div class="grid">
-        <div class="card" style="border-color:${S.journee && S.journee.vitaux ? 'rgba(220,38,38,.5)' : 'rgba(234,179,8,.4)'}">
+        <div class="card ${S.journee && S.journee.vitaux ? 'bord-alerte' : 'bord-or'}">
           <div class="spread">
             <div>
-              <h2 style="margin-bottom:2px">☀️ Ma journée</h2>
+              <h2 class="mb-1">☀️ Ma journée</h2>
               <div class="muted small">${S.journee && S.journee.total
-                ? `${S.journee.total} chose${S.journee.total > 1 ? 's' : ''} à faire${S.journee.vitaux ? ` · <b style="color:var(--red2)">${S.journee.vitaux} vitale${S.journee.vitaux > 1 ? 's' : ''}</b>` : ''} · ⚡ ${S.journee.matin} courte${S.journee.matin > 1 ? 's' : ''} ce matin${S.journee.pierre ? ` · 🏔️ ${S.journee.pierre} grosse${S.journee.pierre > 1 ? 's' : ''} pierre${S.journee.pierre > 1 ? 's' : ''}` : ''}${S.journee.faits ? ` · ✅ ${S.journee.faits} fait${S.journee.faits > 1 ? 's' : ''}` : ''}`
+                ? `${S.journee.total} chose${S.journee.total > 1 ? 's' : ''} à faire${S.journee.vitaux ? ` · <b class="texte-alerte">${S.journee.vitaux} vitale${S.journee.vitaux > 1 ? 's' : ''}</b>` : ''} · ⚡ ${S.journee.matin} courte${S.journee.matin > 1 ? 's' : ''} ce matin${S.journee.pierre ? ` · 🏔️ ${S.journee.pierre} grosse${S.journee.pierre > 1 ? 's' : ''} pierre${S.journee.pierre > 1 ? 's' : ''}` : ''}${S.journee.faits ? ` · ✅ ${S.journee.faits} fait${S.journee.faits > 1 ? 's' : ''}` : ''}`
                 : 'Rien qui attend. Mails, WhatsApp, appels et CRM sont lus en continu.'}</div>
             </div>
-            <a href="#/journee"><button class="${S.journee && S.journee.vitaux ? 'gold' : ''}">Ouvrir</button></a>
+            <a href="#/journee" class="btn ${S.journee && S.journee.vitaux ? 'gold' : ''}">Ouvrir</a>
           </div>
         </div>
         <div class="card boss-card">
@@ -189,9 +244,9 @@ async function vQG(view) {
               <div class="boss-title">🎯 OBJECTIF : DÉCLENCHER ${boss.goal} FACTURES</div>
               <div class="boss-count">${boss.count}<small> / ${boss.goal} factures</small></div>
             </div>
-            <div style="text-align:right">
+            <div class="a-droite">
               <div class="muted small">CA facturé</div>
-              <div style="font-size:24px;font-weight:900">${eur(boss.revenue)}</div>
+              <div class="boss-ca">${eur(boss.revenue)}</div>
             </div>
           </div>
           <div class="boss-segments">${segments}</div>
@@ -208,54 +263,58 @@ async function vQG(view) {
           <h2>⚡ XP : 7 derniers jours</h2>
           <div class="chart-wrap">${weeklyChart(S.weekly_xp)}</div>
         </div>
+        <div class="card">
+          <h2>📊 Pipeline</h2>
+          ${funnel(S.pipeline)}
+        </div>
       </div>
       <div class="grid">
-        <div class="card" style="border-color:${S.autopilot.enabled ? 'rgba(5,150,105,.5)' : 'var(--border)'}">
+        <div class="card ${S.autopilot.enabled ? 'bord-succes' : ''}">
           <div class="spread">
             <div>
-              <h2 style="margin-bottom:2px">🤖 Autopilote ${S.autopilot.enabled ? '<span class="chip ok">ACTIF</span>' : S.autopilot.configured ? '<span class="chip">en veille</span>' : '<span class="chip due">à brancher</span>'}</h2>
+              <h2 class="mb-1">🤖 Autopilote ${S.autopilot.enabled ? '<span class="chip ok">ACTIF</span>' : S.autopilot.configured ? '<span class="chip">en veille</span>' : '<span class="chip due">à brancher</span>'}</h2>
               <div class="muted small">
                 ${S.autopilot.configured
-                  ? `📤 ${S.autopilot.sent_today}/${S.autopilot.daily_cap} aujourd'hui · 👥 ${S.autopilot.active_enrollments} en séquence${S.autopilot.awaiting ? ` · 👀 <b style="color:var(--gold2)">${S.autopilot.awaiting} email(s) à valider</b>` : ''}${S.autopilot.replies_today ? ` · 💬 ${S.autopilot.replies_today} réponse(s) !` : ''}`
+                  ? `📤 ${S.autopilot.sent_today}/${S.autopilot.daily_cap} aujourd'hui · 👥 ${S.autopilot.active_enrollments} en séquence${S.autopilot.awaiting ? ` · 👀 <b class="texte-or">${S.autopilot.awaiting} email(s) à valider</b>` : ''}${S.autopilot.replies_today ? ` · 💬 ${S.autopilot.replies_today} réponse(s) !` : ''}`
                   : 'Branche ton Gmail et laisse la machine relancer tes anciens clients toute seule.'}
               </div>
             </div>
-            <a href="#/autopilot"><button class="${S.autopilot.awaiting ? 'gold' : ''}">${S.autopilot.awaiting ? '👀 Valider' : 'Ouvrir'}</button></a>
+            <a href="#/autopilot" class="btn ${S.autopilot.awaiting ? 'gold' : ''}">${S.autopilot.awaiting ? '👀 Valider' : 'Ouvrir'}</a>
           </div>
         </div>
         <div class="card">
           <div class="spread">
             <div>
-              <h2 style="margin-bottom:2px">📅 ${S.campaign ? esc(S.campaign.name) : 'Campagne de la semaine'}</h2>
+              <h2 class="mb-1">📅 ${S.campaign ? esc(S.campaign.name) : 'Campagne de la semaine'}</h2>
               <div class="muted small">
                 ${S.campaign
                   ? `${{ a_venir: '📆 à venir', en_cours: '🔥 en cours', terminee: '🏁 terminée' }[S.campaign.status]} · 👥 ${S.campaign.stats.contacts} sourcés · 🤖 ${S.campaign.stats.enrolled} en séquence · 💬 ${S.campaign.stats.replies} réponse(s)${S.campaign.posted ? ' · 📣 posté' : ''}`
                   : 'Une semaine = un secteur (grande distri, aéro, hôtels…). Lance ta première semaine thématique.'}
               </div>
             </div>
-            <a href="#/campagnes"><button>${S.campaign ? 'Ouvrir' : '📅 Lancer'}</button></a>
+            <a class="btn" href="#/campagnes">${S.campaign ? 'Ouvrir' : '📅 Lancer'}</a>
           </div>
         </div>
         <div class="card">
           <div class="spread"><h2>📞 Appels du jour</h2><span class="chip ${S.calls.done >= S.calls.goal ? 'ok' : ''}">${S.calls.done}/${S.calls.goal}</span></div>
           ${S.calls.list.length
-            ? S.calls.list.map((p) => `<div class="spread small" style="padding:4px 0;border-bottom:1px dashed var(--border)">
-                <span style="cursor:pointer" data-open-contact="${p.id}"><b>${esc(p.first_name)} ${esc(p.last_name)}</b> ${p.is_former_client ? '💰' : ''} <span class="muted">${esc(p.company || '')}</span></span>
+            ? S.calls.list.map((p) => `<div class="spread small py-1 ligne-pointillee">
+                <button type="button" class="lien-texte" data-open-contact="${p.id}"><b>${esc(p.first_name)} ${esc(p.last_name)}</b> ${p.is_former_client ? '💰' : ''} <span class="muted">${esc(p.company || '')}</span></button>
                 <a href="tel:${esc(p.phone)}" class="mono">☎️ ${esc(p.phone)}</a>
-              </div>`).join('') + `<div class="row" style="margin-top:10px"><button class="gold" id="qg-calls">📞 Lancer la session d'appels</button></div>`
+              </div>`).join('') + `<div class="row mt-3"><button class="gold" id="qg-calls">📞 Lancer la session d'appels</button></div>`
             : `<p class="muted small">${S.calls.done >= S.calls.goal ? '🏆 Objectif du jour atteint !' : 'Personne à appeler : ajoute des numéros (enrichissement FullEnrich).'}</p>`}
         </div>
         <div class="card">
           <div class="level-badge">
             <div class="lvl-num">${S.level.level}</div>
-            <div style="flex:1">
-              <div style="font-weight:800">${esc(S.level.title)}</div>
-              <div class="bar" style="margin:6px 0 4px"><i style="width:${Math.round(S.level.progress * 100)}%"></i></div>
+            <div class="flex-1">
+              <div class="lvl-titre">${esc(S.level.title)}</div>
+              <div class="bar my-2"><i style="width:${Math.round(S.level.progress * 100)}%"></i></div>
               <div class="muted small">${S.xp_total} XP${S.level.next_at ? ` · prochain niveau à ${S.level.next_at}` : ' · niveau max !'}</div>
             </div>
-            <div style="text-align:center">
+            <div class="a-centre">
               <div class="streak-flame">🔥</div>
-              <div style="font-weight:900">${S.streak.current} j</div>
+              <div class="lvl-streak">${S.streak.current} j</div>
             </div>
           </div>
         </div>
@@ -269,10 +328,6 @@ async function vQG(view) {
               <div class="q-count">${q.progress}/${q.target}</div>
               <div class="q-bonus">${q.done ? '✅' : `+${q.bonus}`}</div>
             </div>`).join('')}
-        </div>
-        <div class="card">
-          <h2>📊 Pipeline</h2>
-          ${funnel(S.pipeline)}
         </div>
         <div class="card">
           <h2>🏅 Badges (${S.badges.filter((b) => b.won).length}/${S.badges.length})</h2>
@@ -328,7 +383,7 @@ function funnel(stages) {
     const pct = Math.round((s.count / max) * 100);
     const mix = 35 + Math.round((i / Math.max(rows.length - 1, 1)) * 60);
     return `<div class="funnel-row"><div class="f-label">${s.emoji} ${esc(s.label)}</div>
-      <div class="f-bar"><i style="width:${pct}%; background: color-mix(in srgb, #8b5cf6 ${mix}%, #232a52)"></i></div>
+      <div class="f-bar"><i style="width:${pct}%; background: color-mix(in srgb, var(--accent) ${mix}%, var(--trait-fort))"></i></div>
       <div class="f-n">${s.count}</div></div>`;
   }).join('');
 }
@@ -341,17 +396,17 @@ async function vChasse(view) {
   if (!hunt) {
     await refreshState();
     view.innerHTML = `
-      <div class="view-header"><h1>⚔️ Mode Chasse</h1><div class="sub">L'app te sert les prospects prioritaires un par un, avec le bon message pré-rempli. Toi, tu dégaines.</div></div>
+      <div class="view-header"><h1>⚔️ La Chasse</h1><div class="sub">L'app te sert les prospects prioritaires un par un, avec le bon message pré-rempli. Toi, tu dégaines.</div></div>
       <div class="card hunt-empty">
         <div class="big-emoji">🏹</div>
         <h2>Prêt à chasser ?</h2>
         <p class="muted">Prospection : anciens clients à réactiver, relances dues, nouveaux prospects. Appels : ${S.calls.goal} personnes à joindre aujourd'hui (${S.calls.done} déjà fait${S.calls.done > 1 ? 's' : ''}).</p>
-        <div class="row" style="justify-content:center; margin-top:14px">
+        <div class="row centre mt-4">
           <label class="field">Taille de session
             <select id="hunt-size"><option value="5">5 cibles</option><option value="10" selected>10 cibles</option><option value="15">15 cibles</option><option value="25">25 cibles</option></select>
           </label>
-          <button class="primary big" id="hunt-start" style="margin-top:14px">🎯 SESSION PROSPECTION</button>
-          <button class="gold big" id="hunt-start-calls" style="margin-top:14px">📞 SESSION D'APPELS (${Math.max(S.calls.goal - S.calls.done, 0)})</button>
+          <button class="primary big mt-4" id="hunt-start">🎯 Session prospection</button>
+          <button class="gold big mt-4" id="hunt-start-calls">📞 Session d'appels (${Math.max(S.calls.goal - S.calls.done, 0)})</button>
         </div>
       </div>`;
     const start = async (mode, limit) => {
@@ -375,14 +430,14 @@ async function vChasse(view) {
   if (hunt.idx >= hunt.queue.length) {
     const h = hunt;
     view.innerHTML = `
-      <div class="card session-recap" style="max-width:560px;margin:40px auto">
-        <div class="big-emoji" style="font-size:64px">🏁</div>
+      <div class="card session-recap carte-etroite">
+        <div class="recap-emoji" aria-hidden="true">🏁</div>
         <h1>Session terminée !</h1>
         <div class="r-xp">+${h.xp} XP</div>
         <p class="muted">${h.actions} action(s) sur ${h.queue.length} cible(s). ${h.combo >= 3 ? `Meilleur combo : 🔥 x${h.combo}.` : ''}</p>
-        <div class="row" style="justify-content:center;margin-top:14px">
+        <div class="row centre mt-4">
           <button class="primary" id="hunt-again">🎯 Nouvelle session</button>
-          <a href="#/qg"><button>🏰 Retour au QG</button></a>
+          <a class="btn" href="#/qg">🏰 Retour au QG</a>
         </div>
       </div>`;
     fx.confetti(120);
@@ -404,33 +459,33 @@ async function vChasse(view) {
         <div>
           <div class="hunt-name">${esc(c.first_name)} ${esc(c.last_name)}</div>
           <div class="muted">${esc(c.job_title || '')}${c.job_title && c.company ? ' · ' : ''}<b>${esc(c.company || '')}</b>${c.city ? ' · ' + esc(c.city) : ''}</div>
-          <div class="row" style="margin-top:8px">
+          <div class="row mt-2">
             ${segChip(c.segment)}
             ${c.is_former_client ? `<span class="chip former">💰 Ancien client · ${eur(c.revenue_history)}</span>` : ''}
             <span class="chip">${stageLabel(c.stage)}</span>
             ${c.next_action ? `<span class="chip due">${esc(c.next_action)} · ${dueLabel(c.next_action_at)}</span>` : ''}
           </div>
-          ${hunt.mode === 'calls' && c.phone ? `<div style="font-size:28px;font-weight:900;margin-top:10px"><a href="tel:${esc(c.phone)}">☎️ ${esc(c.phone)}</a></div>` : ''}
+          ${hunt.mode === 'calls' && c.phone ? `<div class="hunt-tel"><a href="tel:${esc(c.phone)}">☎️ ${esc(c.phone)}</a></div>` : ''}
         </div>
-        <div style="text-align:right" class="small muted hunt-prio" title="Score de priorité : ancien client, typologie, étape, CA, données disponibles">Priorité<br><b style="font-size:22px;color:var(--gold2)">${c.score}</b></div>
+        <div class="small muted hunt-prio a-droite" title="Score de priorité : ancien client, typologie, étape, CA, données disponibles">Priorité<br><b class="hunt-score">${c.score}</b></div>
       </div>
       ${c.notes ? `<div class="hunt-note">📝 ${esc(c.notes)}</div>` : ''}
       ${c.icebreaker
-        ? `<div class="hunt-note" style="border-color:rgba(139,92,246,.5);background:rgba(139,92,246,.08)">💎 <b>Ton lien avec ${esc(c.first_name)} :</b> ${esc(c.icebreaker)} <span class="faint small">(injecté en 1re ligne du message via {accroche})</span></div>`
+        ? `<div class="hunt-note accent">💎 <b>Ton lien avec ${esc(c.first_name)} :</b> ${esc(c.icebreaker)} <span class="faint small">(injecté en 1re ligne du message via {accroche})</span></div>`
         : (!c.is_former_client ? `
         <div class="hunt-note">
           <b>💎 Pas encore d'icebreaker</b> : trouve un lien avant de contacter : ancien employeur, ville, école, sport, destination…
-          ${(c.hints || []).length ? `<div class="row" style="margin:6px 0">${c.hints.map((h) => `<span class="chip ok">🔗 ${esc(h)}</span>`).join('')} <span class="faint small">← points communs détectés avec ton profil</span></div>` : ''}
-          <div class="row" style="margin-top:6px">
-            <input id="hunt-ice" placeholder="Ex : On a un point commun : le Hyrox / Vous êtes passé chez X…" style="flex:1">
+          ${(c.hints || []).length ? `<div class="row my-2">${c.hints.map((h) => `<span class="chip ok">🔗 ${esc(h)}</span>`).join('')} <span class="faint small">← points communs détectés avec ton profil</span></div>` : ''}
+          <div class="row mt-2">
+            <input class="flex-1" id="hunt-ice" placeholder="Ex : On a un point commun : le Hyrox / Vous êtes passé chez X…">
             <button id="hunt-ice-ai" title="Suggérer (IA + mon profil)">✨</button>
             <button id="hunt-ice-save" class="primary">💾</button>
           </div>
         </div>` : '')}
       <div class="hunt-links">
-        ${c.linkedin_url ? `<a href="${esc(c.linkedin_url)}" target="_blank" rel="noopener"><button>🔗 Ouvrir LinkedIn</button></a>` : ''}
-        ${c.email ? `<a id="hunt-mailto" href="#"><button>✉️ Ouvrir un email</button></a>` : ''}
-        ${c.phone ? `<a href="tel:${esc(c.phone)}"><button>☎️ ${esc(c.phone)}</button></a>` : ''}
+        ${c.linkedin_url ? `<a class="btn" href="${esc(c.linkedin_url)}" target="_blank" rel="noopener">🔗 Ouvrir LinkedIn</a>` : ''}
+        ${c.email ? `<a class="btn" id="hunt-mailto" href="#">✉️ Ouvrir un email</a>` : ''}
+        ${c.phone ? `<a class="btn" href="tel:${esc(c.phone)}">☎️ ${esc(c.phone)}</a>` : ''}
         <button id="hunt-open-fiche" class="ghost">👤 Fiche complète</button>
       </div>
       <div class="hunt-msg">
@@ -441,7 +496,7 @@ async function vChasse(view) {
           <button id="hunt-ai" title="Rédiger avec l'IA">✨ IA</button>
           <button id="hunt-copy" title="Copier le message">📋 Copier</button>
         </div>
-        <input id="hunt-subject" placeholder="Objet (si email)" style="width:100%;margin-bottom:7px">
+        <input class="plein mb-2" id="hunt-subject" placeholder="Objet (si email)">
         <textarea id="hunt-body" placeholder="Ton message…"></textarea>
       </div>
       <div class="hunt-actions">
@@ -465,7 +520,7 @@ async function vChasse(view) {
         <button class="danger" data-act="disqualify">🪦 Disqualifier <span class="kbd"></span></button>
         `}
       </div>
-      ${S.autopilot.configured && c.email ? '' : `<p class="muted small" style="margin-top:8px">ℹ️ ${c.email ? 'Branche ton email dans Réglages pour envoyer directement d’ici.' : 'Pas d’email sur cette fiche : passe par LinkedIn, ou enrichis-la via FullEnrich.'} Les boutons ci-dessus ne font que NOTER ce que tu as fait : ils n'envoient rien.</p>`}
+      ${S.autopilot.configured && c.email ? '' : `<p class="muted small mt-2">ℹ️ ${c.email ? 'Branche ton email dans Réglages pour envoyer directement d’ici.' : 'Pas d’email sur cette fiche : passe par LinkedIn, ou enrichis-la via FullEnrich.'} Les boutons ci-dessus ne font que NOTER ce que tu as fait : ils n'envoient rien.</p>`}
     </div>`;
 
   const renderTpl = async () => {
@@ -506,7 +561,7 @@ async function vChasse(view) {
       const lines = d.body.split('\n').map((s) => s.trim()).filter((s) => s.length > 8);
       const m = modal(`<h2>💎 Suggestions d'icebreaker</h2>
         <p class="muted small">${d.source === 'claude' ? 'Rédigées par l’IA à partir de sa fiche + ton profil (Réglages).' : 'Basées sur tes points communs : ajoute une clé IA dans Réglages pour du sur-mesure.'}</p>
-        <div class="grid" style="margin-top:10px">${lines.map((l) => `<button data-pick-ice style="justify-content:flex-start;text-align:left">${esc(l)}</button>`).join('') || '<p class="muted">Rien trouvé : remplis « Mon profil » dans Réglages.</p>'}</div>`);
+        <div class="grid mt-3">${lines.map((l) => `<button class="debut a-gauche" data-pick-ice>${esc(l)}</button>`).join('') || '<p class="muted">Rien trouvé : remplis « Mon profil » dans Réglages.</p>'}</div>`);
       $$('[data-pick-ice]', m).forEach((b) => { b.onclick = () => { $('#hunt-ice').value = b.textContent; m.remove(); }; });
     } catch (e) { fx.error(e.message); }
     iceAi.disabled = false; iceAi.textContent = '✨';
@@ -534,9 +589,24 @@ async function vChasse(view) {
     hunt.xp += res.xp_gained || 0; hunt.actions++;
     await celebrate(res);
   };
+  // Chaque geste de la Chasse se rattrape : « Annuler » remet le prospect
+  // dans son état d'avant et le replace en tête de la file de la session.
+  const nomChasse = esc(`${c.first_name || ''} ${c.last_name || ''}`.trim() || c.company || 'Prospect');
+  const proposerRetour = (message, res) => {
+    const session = hunt;
+    confirmerAvecRetour(message, res, async () => {
+      if (hunt !== session || !hunt) return;
+      hunt.xp = Math.max(0, hunt.xp - (res.xp_gained || 0));
+      hunt.actions = Math.max(0, hunt.actions - 1);
+      hunt.queue.splice(hunt.idx, 0, c);
+      if (location.hash.replace('#/', '') === 'chasse') vChasse(view);
+    });
+  };
+  const LIBELLES = { message_envoye: 'Message envoyé', relance: 'Relance faite', connexion_linkedin: 'Invitation LinkedIn', appel: 'Appel noté', reponse_recue: 'Réponse notée', rdv_pris: 'RDV noté', disqualifie: 'Écarté' };
   const act = async (type, { note = '' } = {}) => {
     try {
       const res = await api('/actions', { method: 'POST', body: { contact_id: c.id, type, note } });
+      proposerRetour(`${LIBELLES[type] || 'Noté'} · ${nomChasse}`, res);
       await scored(res);
       advance();
     } catch (e) { fx.error(e.message); }
@@ -567,7 +637,7 @@ async function vChasse(view) {
       try {
         const r = await api('/actions', { method: 'POST', body: { contact_id: c.id, type: 'reporte' } });
         const d = r.contact && r.contact.next_action_at;
-        fx.toast(d ? `⏭️ Reporté : il revient le ${fmtDay(d)}` : '⏭️ Reporté');
+        proposerRetour(d ? `Reporté : ${nomChasse} revient le ${fmtDay(d)}` : `Reporté · ${nomChasse}`, r);
       } catch { /* pas bloquant : on passe quand même au suivant */ }
       advance();
     },
@@ -609,24 +679,24 @@ async function vCampagnes(view) {
   const hero = current ? (() => {
     const st = current.stats;
     const projet = current.kind === 'projet';
-    const check = (done, label, hint) => `<div class="quest ${done ? 'done' : ''}"><div class="q-emoji">${done ? '✅' : '⬜'}</div><div style="flex:1"><div class="q-label">${label}</div>${hint && !done ? `<div class="muted small">${hint}</div>` : ''}</div></div>`;
+    const check = (done, label, hint) => `<div class="quest ${done ? 'done' : ''}"><div class="q-emoji">${done ? '✅' : '⬜'}</div><div class="flex-1"><div class="q-label">${label}</div>${hint && !done ? `<div class="muted small">${hint}</div>` : ''}</div></div>`;
     return `
     <div class="card boss-card">
       <div class="spread">
         <div>
           <div class="boss-title">${CAMP_STATUS[current.status]} · ${projet ? `PROJET · DU ${fmtDay(current.week_start)} AU ${fmtDayAn(current.ends_on)}` : `SEMAINE DU ${fmtDay(current.week_start)}`}</div>
-          <h1 style="margin:4px 0">${esc(current.name)}</h1>
+          <h1 class="my-1">${esc(current.name)}</h1>
           <div class="muted">🎯 Persona : <b>${esc(current.persona)}</b></div>
-          <div class="row" style="margin-top:8px">${current.references.map((r) => `<span class="chip ${r.verified ? '' : 'due'}" title="${esc(r.detail)}">${r.verified ? '⭐' : '⚠️'} ${esc(r.name)}</span>`).join('')}</div>
+          <div class="row mt-2">${current.references.map((r) => `<span class="chip ${r.verified ? '' : 'due'}" title="${esc(r.detail)}">${r.verified ? '⭐' : '⚠️'} ${esc(r.name)}</span>`).join('')}</div>
         </div>
-        <div style="text-align:right">
-          <div class="row" style="justify-content:flex-end">
+        <div class="a-droite">
+          <div class="row fin">
             <button id="camp-regen" title="Réécrire les emails, le post et le DM avec l'IA">✨ Régénérer le kit</button>
             <button class="ghost" id="camp-del" title="Supprimer la campagne">🗑</button>
           </div>
         </div>
       </div>
-      <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:14px;align-items:start">
+      <div class="grid deux-col mt-4 aligne-haut">
         <div>
           <h3>✔️ La checklist ${projet ? 'du projet' : 'de la semaine'}</h3>
           ${check(st.contacts > 0, `1. Sourcer sur Sales Navigator + importer le CSV (${st.contacts} contact(s))`, 'Recette de recherche ci-dessous → export FullEnrich → Importer')}
@@ -634,29 +704,29 @@ async function vCampagnes(view) {
           ${check(st.enrolled > 0, `3. Enrôler dans la séquence (${st.enrolled} en séquence)`, 'Bouton « 🤖 Enrôler toute la campagne » ci-dessous')}
           ${check(!!current.posted, `4. Publier le post LinkedIn ${projet ? 'du projet' : 'de la semaine'}`, 'Kit ci-contre → Copier → poster → coche « posté »')}
           ${check(st.replies > 0, `5. Récolter les réponses (${st.replies} 💬 · ${st.rdv} RDV · ${st.devis} devis)`, "L'autopilote détecte les réponses et te crée les tâches")}
-          <div class="row" style="margin-top:12px">
+          <div class="row mt-3">
             <button class="primary" id="camp-import">📥 Importer le CSV de la campagne</button>
             <button class="gold" id="camp-enroll">🤖 Enrôler toute la campagne</button>
             <button class="ghost" id="camp-contacts">👥 Voir les contacts</button>
           </div>
         </div>
         <div>
-          <h3>🧲 Recette Sales Navigator <button class="ghost" data-copy-text="camp-sn" style="padding:2px 8px">📋</button></h3>
-          <pre id="camp-sn" style="white-space:pre-wrap;background:var(--bg2);border-radius:9px;padding:10px 12px;font-size:12.5px;font-family:inherit;margin:6px 0">${esc(current.sn_recipe)}</pre>
+          <h3>🧲 Recette Sales Navigator <button class="ghost ico-btn-mini" data-copy-text="camp-sn">📋</button></h3>
+          <pre id="camp-sn" class="bloc-texte">${esc(current.sn_recipe)}</pre>
           <p class="muted small">Sales Nav → recherche avec ces filtres → export via l'extension FullEnrich → CSV → bouton « Importer » ci-contre.</p>
         </div>
       </div>
     </div>
-    <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:14px;align-items:start">
+    <div class="grid deux-col mt-4 aligne-haut">
       <div class="card">
         <div class="spread"><h3>📣 Post LinkedIn ${projet ? 'du projet' : 'de la semaine'}</h3>
           <div class="row">
-            <label class="chip" style="cursor:pointer"><input type="checkbox" id="camp-posted" ${current.posted ? 'checked' : ''}> posté ✓</label>
+            <label class="chip cliquable"><input type="checkbox" id="camp-posted" ${current.posted ? 'checked' : ''}> posté ✓</label>
             <button data-copy-text="camp-post">📋 Copier</button>
           </div>
         </div>
         <textarea id="camp-post" rows="10">${esc(current.post_draft)}</textarea>
-        <div class="row" style="justify-content:flex-end;margin-top:6px"><button class="ghost" id="camp-save-post">💾 Enregistrer mes modifs</button></div>
+        <div class="row fin mt-2"><button class="ghost" id="camp-save-post">💾 Enregistrer mes modifs</button></div>
       </div>
       <div class="grid">
         <div class="card">
@@ -672,7 +742,7 @@ async function vCampagnes(view) {
       </div>
     </div>`;
   })() : `
-    <div class="card" style="border-color:rgba(234,179,8,.4)">
+    <div class="card bord-or">
       <h2>📅 Lance ta première semaine thématique</h2>
       <p class="muted">Le principe : chaque semaine, UN secteur, UN persona, TES références en avant : partout (emails, LinkedIn, post). Grande distribution avec le Galec, hôtellerie avec Pullman, collectivités avec Puteaux…</p>
       <p class="muted small">Choisis un secteur ci-dessous 👇 et la campagne se crée avec sa recette Sales Nav, sa séquence email et son kit de diffusion. Un projet long (sponsoring, partenariats) se crée au même endroit et reste en cours jusqu'à sa date de fin.</p>
@@ -684,17 +754,17 @@ async function vCampagnes(view) {
     </div>
     ${hero}
 
-    <div class="card" style="margin-top:14px">
+    <div class="card mt-4">
       <h2>🗓️ Planifier les prochaines semaines (ou ouvrir un projet)</h2>
-      <div class="row" style="margin:8px 0">
-        <select id="np-sector" style="min-width:260px">
+      <div class="row my-2">
+        <select class="champ-large" id="np-sector">
           <optgroup label="Semaines thématiques">${presets.filter((p) => p.kind !== 'projet').map((p) => `<option value="${p.code}" data-kind="semaine">${p.emoji} ${esc(p.label)} · ${esc(p.persona)}</option>`).join('')}</optgroup>
           ${presets.some((p) => p.kind === 'projet') ? `<optgroup label="Projets longs (en cours jusqu'à leur date de fin)">${presets.filter((p) => p.kind === 'projet').map((p) => `<option value="${p.code}" data-kind="projet" data-ends="${p.ends_on}">${p.emoji} ${esc(p.label)} · jusqu'au ${fmtDayAn(p.ends_on)}</option>`).join('')}</optgroup>` : ''}
         </select>
         <label class="field"><span id="np-week-txt">Semaine du</span><input id="np-week" type="date" value="${current ? nextMonday : today()}"></label>
-        <button class="primary" id="np-create" style="margin-top:14px">➕ Créer la campagne</button>
+        <button class="primary mt-4" id="np-create">➕ Créer la campagne</button>
       </div>
-      <p class="muted small" id="np-hint" style="display:none">Un projet reste en cours jusqu'à sa date de fin : ses fiches, sa séquence et son post vivent des mois, pas une semaine.</p>
+      <p class="muted small hidden" id="np-hint">Un projet reste en cours jusqu'à sa date de fin : ses fiches, sa séquence et son post vivent des mois, pas une semaine.</p>
       ${list.length ? `<div class="table-scroll"><table class="list">
         <thead><tr><th>Période</th><th>Campagne</th><th>Statut</th><th>Contacts</th><th>Réponses</th><th></th></tr></thead>
         <tbody>${list.map((c) => `<tr>
@@ -703,16 +773,16 @@ async function vCampagnes(view) {
           <td>${CAMP_STATUS[c.status]}</td>
           <td class="mono">${c.stats.contacts} (${c.stats.enrolled} 🤖)</td>
           <td class="mono">${c.stats.replies} 💬 · ${c.stats.rdv} 📅</td>
-          <td class="row" style="justify-content:flex-end">${c.status !== 'terminee' ? '' : ''}<button class="ghost" data-camp-del="${c.id}">🗑</button></td>
+          <td class="row fin">${c.status !== 'terminee' ? '' : ''}<button class="ghost" data-camp-del="${c.id}">🗑</button></td>
         </tr>`).join('')}</tbody>
       </table></div>` : ''}
     </div>
 
-    <div class="card" style="margin-top:14px">
+    <div class="card mt-4">
       <div class="spread"><h2>⭐ Tes références (les preuves qui vendent)</h2><button id="ref-new">➕ Ajouter</button></div>
-      ${toVerify.length ? `<p class="small" style="color:var(--gold2)">⚠️ ${toVerify.length} référence(s) issues de la dictée vocale à vérifier/corriger (orthographe, détail) : clique dessus.</p>` : ''}
-      <div class="badges-strip">
-        ${references.map((r) => `<button class="ghost" data-ref-edit="${r.id}" style="border:1px solid ${r.verified ? 'var(--border2)' : 'rgba(234,179,8,.5)'};border-radius:10px;padding:8px 12px;text-align:left;max-width:230px">
+      ${toVerify.length ? `<p class="small texte-or">⚠️ ${toVerify.length} référence(s) issues de la dictée vocale à vérifier/corriger (orthographe, détail) : clique dessus.</p>` : ''}
+      <div class="ref-strip">
+        ${references.map((r) => `<button class="ref-tile${r.verified ? '' : ' a-verifier'}" data-ref-edit="${r.id}">
           <div><b>${r.verified ? '⭐' : '⚠️'} ${esc(r.name)}</b><div class="muted small">${esc(r.detail.slice(0, 70))}</div></div>
         </button>`).join('')}
       </div>
@@ -758,9 +828,11 @@ async function vCampagnes(view) {
       } catch (e) { fx.error(e.message); btn.disabled = false; btn.textContent = '✨ Régénérer le kit'; }
     };
     $('#camp-del').onclick = async () => {
-      if (!confirm('Supprimer cette campagne (les contacts restent) ?')) return;
-      try { await api(`/campaigns/${current.id}`, { method: 'DELETE' }); vCampagnes(view); }
-      catch (e) { fx.error(e.message); }
+      try {
+        const r = await api(`/campaigns/${current.id}`, { method: 'DELETE' });
+        confirmerAvecRetour('Campagne supprimée (les contacts restent)', r, () => vCampagnes(view));
+        vCampagnes(view);
+      } catch (e) { fx.error(e.message); }
     };
   }
 
@@ -770,7 +842,7 @@ async function vCampagnes(view) {
   npSector.onchange = () => {
     const projet = npKind() === 'projet';
     $('#np-week-txt').textContent = projet ? 'Démarre le' : 'Semaine du';
-    $('#np-hint').style.display = projet ? '' : 'none';
+    $('#np-hint').classList.toggle('hidden', !projet);
     if (projet) $('#np-week').value = today();
   };
   $('#np-create').onclick = async () => {
@@ -784,9 +856,11 @@ async function vCampagnes(view) {
   };
   $$('[data-camp-del]', view).forEach((b) => {
     b.onclick = async () => {
-      if (!confirm('Supprimer cette campagne ?')) return;
-      try { await api(`/campaigns/${b.dataset.campDel}`, { method: 'DELETE' }); vCampagnes(view); }
-      catch (e) { fx.error(e.message); }
+      try {
+        const r = await api(`/campaigns/${b.dataset.campDel}`, { method: 'DELETE' });
+        confirmerAvecRetour('Campagne supprimée (les contacts restent)', r, () => vCampagnes(view));
+        vCampagnes(view);
+      } catch (e) { fx.error(e.message); }
     };
   });
 
@@ -794,13 +868,13 @@ async function vCampagnes(view) {
   const refModal = (r) => {
     const m = modal(`
       <h2>${r ? '✏️ Référence' : '➕ Nouvelle référence'}</h2>
-      ${r && !r.verified ? '<p class="small" style="color:var(--gold2)">⚠️ Nom issu de la dictée vocale : corrige l’orthographe puis coche « vérifiée ».</p>' : ''}
-      <div class="form-grid" style="margin-top:10px">
+      ${r && !r.verified ? '<p class="small texte-or">⚠️ Nom issu de la dictée vocale : corrige l’orthographe puis coche « vérifiée ».</p>' : ''}
+      <div class="form-grid mt-3">
         <label class="field wide">Nom (tel qu'il apparaîtra dans les emails)<input id="rf-name" value="${esc(r ? r.name : '')}"></label>
         <label class="field wide">Ce qu'on a fait pour eux<input id="rf-detail" value="${esc(r ? r.detail : '')}"></label>
-        <label class="chip wide" style="cursor:pointer"><input type="checkbox" id="rf-verified" ${!r || r.verified ? 'checked' : ''}> vérifiée (orthographe OK)</label>
+        <label class="chip wide cliquable"><input type="checkbox" id="rf-verified" ${!r || r.verified ? 'checked' : ''}> vérifiée (orthographe OK)</label>
       </div>
-      <div class="row" style="justify-content:space-between;margin-top:12px">
+      <div class="row entre mt-3">
         ${r ? '<button class="danger" id="rf-del">🗑 Supprimer</button>' : '<span></span>'}
         <button class="primary" id="rf-save">💾 Enregistrer</button>
       </div>`);
@@ -813,7 +887,12 @@ async function vCampagnes(view) {
       } catch (e) { fx.error(e.message); }
     };
     const del = $('#rf-del', m);
-    if (del) del.onclick = async () => { await api(`/references/${r.id}`, { method: 'DELETE' }); m.remove(); vCampagnes(view); };
+    if (del) del.onclick = async () => {
+      try {
+        const res = await api(`/references/${r.id}`, { method: 'DELETE' });
+        m.remove(); confirmerAvecRetour('Référence supprimée', res, () => vCampagnes(view)); vCampagnes(view);
+      } catch (e) { fx.error(e.message); }
+    };
   };
   $('#ref-new').onclick = () => refModal(null);
   $$('[data-ref-edit]', view).forEach((b) => { b.onclick = () => refModal(references.find((r) => String(r.id) === b.dataset.refEdit)); });
@@ -826,19 +905,24 @@ async function vPipeline(view) {
   const dealByContact = {};
   for (const d of deals) if (['devis_envoye', 'accepte', 'brouillon'].includes(d.status)) dealByContact[d.contact_id] = d;
 
+  const nomDe = (c) => `${c.first_name || ''} ${c.last_name || ''}`.trim() || c.company || 'Sans nom';
   view.innerHTML = `
     <div class="view-header spread">
-      <div><h1>📊 Pipeline</h1><div class="sub">Glisse-dépose les cartes pour faire avancer tes prospects (+5 XP par mouvement).</div></div>
+      <div><h1>📊 Pipeline</h1><div class="sub">Glisse une carte vers une autre colonne pour faire avancer un prospect (+5 XP). Au clavier : flèches gauche et droite sur une carte.</div></div>
     </div>
-    <div class="kanban">
-      ${S.stages.map((st) => `
-        <div class="kcol" data-stage="${st.code}">
-          <h3><span>${st.emoji} ${esc(st.label)}</span><span>${contacts.filter((c) => c.stage === st.code).length}</span></h3>
-          ${contacts.filter((c) => c.stage === st.code).map((c) => {
+    <p id="kanban-aide" class="sr-only">Entrée ouvre la fiche. Flèche gauche ou droite déplace le prospect d'une étape.</p>
+    <div class="kanban" role="list">
+      ${S.stages.map((st) => {
+        const ici = contacts.filter((c) => c.stage === st.code);
+        return `
+        <section class="kcol" data-stage="${st.code}" aria-label="${esc(st.label)}">
+          <h3><span>${st.emoji} ${esc(st.label)}</span><span class="kcol-n">${ici.length}</span></h3>
+          ${ici.length ? '' : '<p class="kcol-vide">Glisse une carte ici</p>'}
+          ${ici.map((c) => {
             const deal = dealByContact[c.id];
-            return `<div class="kcard" draggable="true" data-id="${c.id}">
-              <div class="k-name">${esc(c.first_name)} ${esc(c.last_name)}</div>
-              <div class="k-co">${esc(c.company || '')}</div>
+            return `<div class="kcard" draggable="true" data-id="${c.id}" tabindex="0" role="button" aria-describedby="kanban-aide" aria-label="${esc(nomDe(c))}${c.company ? `, ${esc(c.company)}` : ''}">
+              <div class="k-name">${esc(nomDe(c))}</div>
+              ${c.company && nomDe(c) !== c.company ? `<div class="k-co">${esc(c.company)}</div>` : ''}
               <div class="k-meta">
                 ${segChip(c.segment)}
                 ${c.is_former_client ? '<span class="chip former">💰</span>' : ''}
@@ -847,25 +931,57 @@ async function vPipeline(view) {
               </div>
             </div>`;
           }).join('')}
-        </div>`).join('')}
+        </section>`;
+      }).join('')}
     </div>`;
+
+  const compter = () => $$('.kcol', view).forEach((col) => {
+    const n = $$('.kcard', col).length;
+    $('.kcol-n', col).textContent = n;
+    const vide = $('.kcol-vide', col);
+    if (n && vide) vide.remove();
+    if (!n && !vide) $('h3', col).insertAdjacentHTML('afterend', '<p class="kcol-vide">Glisse une carte ici</p>');
+  });
+  // La carte change de colonne tout de suite ; le serveur suit. S'il refuse,
+  // l'écran se redessine tel qu'il est vraiment.
+  const deplacer = async (card, col, { garderFocus = false } = {}) => {
+    const depart = card.closest('.kcol');
+    if (!col || col === depart) return;
+    const c = contacts.find((x) => String(x.id) === card.dataset.id);
+    col.appendChild(card);
+    compter();
+    card.classList.add('k-arrive');
+    if (garderFocus) card.focus();
+    try {
+      const res = await api(`/contacts/${card.dataset.id}`, { method: 'PATCH', body: { stage: col.dataset.stage } });
+      if (c) c.stage = col.dataset.stage;
+      confirmerAvecRetour(`${esc(c ? nomDe(c) : 'Prospect')} : ${stageLabel(col.dataset.stage)}`, res, () => vPipeline(view));
+      await celebrate(res.celebration);
+    } catch (err) { fx.error(err.message); vPipeline(view); }
+  };
 
   let draggedId = null;
   $$('.kcard', view).forEach((card) => {
-    card.addEventListener('dragstart', () => { draggedId = card.dataset.id; });
+    card.addEventListener('dragstart', (e) => { draggedId = card.dataset.id; card.classList.add('k-tenue'); e.dataTransfer.effectAllowed = 'move'; });
+    card.addEventListener('dragend', () => { card.classList.remove('k-tenue'); });
     card.addEventListener('click', () => openContact(card.dataset.id));
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openContact(card.dataset.id); return; }
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      e.preventDefault();
+      const col = card.closest('.kcol');
+      const voisine = e.key === 'ArrowRight' ? col.nextElementSibling : col.previousElementSibling;
+      if (voisine && voisine.classList.contains('kcol')) deplacer(card, voisine, { garderFocus: true });
+    });
   });
   $$('.kcol', view).forEach((col) => {
     col.addEventListener('dragover', (e) => { e.preventDefault(); col.classList.add('dragover'); });
-    col.addEventListener('dragleave', () => col.classList.remove('dragover'));
-    col.addEventListener('drop', async (e) => {
+    col.addEventListener('dragleave', (e) => { if (!col.contains(e.relatedTarget)) col.classList.remove('dragover'); });
+    col.addEventListener('drop', (e) => {
       e.preventDefault(); col.classList.remove('dragover');
-      if (!draggedId) return;
-      try {
-        const res = await api(`/contacts/${draggedId}`, { method: 'PATCH', body: { stage: col.dataset.stage } });
-        await celebrate(res.celebration);
-        vPipeline(view);
-      } catch (err) { fx.error(err.message); }
+      const card = draggedId && $(`.kcard[data-id="${CSS.escape(draggedId)}"]`, view);
+      draggedId = null;
+      if (card) deplacer(card, col);
     });
   });
 }
@@ -911,7 +1027,7 @@ async function vContacts(view) {
       <div><h1>👥 Contacts</h1><div class="sub">${total} contact(s)${pages > 1 ? ` · page ${cFilter.page + 1}/${pages}` : ''}${cSelected.size ? ` · ${cSelected.size} sélectionné(s)` : ''}</div></div>
       <div class="row">
         <button id="c-new" class="primary">➕ Nouveau</button>
-        <a href="/api/export.csv" download><button>📤 Export CSV</button></a>
+        <a class="btn" href="/api/export.csv" download>📤 Export CSV</a>
       </div>
     </div>
     <div class="toolbar">
@@ -920,11 +1036,11 @@ async function vContacts(view) {
       <select id="c-stage"><option value="">Étape : toutes</option>${S.stages.map((s) => `<option value="${s.code}" ${cFilter.stage === s.code ? 'selected' : ''}>${s.emoji} ${esc(s.label)}</option>`).join('')}</select>
       <select id="c-origin"><option value="">Origine : toutes</option>${['pennylane', 'hubspot', 'csv', 'linkedin', 'gmail', 'manuel', 'demo'].map((o) => `<option ${cFilter.origin === o ? 'selected' : ''}>${o}</option>`).join('')}</select>
       ${campList.length ? `<select id="c-camp"><option value="0">Campagne : toutes</option>${campList.map((c) => `<option value="${c.id}" ${cFilter.campaign === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select>` : ''}
-      <label class="chip" style="cursor:pointer"><input type="checkbox" id="c-former" ${cFilter.former ? 'checked' : ''}> 💰 anciens clients</label>
-      <label class="chip" style="cursor:pointer"><input type="checkbox" id="c-enrich" ${cFilter.enrichable ? 'checked' : ''}> 🕳️ email/tél manquant</label>
-      <label class="chip" style="cursor:pointer"><input type="checkbox" id="c-noice" ${cFilter.sansIce ? 'checked' : ''}> 💎 sans icebreaker</label>
+      <label class="chip cliquable"><input type="checkbox" id="c-former" ${cFilter.former ? 'checked' : ''}> 💰 anciens clients</label>
+      <label class="chip cliquable"><input type="checkbox" id="c-enrich" ${cFilter.enrichable ? 'checked' : ''}> 🕳️ email/tél manquant</label>
+      <label class="chip cliquable"><input type="checkbox" id="c-noice" ${cFilter.sansIce ? 'checked' : ''}> 💎 sans icebreaker</label>
     </div>
-    ${cSelected.size ? `<div class="toolbar card" style="padding:10px 14px">
+    ${cSelected.size ? `<div class="toolbar card ">
       <b>${cSelected.size} sélectionné(s) :</b>
       <button id="b-sequence" class="primary">🤖 Enrôler en séquence</button>
       <button id="b-enrich">🧪 Enrichir (FullEnrich)</button>
@@ -933,17 +1049,17 @@ async function vContacts(view) {
       <button id="b-delete" class="danger">🗑️ Supprimer</button>
       <button id="b-clear" class="ghost">✖ Désélectionner</button>
     </div>` : ''}
-    <div class="card table-scroll" style="padding:6px 10px">
+    <div class="card table-scroll carte-serree">
       <table class="list contacts">
         <thead><tr>
           <th><input type="checkbox" id="c-all" title="Tout sélectionner"></th>
           ${[['name', 'Contact'], ['segment', 'Typologie'], ['stage', 'Étape'], ['', 'Data'], ['next_action_at', 'Prochaine action'], ['revenue', 'CA hist.']]
             .map(([k, label]) => k
-              ? `<th data-sort-col="${k}" style="cursor:pointer" title="Trier">${label} ${cFilter.sort === k ? (cFilter.dir === 'asc' ? '▲' : '▼') : '<span class="faint">↕</span>'}</th>`
+              ? `<th data-sort-col="${k}" aria-sort="${cFilter.sort === k ? (cFilter.dir === 'asc' ? 'ascending' : 'descending') : 'none'}"><button type="button" class="tri" title="Trier par ${label.toLowerCase()}">${label} ${cFilter.sort === k ? (cFilter.dir === 'asc' ? '▲' : '▼') : '<span class="faint" aria-hidden="true">↕</span>'}</button></th>`
               : `<th>${label}</th>`).join('')}
         </tr></thead>
         <tbody>
-          ${contacts.map((c) => `<tr class="rowc" data-id="${c.id}">
+          ${contacts.map((c) => `<tr class="rowc" data-id="${c.id}" tabindex="0" aria-label="Ouvrir la fiche de ${esc(`${c.first_name} ${c.last_name}`.trim() || c.company || 'ce contact')}">
             <td><input type="checkbox" class="c-check" data-id="${c.id}" ${cSelected.has(c.id) ? 'checked' : ''}></td>
             <td><div class="t-name">${esc(c.first_name)} ${esc(c.last_name)} ${c.is_former_client ? '💰' : ''}</div><div class="t-sub">${esc(c.company || '')}${c.job_title ? ' · ' + esc(c.job_title) : ''}</div></td>
             <td><select class="cell-mini" data-seg-id="${c.id}" title="Changer la typologie">${Object.entries(S.segments).map(([k, s]) => `<option value="${k}" ${c.segment === k ? 'selected' : ''}>${s.emoji} ${esc(s.label)}</option>`).join('')}</select></td>
@@ -954,7 +1070,9 @@ async function vContacts(view) {
           </tr>`).join('')}
         </tbody>
       </table>
-      ${contacts.length === 0 ? '<p class="muted" style="padding:14px">Aucun contact : passe par <a href="#/import">Imports</a> pour remplir ton terrain de chasse.</p>' : ''}
+      ${contacts.length === 0 ? (total === 0 && !cFilter.search && !cFilter.segment && !cFilter.stage && !cFilter.origin
+        ? '<div class="vide-etat my-4"><b>Ton terrain de chasse est vide.</b><br>Importe tes anciens clients (Pennylane) ou un export LinkedIn, ou crée un contact à la main.<div class="row centre mt-3"><a class="btn primary" href="#/import">Importer des contacts</a></div></div>'
+        : '<div class="vide-etat my-4">Aucun contact ne correspond à ces filtres. Élargis la recherche ou retire un filtre.</div>') : ''}
       ${pagination}
     </div>`;
 
@@ -987,6 +1105,12 @@ async function vContacts(view) {
   });
   $$('tr.rowc', view).forEach((tr) => {
     tr.onclick = (e) => { if (e.target.closest('select, button, input, a, label')) return; openContact(tr.dataset.id); };
+    tr.onkeydown = (e) => {
+      if (e.target !== tr) return;
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openContact(tr.dataset.id); }
+      else if (e.key === 'ArrowDown' && tr.nextElementSibling) { e.preventDefault(); tr.nextElementSibling.focus(); }
+      else if (e.key === 'ArrowUp' && tr.previousElementSibling) { e.preventDefault(); tr.previousElementSibling.focus(); }
+    };
   });
 
   // Tri par colonne
@@ -1002,17 +1126,28 @@ async function vContacts(view) {
 
   // Édition directe : typologie, étape, prochaine action
   $$('[data-seg-id]', view).forEach((sel) => {
+    let avant = sel.value;
     sel.onchange = async () => {
-      try { await api(`/contacts/${sel.dataset.segId}`, { method: 'PATCH', body: { segment: sel.value } }); fx.play('pop'); }
-      catch (e) { fx.error(e.message); vContacts(view); }
+      const id = sel.dataset.segId;
+      const ancien = avant;
+      try {
+        const r = await api(`/contacts/${id}`, { method: 'PATCH', body: { segment: sel.value } });
+        avant = sel.value;
+        fx.play('pop');
+        confirmerAvecRetour('Typologie changée', r, () => vContacts(view));
+      } catch (e) { sel.value = ancien; fx.error(e.message); }
     };
   });
   $$('[data-stage-id]', view).forEach((sel) => {
+    let avant = sel.value;
     sel.onchange = async () => {
+      const ancien = avant;
       try {
         const r = await api(`/contacts/${sel.dataset.stageId}`, { method: 'PATCH', body: { stage: sel.value } });
+        avant = sel.value;
+        confirmerAvecRetour(`Étape : ${stageLabel(sel.value)}`, r, () => vContacts(view));
         await celebrate(r.celebration);
-      } catch (e) { fx.error(e.message); vContacts(view); }
+      } catch (e) { sel.value = ancien; fx.error(e.message); }
     };
   });
   $$('[data-na-id]', view).forEach((b) => {
@@ -1020,17 +1155,17 @@ async function vContacts(view) {
       const contact = contacts.find((x) => String(x.id) === b.dataset.naId);
       const m = modal(`
         <h2>📆 Prochaine action · ${esc(contact.first_name)} ${esc(contact.last_name)}</h2>
-        <div class="form-grid" style="margin-top:10px">
+        <div class="form-grid mt-3">
           <label class="field wide">Quoi faire<input id="na-what" value="${esc(contact.next_action)}" placeholder="Ex : Relancer le devis, appeler après son événement…"></label>
           <label class="field">Pour quand<input id="na-when" type="date" value="${esc(contact.next_action_at)}"></label>
-          <div class="row" style="margin-top:18px">
+          <div class="row mt-5">
             <button class="ghost" data-quick="0">Aujourd'hui</button>
             <button class="ghost" data-quick="1">Demain</button>
             <button class="ghost" data-quick="3">+3 j</button>
             <button class="ghost" data-quick="7">+7 j</button>
           </div>
         </div>
-        <div class="row" style="justify-content:space-between;margin-top:14px">
+        <div class="row entre mt-4">
           <button class="ghost" id="na-clear">🗑 Effacer</button>
           <button class="primary" id="na-save">💾 Enregistrer</button>
         </div>`);
@@ -1051,15 +1186,25 @@ async function vContacts(view) {
   $('#c-new').onclick = () => newContactModal(() => vContacts(view));
   if (cSelected.size) {
     $('#b-clear').onclick = () => { cSelected.clear(); vContacts(view); };
+    // Pas de « Es-tu sûr ? » : les lignes partent tout de suite, et
+    // « Annuler » les ramène pendant quelques secondes (et plus, avec Ctrl Z).
     $('#b-delete').onclick = async () => {
-      if (!confirm(`Supprimer définitivement ${cSelected.size} contact(s) ?`)) return;
-      await api('/contacts/bulk', { method: 'POST', body: { ids: [...cSelected], action: 'delete' } });
-      cSelected.clear(); fx.toast('🗑️ Supprimés'); vContacts(view);
+      const ids = [...cSelected];
+      ids.forEach((id) => { const tr = $(`tr.rowc[data-id="${id}"]`, view); if (tr) tr.classList.add('ligne-part'); });
+      try {
+        const r = await api('/contacts/bulk', { method: 'POST', body: { ids, action: 'delete' } });
+        cSelected.clear();
+        confirmerAvecRetour(`${r.count} contact${r.count > 1 ? 's' : ''} supprimé${r.count > 1 ? 's' : ''}`, r, () => vContacts(view));
+      } catch (e) { fx.error(e.message); }
+      vContacts(view);
     };
     $('#b-seg').onchange = async (e) => {
       if (!e.target.value) return;
-      await api('/contacts/bulk', { method: 'POST', body: { ids: [...cSelected], patch: { segment: e.target.value } } });
-      fx.toast('✅ Typologie mise à jour'); vContacts(view);
+      try {
+        const r = await api('/contacts/bulk', { method: 'POST', body: { ids: [...cSelected], patch: { segment: e.target.value } } });
+        confirmerAvecRetour(`Typologie changée sur ${r.count} contact${r.count > 1 ? 's' : ''}`, r, () => vContacts(view));
+      } catch (err) { fx.error(err.message); }
+      vContacts(view);
     };
     $('#b-sequence').onclick = () => sequencePickerModal([...cSelected], () => { cSelected.clear(); vContacts(view); });
     $('#b-enrich').onclick = () => launchEnrich([...cSelected], () => vContacts(view));
@@ -1094,7 +1239,7 @@ async function launchEnrich(ids, after) {
 function newContactModal(after) {
   const m = modal(`
     <h2>➕ Nouveau contact</h2>
-    <div class="form-grid" style="margin-top:10px">
+    <div class="form-grid mt-3">
       <label class="field">Prénom<input id="n-fn"></label>
       <label class="field">Nom<input id="n-ln"></label>
       <label class="field">Entreprise<input id="n-co"></label>
@@ -1105,9 +1250,9 @@ function newContactModal(after) {
       <label class="field">Typologie<select id="n-seg">${Object.entries(S.segments).map(([k, s]) => `<option value="${k}">${s.emoji} ${esc(s.label)}</option>`).join('')}</select></label>
       <label class="field">Ville<input id="n-ci"></label>
       <label class="field wide"><span>Notes</span><textarea id="n-no" rows="2"></textarea></label>
-      <label class="chip wide" style="cursor:pointer"><input type="checkbox" id="n-former"> 💰 C'est un ancien client</label>
+      <label class="chip wide cliquable"><input type="checkbox" id="n-former"> 💰 C'est un ancien client</label>
     </div>
-    <div class="row" style="margin-top:14px;justify-content:flex-end"><button class="primary" id="n-save">Créer</button></div>`);
+    <div class="row mt-4 fin"><button class="primary" id="n-save">Créer</button></div>`);
   $('#n-seg', m).value = 'inconnu';
   $('#n-save', m).onclick = async () => {
     try {
@@ -1123,12 +1268,16 @@ function newContactModal(after) {
 }
 
 // ================================================================ FICHE CONTACT (drawer)
+let ficheDeclencheur = null; // l'élément d'où l'on vient, pour y rendre le focus à la fermeture
 async function openContact(id) {
   const backdrop = $('#drawer-backdrop');
   const drawer = $('#drawer');
+  if (drawer.classList.contains('hidden')) ficheDeclencheur = document.activeElement;
   backdrop.classList.remove('hidden');
   drawer.classList.remove('hidden');
-  drawer.innerHTML = '<p class="muted">Chargement…</p>';
+  document.documentElement.classList.add('fiche-ouverte');
+  $$('tr.rowc').forEach((tr) => tr.classList.toggle('courant', tr.dataset.id === String(id)));
+  drawer.innerHTML = '<div class="squelette pt-5" aria-hidden="true"><div class="sq sq-titre"></div><div class="sq sq-ligne"></div><div class="sq sq-carte"></div><div class="sq sq-carte"></div></div><p class="sr-only">Chargement de la fiche…</p>';
   backdrop.onclick = closeDrawer;
 
   let data;
@@ -1140,26 +1289,26 @@ async function openContact(id) {
   drawer.innerHTML = `
     <div class="spread">
       <div>
-        <h1 style="font-size:22px">${esc(c.first_name)} ${esc(c.last_name)} ${c.is_former_client ? '💰' : ''}</h1>
+        <h1>${esc(c.first_name)} ${esc(c.last_name)} ${c.is_former_client ? '💰' : ''}</h1>
         <div class="muted">${esc(c.job_title || '')}${c.job_title && c.company ? ' · ' : ''}${esc(c.company || '')}</div>
       </div>
-      <button class="ghost" id="d-close">✖</button>
+      <button class="ghost ico-btn" id="d-close" title="Fermer la fiche (Échap)" aria-label="Fermer la fiche"><svg class="ico" aria-hidden="true"><use href="#i-fermer"/></svg></button>
     </div>
-    <div class="row" style="margin:10px 0">
+    <div class="row my-3">
       ${segChip(c.segment)}
       <span class="chip">${stageLabel(c.stage)}</span>
       ${c.is_former_client ? `<span class="chip former">Ancien client · ${eur(c.revenue_history)}</span>` : ''}
       <span class="chip">${esc(c.origin)}</span>
     </div>
     <div class="row">
-      ${c.linkedin_url ? `<a href="${esc(c.linkedin_url)}" target="_blank" rel="noopener"><button>🔗 LinkedIn</button></a>` : ''}
-      ${c.email ? `<a id="d-mailto" href="${mailtoHref(c.email, '', '')}"><button>✉️ ${esc(c.email)}</button></a>` : ''}
-      ${c.phone ? `<a href="tel:${esc(c.phone)}"><button>☎️ ${esc(c.phone)}</button></a>` : ''}
+      ${c.linkedin_url ? `<a class="btn" href="${esc(c.linkedin_url)}" target="_blank" rel="noopener">🔗 LinkedIn</a>` : ''}
+      ${c.email ? `<a class="btn btn-long" id="d-mailto" href="${mailtoHref(c.email, '', '')}" title="${esc(c.email)}"><span aria-hidden="true">✉️</span><span class="tronque">${esc(c.email)}</span></a>` : ''}
+      ${c.phone ? `<a class="btn" href="tel:${esc(c.phone)}">☎️ ${esc(c.phone)}</a>` : ''}
       ${!c.email || !c.phone ? `<button id="d-enrich">🧪 Enrichir</button>` : ''}
       <button id="d-hubspot">⬆️ HubSpot</button>
     </div>
 
-    <div class="card" style="margin-top:14px">
+    <div class="card mt-4">
       <h3>✏️ Infos</h3>
       <div class="form-grid">
         <label class="field">Prénom<input id="e-fn" value="${esc(c.first_name)}"></label>
@@ -1169,8 +1318,8 @@ async function openContact(id) {
         <label class="field">Entreprise<input id="e-co" value="${esc(c.company)}"></label>
         <label class="field">Poste<input id="e-jt" value="${esc(c.job_title)}"></label>
         <label class="field wide">💎 Icebreaker : ton lien avec la personne (1re ligne des messages via {accroche})
-          <div class="row"><input id="e-ice" value="${esc(c.icebreaker)}" placeholder="Ancien employeur commun, ville, sport, destination…" style="flex:1"><button id="e-ice-ai" title="Suggérer (IA + mon profil)">✨</button></div>
-          ${(data.hints || []).length ? `<span class="small" style="color:var(--green2)">🔗 Points communs détectés : ${data.hints.map(esc).join(', ')}</span>` : ''}
+          <div class="row"><input class="flex-1" id="e-ice" value="${esc(c.icebreaker)}" placeholder="Ancien employeur commun, ville, sport, destination…"><button id="e-ice-ai" title="Suggérer (IA + mon profil)">✨</button></div>
+          ${(data.hints || []).length ? `<span class="small texte-succes">🔗 Points communs détectés : ${data.hints.map(esc).join(', ')}</span>` : ''}
         </label>
         <label class="field">Typologie<select id="e-seg">${Object.entries(S.segments).map(([k, s]) => `<option value="${k}" ${c.segment === k ? 'selected' : ''}>${s.emoji} ${esc(s.label)}</option>`).join('')}</select></label>
         <label class="field">Étape<select id="e-stage">${S.stages.map((s) => `<option value="${s.code}" ${c.stage === s.code ? 'selected' : ''}>${s.emoji} ${esc(s.label)}</option>`).join('')}</select></label>
@@ -1178,10 +1327,10 @@ async function openContact(id) {
         <label class="field">Échéance<input id="e-nad" type="date" value="${esc(c.next_action_at)}"></label>
         <label class="field wide"><span>Notes</span><textarea id="e-no" rows="3">${esc(c.notes)}</textarea></label>
       </div>
-      <div class="row" style="justify-content:flex-end;margin-top:8px"><button class="primary" id="d-save">💾 Enregistrer</button></div>
+      <div class="row fin mt-2"><button class="primary" id="d-save">💾 Enregistrer</button></div>
     </div>
 
-    <div class="card" style="margin-top:14px">
+    <div class="card mt-4">
       <div class="spread"><h3>📄 Devis & factures</h3>
         <div class="row">
           <button id="d-quote-pl" class="primary">➕ Devis Pennylane</button>
@@ -1197,7 +1346,7 @@ async function openContact(id) {
             ${d.pennylane_quote_id ? `<span class="chip">PL #${esc(d.pennylane_quote_id)}</span>` : ''}
           </div>
           <div class="row">
-            ${d.pennylane_quote_url ? `<a href="${esc(d.pennylane_quote_url)}" target="_blank" rel="noopener"><button class="ghost">📄 PDF</button></a>` : ''}
+            ${d.pennylane_quote_url ? `<a class="btn ghost" href="${esc(d.pennylane_quote_url)}" target="_blank" rel="noopener">📄 PDF</a>` : ''}
             ${d.status === 'brouillon' ? `<button data-deal="${d.id}" data-status="devis_envoye">📤 Marquer envoyé</button>` : ''}
             ${d.status === 'devis_envoye' ? `<button data-deal="${d.id}" data-status="accepte">🤝 Accepté</button>` : ''}
             ${['devis_envoye', 'accepte'].includes(d.status) && d.pennylane_quote_id ? `<button data-invoice-pl="${d.id}" class="gold">🧾 Facture PL (brouillon)</button>` : ''}
@@ -1207,10 +1356,10 @@ async function openContact(id) {
         </div>`).join('')}
     </div>
 
-    <div class="card" style="margin-top:14px">
+    <div class="card mt-4">
       <h3>💬 Composer un message</h3>
-      <div class="row" style="margin-bottom:7px">
-        <select id="d-tpl" style="flex:1">${tpls.map((t) => `<option value="${t.id}" ${t.code === data.suggested_template ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select>
+      <div class="row mb-2">
+        <select class="flex-1" id="d-tpl">${tpls.map((t) => `<option value="${t.id}" ${t.code === data.suggested_template ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select>
         <select id="d-purpose" title="Objectif IA">
           <option value="premier_contact">✨ Premier contact</option>
           <option value="relance">✨ Relance</option>
@@ -1219,13 +1368,13 @@ async function openContact(id) {
         </select>
         <button id="d-ai">✨ IA</button>
       </div>
-      <input id="d-subject" placeholder="Objet" style="width:100%;margin-bottom:7px">
+      <input class="plein mb-2" id="d-subject" placeholder="Objet">
       <textarea id="d-body" rows="7"></textarea>
-      <div class="row" style="margin-top:8px">
+      <div class="row mt-2">
         <button id="d-copy">📋 Copier</button>
         ${c.email && S.autopilot.configured ? `<button class="primary" id="d-sendreal">📤 Envoyer maintenant</button>` : ''}
-        ${c.email ? `<a id="d-send-mail" href="#"><button>✉️ Ouvrir dans ma messagerie</button></a>` : ''}
-        <span style="flex:1"></span>
+        ${c.email ? `<a class="btn" id="d-send-mail" href="#">✉️ Ouvrir dans ma messagerie</a>` : ''}
+        <span class="flex-1"></span>
         <select id="d-log-type">
           <option value="message_envoye">📤 Message envoyé</option>
           <option value="relance">🔁 Relance</option>
@@ -1238,19 +1387,29 @@ async function openContact(id) {
       </div>
     </div>
 
-    <div class="card" style="margin-top:14px">
+    <div class="card">
       <h3>🕓 Historique</h3>
       <div class="timeline">
         ${activities.length === 0 ? '<p class="muted small">Rien pour l’instant.</p>' : ''}
         ${activities.map((a) => {
           const def = S.actions[a.type] || { label: a.type, emoji: '•' };
-          return `<div class="tl-item"><div class="tl-date">${fmtDateTime(a.created_at)} ${a.xp ? `· <b style="color:var(--gold2)">+${a.xp} XP</b>` : ''}</div>${def.emoji} <b>${esc(def.label)}</b>${a.note ? ` : ${esc(a.note)}` : ''}</div>`;
+          return `<div class="tl-item"><div class="tl-date">${fmtDateTime(a.created_at)} ${a.xp ? `· <b class="texte-or">+${a.xp} XP</b>` : ''}</div>${def.emoji} <b>${esc(def.label)}</b>${a.note ? ` : ${esc(a.note)}` : ''}</div>`;
         }).join('')}
       </div>
     </div>
-    <div style="height:30px"></div>`;
+    <div class="fiche-pied">
+      <button class="danger" id="d-delete"><svg class="ico" aria-hidden="true"><use href="#i-poubelle"/></svg> Supprimer ce contact</button>
+    </div>`;
 
   $('#d-close').onclick = closeDrawer;
+  $('#d-delete').onclick = async () => {
+    try {
+      const r = await api(`/contacts/${c.id}`, { method: 'DELETE' });
+      closeDrawer();
+      confirmerAvecRetour(`${esc(`${c.first_name} ${c.last_name}`.trim() || c.company || 'Contact')} supprimé`, r, () => { render(); openContact(c.id); });
+      render();
+    } catch (e) { fx.error(e.message); }
+  };
   $('#d-save').onclick = async () => {
     try {
       const res = await api(`/contacts/${c.id}`, { method: 'PATCH', body: {
@@ -1259,8 +1418,8 @@ async function openContact(id) {
         next_action: $('#e-na').value, next_action_at: $('#e-nad').value, notes: $('#e-no').value,
         icebreaker: $('#e-ice').value,
       } });
+      confirmerAvecRetour('Fiche enregistrée', res, async () => { await openContact(c.id); if (location.hash.includes('contacts')) render(); });
       await celebrate(res.celebration);
-      fx.toast('💾 Enregistré');
       openContact(c.id);
     } catch (e) { fx.error(e.message); }
   };
@@ -1272,7 +1431,7 @@ async function openContact(id) {
       const d = await api('/ai/draft', { method: 'POST', body: { contact_id: c.id, purpose: 'icebreaker' } });
       const lines = d.body.split('\n').map((s) => s.trim()).filter((s) => s.length > 8);
       const m = modal(`<h2>💎 Suggestions d'icebreaker</h2>
-        <div class="grid" style="margin-top:10px">${lines.map((l) => `<button data-pick-ice style="justify-content:flex-start;text-align:left">${esc(l)}</button>`).join('') || '<p class="muted">Rien trouvé : remplis « Mon profil » dans Réglages.</p>'}</div>`);
+        <div class="grid mt-3">${lines.map((l) => `<button class="debut a-gauche" data-pick-ice>${esc(l)}</button>`).join('') || '<p class="muted">Rien trouvé : remplis « Mon profil » dans Réglages.</p>'}</div>`);
       $$('[data-pick-ice]', m).forEach((b) => { b.onclick = () => { $('#e-ice').value = b.textContent; m.remove(); }; });
     } catch (e) { fx.error(e.message); }
     btn.disabled = false; btn.textContent = '✨';
@@ -1288,7 +1447,10 @@ async function openContact(id) {
   $$('[data-deal]', drawer).forEach((b) => {
     b.onclick = async () => {
       try {
+        b.disabled = true;
         const res = await api(`/deals/${b.dataset.deal}`, { method: 'PATCH', body: { status: b.dataset.status } });
+        const libelles = { devis_envoye: 'Devis marqué envoyé', accepte: 'Devis accepté', facture: 'Devis facturé', perdu: 'Devis classé perdu' };
+        confirmerAvecRetour(libelles[b.dataset.status] || 'Devis modifié', res, () => openContact(c.id));
         await celebrate(res.celebration);
         openContact(c.id);
       } catch (e) { fx.error(e.message); }
@@ -1354,6 +1516,10 @@ async function openContact(id) {
 function closeDrawer() {
   $('#drawer').classList.add('hidden');
   $('#drawer-backdrop').classList.add('hidden');
+  document.documentElement.classList.remove('fiche-ouverte');
+  $$('tr.rowc.courant').forEach((tr) => tr.classList.remove('courant'));
+  if (ficheDeclencheur && document.contains(ficheDeclencheur)) ficheDeclencheur.focus();
+  ficheDeclencheur = null;
 }
 
 // Modale devis Pennylane
@@ -1368,22 +1534,22 @@ function quoteModal(contact, after) {
   const m = modal(`
     <h2>📄 Devis Pennylane</h2>
     <p class="muted small">Créé directement dans ton Pennylane (client créé au passage si besoin), puis trackés ici pour l'objectif 5 factures.</p>
-    <label class="field" style="margin:10px 0">Titre interne<input id="q-title" value="${esc('Devis ' + (contact.company || contact.last_name))}"></label>
+    <label class="field my-3">Titre interne<input id="q-title" value="${esc('Devis ' + (contact.company || contact.last_name))}"></label>
     <div class="quote-lines" id="q-lines">${lineHtml()}</div>
     <button class="ghost" id="q-add">➕ Ajouter une ligne</button>
-    <div class="spread" style="margin-top:10px">
-      <label class="field">Validité (jours)<input id="q-deadline" type="number" value="30" style="width:90px"></label>
-      <div style="text-align:right"><span class="muted small">Total HT</span><div id="q-total" style="font-size:22px;font-weight:900">0 €</div></div>
+    <div class="spread mt-3">
+      <label class="field">Validité (jours)<input class="champ-court" id="q-deadline" type="number" value="30"></label>
+      <div class="a-droite"><span class="muted small">Total HT</span><div id="q-total" class="q-total">0 €</div></div>
     </div>
-    <details style="margin:10px 0"><summary class="muted">🏠 Adresse du client (utile si le client n'existe pas encore dans Pennylane)</summary>
-      <div class="form-grid" style="margin-top:8px">
+    <details class="my-3"><summary class="muted">🏠 Adresse du client (utile si le client n'existe pas encore dans Pennylane)</summary>
+      <div class="form-grid mt-2">
         <label class="field wide">Adresse<input id="q-addr"></label>
         <label class="field">Code postal<input id="q-cp"></label>
         <label class="field">Ville<input id="q-city" value="${esc(contact.city || '')}"></label>
       </div>
     </details>
-    <div id="q-error" class="hidden" style="color:var(--red2);background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.4);border-radius:9px;padding:9px 12px;margin:8px 0;font-size:13px"></div>
-    <div class="row" style="justify-content:flex-end;margin-top:10px"><button class="primary big" id="q-go">🚀 Créer le devis</button></div>`);
+    <div id="q-error" class="hidden message-erreur" role="alert"></div>
+    <div class="row fin mt-3"><button class="primary big" id="q-go">🚀 Créer le devis</button></div>`);
 
   const recalc = () => {
     let total = 0;
@@ -1424,12 +1590,12 @@ function manualDealModal(contact, after) {
   const m = modal(`
     <h2>➕ Devis manuel</h2>
     <p class="muted small">Pour tracker un devis fait ailleurs (Pennylane à la main, etc.).</p>
-    <div class="form-grid" style="margin-top:10px">
+    <div class="form-grid mt-3">
       <label class="field wide">Titre<input id="md-title" value="${esc('Devis ' + (contact.company || contact.last_name))}"></label>
       <label class="field">Montant HT (€)<input id="md-amount" type="number" min="0" step="50"></label>
       <label class="field">Statut<select id="md-status"><option value="devis_envoye">📤 Envoyé</option><option value="brouillon">📝 Brouillon</option></select></label>
     </div>
-    <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="primary" id="md-go">Créer</button></div>`);
+    <div class="row fin mt-3"><button class="primary" id="md-go">Créer</button></div>`);
   $('#md-go', m).onclick = async () => {
     try {
       const res = await api('/deals', { method: 'POST', body: { contact_id: contact.id, title: $('#md-title', m).value, amount: Number($('#md-amount', m).value) || 0, status: $('#md-status', m).value } });
@@ -1451,13 +1617,13 @@ async function vInbox(view) {
     <div class="card">
       <h3>➕ Nouvelle demande reçue</h3>
       <textarea id="i-content" rows="3" placeholder="Colle ici le message reçu…"></textarea>
-      <div class="row" style="margin-top:8px">
+      <div class="row mt-2">
         <select id="i-contact"><option value="">🔍 Lier à un contact (optionnel)</option>${contacts.map((c) => `<option value="${c.id}">${esc(c.first_name)} ${esc(c.last_name)} · ${esc(c.company || '')}</option>`).join('')}</select>
         <select id="i-source"><option>email</option><option>instagram</option><option>linkedin</option><option>site web</option><option>téléphone</option></select>
         <button class="primary" id="i-add">Ajouter</button>
       </div>
     </div>
-    <div class="grid" style="margin-top:14px">
+    <div class="grid mt-4">
       ${requests.length === 0 ? '<div class="card"><p class="muted">Aucune demande en attente. C’est le moment d’aller en provoquer → <a href="#/chasse">Mode Chasse</a> 😏</p></div>' : ''}
       ${requests.map((r) => `
         <div class="card" data-req="${r.id}">
@@ -1469,20 +1635,20 @@ async function vInbox(view) {
             </div>
             <button class="ghost" data-del-req="${r.id}">🗑</button>
           </div>
-          <p style="white-space:pre-wrap;background:var(--bg2);border-radius:9px;padding:10px 12px;font-size:13.5px">${esc(r.content)}</p>
+          <p class="bloc-texte">${esc(r.content)}</p>
           ${r.status === 'nouveau' ? `
             <div class="row">
               <button data-gen-req="${r.id}">✨ Générer la réponse</button>
             </div>
-            <textarea data-reply-req="${r.id}" rows="6" placeholder="La réponse apparaîtra ici…" style="margin-top:8px">${esc(r.reply || '')}</textarea>
-            <div class="row" style="margin-top:8px">
+            <textarea class="mt-2" data-reply-req="${r.id}" rows="6" placeholder="La réponse apparaîtra ici…">${esc(r.reply || '')}</textarea>
+            <div class="row mt-2">
               <button data-copy-req="${r.id}">📋 Copier</button>
               <button class="gold" data-done-req="${r.id}">✅ Marquer répondu (+15 XP)</button>
             </div>` : `<p class="muted small">✅ Répondu.</p>`}
         </div>`).join('')}
     </div>
 
-    <div class="card" style="margin-top:20px">
+    <div class="card mt-5">
       <div class="spread"><h2>📝 Templates de messages</h2><button id="t-new">➕ Nouveau template</button></div>
       <div class="table-scroll"><table class="list">
         <thead><tr><th>Nom</th><th>Typologie</th><th>Canal</th><th></th></tr></thead>
@@ -1490,7 +1656,7 @@ async function vInbox(view) {
           <td class="t-name">${esc(t.name)}</td>
           <td>${t.segment ? segChip(t.segment) : '<span class="faint">tous</span>'}</td>
           <td>${esc(t.channel)}</td>
-          <td class="row" style="justify-content:flex-end"><button class="ghost" data-edit-tpl="${t.id}">✏️</button>${t.builtin ? '' : `<button class="ghost" data-del-tpl="${t.id}">🗑</button>`}</td>
+          <td class="row fin"><button class="ghost" data-edit-tpl="${t.id}">✏️</button>${t.builtin ? '' : `<button class="ghost" data-del-tpl="${t.id}">🗑</button>`}</td>
         </tr>`).join('')}</tbody>
       </table></div>
       <p class="muted small">Variables : {prenom} {nom} {entreprise} {poste} {ville} {moi} {ma_boite} {signature}</p>
@@ -1502,7 +1668,12 @@ async function vInbox(view) {
     await api('/inbox', { method: 'POST', body: { content, contact_id: Number($('#i-contact').value) || null, source: $('#i-source').value } });
     vInbox(view);
   };
-  $$('[data-del-req]', view).forEach((b) => { b.onclick = async () => { await api(`/inbox/${b.dataset.delReq}`, { method: 'DELETE' }); vInbox(view); }; });
+  $$('[data-del-req]', view).forEach((b) => {
+    b.onclick = async () => {
+      try { const r = await api(`/inbox/${b.dataset.delReq}`, { method: 'DELETE' }); confirmerAvecRetour('Demande supprimée', r, () => vInbox(view)); vInbox(view); }
+      catch (e) { fx.error(e.message); }
+    };
+  });
   $$('[data-gen-req]', view).forEach((b) => {
     b.onclick = async () => {
       const id = b.dataset.genReq;
@@ -1530,14 +1701,14 @@ async function vInbox(view) {
   const tplModal = (t) => {
     const m = modal(`
       <h2>${t ? '✏️ Modifier' : '➕ Nouveau'} template</h2>
-      <div class="form-grid" style="margin-top:10px">
+      <div class="form-grid mt-3">
         <label class="field wide">Nom<input id="tp-name" value="${esc(t ? t.name : '')}"></label>
         <label class="field">Typologie<select id="tp-seg"><option value="">Tous</option>${Object.entries(S.segments).filter(([k]) => k !== 'inconnu').map(([k, s]) => `<option value="${k}" ${t && t.segment === k ? 'selected' : ''}>${s.emoji} ${esc(s.label)}</option>`).join('')}</select></label>
         <label class="field">Canal<select id="tp-chan">${['email', 'linkedin', 'autre'].map((ch) => `<option ${t && t.channel === ch ? 'selected' : ''}>${ch}</option>`).join('')}</select></label>
         <label class="field wide">Objet (emails)<input id="tp-subj" value="${esc(t ? t.subject : '')}"></label>
         <label class="field wide"><span>Corps</span><textarea id="tp-body" rows="10">${esc(t ? t.body : '')}</textarea></label>
       </div>
-      <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="primary" id="tp-save">💾 Enregistrer</button></div>`);
+      <div class="row fin mt-3"><button class="primary" id="tp-save">💾 Enregistrer</button></div>`);
     $('#tp-save', m).onclick = async () => {
       const body = { name: $('#tp-name', m).value, segment: $('#tp-seg', m).value, channel: $('#tp-chan', m).value, subject: $('#tp-subj', m).value, body: $('#tp-body', m).value };
       try {
@@ -1549,7 +1720,16 @@ async function vInbox(view) {
   };
   $('#t-new').onclick = () => tplModal(null);
   $$('[data-edit-tpl]', view).forEach((b) => { b.onclick = () => tplModal(tpls.find((t) => String(t.id) === b.dataset.editTpl)); });
-  $$('[data-del-tpl]', view).forEach((b) => { b.onclick = async () => { if (confirm('Supprimer ce template ?')) { await api(`/templates/${b.dataset.delTpl}`, { method: 'DELETE' }); await getTemplates(true); vInbox(view); } }; });
+  $$('[data-del-tpl]', view).forEach((b) => {
+    b.onclick = async () => {
+      try {
+        const r = await api(`/templates/${b.dataset.delTpl}`, { method: 'DELETE' });
+        await getTemplates(true);
+        confirmerAvecRetour('Template supprimé', r, async () => { await getTemplates(true); vInbox(view); });
+        vInbox(view);
+      } catch (e) { fx.error(e.message); }
+    };
+  });
 }
 
 // ================================================================ 🤖 AUTOPILOTE
@@ -1567,7 +1747,7 @@ async function vAutopilot(view) {
   const tpls = (await api('/templates?all=1')).templates; // inclut les templates de campagne
 
   const notConfigured = !ap.configured ? `
-    <div class="card" style="border-color:rgba(234,179,8,.5)">
+    <div class="card bord-or">
       <h2>🔌 Branche ton Gmail (2 minutes)</h2>
       <ol>
         <li>Active la <b>validation en 2 étapes</b> sur ton compte Google (si pas déjà fait) ;</li>
@@ -1586,12 +1766,12 @@ async function vAutopilot(view) {
     </div>
     ${notConfigured}
     <div class="card">
-      <div class="row" style="gap:22px">
-        <label class="chip" style="cursor:pointer;font-size:14px;padding:8px 14px">
+      <div class="row gap-6">
+        <label class="chip chip-grand">
           <input type="checkbox" id="ap-enabled" ${ap.enabled ? 'checked' : ''} ${ap.configured ? '' : 'disabled'}>
           ${ap.enabled ? '🟢 Autopilote ACTIF' : '⚪ Autopilote en veille'}
         </label>
-        <label class="field" style="flex-direction:row;align-items:center;gap:8px">Mode
+        <label class="field en-ligne-flex centre-v gap-2">Mode
           <select id="ap-mode">
             <option value="review" ${ap.mode === 'review' ? 'selected' : ''}>👀 Revue : je valide chaque email</option>
             <option value="auto" ${ap.mode === 'auto' ? 'selected' : ''}>🚀 Auto : envoi sans validation</option>
@@ -1602,7 +1782,7 @@ async function vAutopilot(view) {
     </div>
 
     ${awaiting.length ? `
-    <div class="card" style="margin-top:14px;border-color:rgba(234,179,8,.45)">
+    <div class="card mt-4 bord-or">
       <div class="spread"><h2>👀 À valider (${awaiting.length})</h2>
         <div class="row">
           <button class="primary" id="ap-revue" title="Lire et valider chaque email l'un après l'autre, gros boutons, faisable d'une main">👀 Un par un</button>
@@ -1611,7 +1791,7 @@ async function vAutopilot(view) {
       </div>
       <p class="muted small ob-mobile-hint">Sur téléphone, « Un par un » affiche chaque email en grand avec ses boutons sous le pouce.</p>
       ${awaiting.map((o) => `
-        <div class="deal-line" style="flex-direction:column;align-items:stretch" data-ob="${o.id}">
+        <div class="deal-line colonne etire" data-ob="${o.id}">
           <div class="spread">
             <div><b>${esc(o.first_name || '')} ${esc(o.last_name || '')}</b> <span class="muted">&lt;${esc(o.to_email)}&gt; · ${esc(o.seq_name || '')} · étape ${o.step_index + 1}</span></div>
             <div class="row">
@@ -1619,22 +1799,24 @@ async function vAutopilot(view) {
               <button class="ghost" data-ob-cancel="${o.id}" title="Annuler cet envoi">✖</button>
             </div>
           </div>
-          <input class="ob-edit" data-ob-subject="${o.id}" value="${esc(o.subject)}" style="margin:6px 0">
-          <textarea class="ob-edit" data-ob-body="${o.id}" rows="5">${esc(o.body)}</textarea>
+          <details class="ob-lire ob-edit"><summary>« ${esc(o.subject)} » · lire et modifier</summary>
+            <input class="my-2 plein" data-ob-subject="${o.id}" value="${esc(o.subject)}">
+            <textarea data-ob-body="${o.id}" rows="6">${esc(o.body)}</textarea>
+          </details>
         </div>`).join('')}
     </div>` : ''}
 
     ${queuedItems.length ? `
-    <div class="card" style="margin-top:14px">
+    <div class="card mt-4">
       <h2>⏱️ Départ imminent (${queuedItems.length})</h2>
-      ${queuedItems.map((o) => `<div class="small" style="padding:4px 0">📨 ${esc(o.first_name || '')} ${esc(o.last_name || '')} · « ${esc(o.subject)} » · ${o.scheduled_at ? new Date(o.scheduled_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : 'dès que possible'} <button class="ghost" data-ob-cancel="${o.id}" style="padding:2px 8px">✖</button></div>`).join('')}
+      ${queuedItems.map((o) => `<div class="small py-1">📨 ${esc(o.first_name || '')} ${esc(o.last_name || '')} · « ${esc(o.subject)} » · ${o.scheduled_at ? new Date(o.scheduled_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : 'dès que possible'} <button class="ghost ico-btn-mini" data-ob-cancel="${o.id}">✖</button></div>`).join('')}
     </div>` : ''}
 
-    <div class="grid" style="grid-template-columns:1fr 1fr;margin-top:14px;align-items:start">
+    <div class="grid deux-col mt-4 aligne-haut">
       <div class="card">
         <div class="spread"><h2>🧬 Séquences</h2><button id="seq-new">➕ Créer</button></div>
         ${sequences.map((s) => `
-          <div class="deal-line" style="flex-direction:column;align-items:stretch">
+          <div class="deal-line colonne etire">
             <div class="spread">
               <div>
                 <b>${esc(s.name)}</b> ${s.active ? '' : '<span class="chip">⏸️ inactive</span>'}
@@ -1660,7 +1842,7 @@ async function vAutopilot(view) {
             <td class="mono">${Math.min(e.current_step + 1, e.total_steps)}/${e.total_steps}</td>
             <td class="small">${e.status === 'active' ? (e.next_send_at ? dueLabel(e.next_send_at) : '·') : '·'}</td>
             <td class="small">${ENROLL_STATUS[e.status] || esc(e.status)}${e.stop_reason ? `<div class="faint">${esc(e.stop_reason)}</div>` : ''}</td>
-            <td class="row" style="justify-content:flex-end">
+            <td class="row fin">
               ${e.status === 'active' ? `<button class="ghost" data-en-pause="${e.id}" title="Pause">⏸️</button>` : ''}
               ${['paused', 'stopped'].includes(e.status) ? `<button class="ghost" data-en-resume="${e.id}" title="Reprendre">▶️</button>` : ''}
               ${['active', 'paused'].includes(e.status) ? `<button class="ghost" data-en-stop="${e.id}" title="Stopper">⏹️</button>` : ''}
@@ -1671,11 +1853,11 @@ async function vAutopilot(view) {
       </div>
     </div>
 
-    <div class="card" style="margin-top:14px">
-      <h2>📜 Journal d'envoi</h2>
+    <details class="card mt-4">
+      <summary><h2 class="en-ligne">📜 Journal d'envoi</h2> <span class="muted small">· les 15 derniers envois</span></summary>
       ${recent.filter((o) => ['sent', 'failed', 'cancelled'].includes(o.status)).slice(0, 15).map((o) => `
-        <div class="small" style="padding:3px 0">${OUTBOX_STATUS[o.status]} · ${esc(o.first_name || '')} ${esc(o.last_name || '')} · « ${esc(o.subject)} » ${o.sent_at ? '· ' + fmtDateTime(o.sent_at) : ''}${o.error ? ` <span style="color:var(--red2)">${esc(o.error.slice(0, 90))}</span>` : ''}</div>`).join('') || '<p class="muted small">Rien envoyé pour l’instant.</p>'}
-    </div>`;
+        <div class="small py-1">${OUTBOX_STATUS[o.status]} · ${esc(o.first_name || '')} ${esc(o.last_name || '')} · « ${esc(o.subject)} » ${o.sent_at ? '· ' + fmtDateTime(o.sent_at) : ''}${o.error ? ` <span class="texte-alerte">${esc(o.error.slice(0, 90))}</span>` : ''}</div>`).join('') || '<p class="muted small">Rien envoyé pour l’instant.</p>'}
+    </details>`;
 
   // --- interrupteurs
   $('#ap-enabled').onchange = async (e) => {
@@ -1728,7 +1910,10 @@ async function vAutopilot(view) {
     b.onclick = async () => { try { await approveOne(Number(b.dataset.obApprove)); fx.toast('✅ Approuvé'); vAutopilot(view); } catch (e) { fx.error(e.message); } };
   });
   $$('[data-ob-cancel]', view).forEach((b) => {
-    b.onclick = async () => { try { await api(`/outbox/${b.dataset.obCancel}/cancel`, { method: 'POST' }); fx.toast('✖ Annulé (séquence en pause)'); vAutopilot(view); } catch (e) { fx.error(e.message); } };
+    b.onclick = async () => {
+      try { const r = await api(`/outbox/${b.dataset.obCancel}/cancel`, { method: 'POST' }); confirmerAvecRetour('Email retiré, séquence en pause', r, () => vAutopilot(view)); vAutopilot(view); }
+      catch (e) { fx.error(e.message); }
+    };
   });
 
   // --- enrôlements
@@ -1794,7 +1979,7 @@ function revueModal(items, after) {
     };
     $('#rv-skip', box).onclick = suivant;
     $('#rv-cancel', box).onclick = async () => {
-      try { await api(`/outbox/${o.id}/cancel`, { method: 'POST' }); fx.toast('✖ Annulé (séquence en pause)'); suivant(); }
+      try { const r = await api(`/outbox/${o.id}/cancel`, { method: 'POST' }); confirmerAvecRetour('Email retiré, séquence en pause', r); suivant(); }
       catch (e) { fx.error(e.message); }
     };
   };
@@ -1808,13 +1993,13 @@ async function enrollPickerModal(seq, after) {
   const m = modal(`
     <h2>👥 Enrôler dans « ${esc(seq.name)} »</h2>
     <p class="muted small">Seuls les contacts AVEC email sont listés (enrichis les autres via FullEnrich). Un contact = une séquence à la fois. Premier email : dès le prochain passage de l'autopilote.</p>
-    <div class="row" style="margin:8px 0">
-      <input type="search" id="ep-search" placeholder="🔍 filtrer…" style="flex:1">
-      <label class="chip" style="cursor:pointer"><input type="checkbox" id="ep-former"> 💰 anciens clients</label>
-      <label class="chip" style="cursor:pointer"><input type="checkbox" id="ep-all"> tout cocher</label>
+    <div class="row my-2">
+      <input class="flex-1" type="search" id="ep-search" placeholder="🔍 filtrer…">
+      <label class="chip cliquable"><input type="checkbox" id="ep-former"> 💰 anciens clients</label>
+      <label class="chip cliquable"><input type="checkbox" id="ep-all"> tout cocher</label>
     </div>
-    <div id="ep-list" style="max-height:320px;overflow-y:auto"></div>
-    <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="primary big" id="ep-go">🤖 Enrôler la sélection</button></div>`);
+    <div class="defile-320" id="ep-list"></div>
+    <div class="row fin mt-3"><button class="primary big" id="ep-go">🤖 Enrôler la sélection</button></div>`);
 
   const checked = new Set();
   const renderList = () => {
@@ -1823,7 +2008,7 @@ async function enrollPickerModal(seq, after) {
     const list = eligible.filter((c) => (!former || c.is_former_client) &&
       (!q || `${c.first_name} ${c.last_name} ${c.company} ${c.email}`.toLowerCase().includes(q)));
     $('#ep-list', m).innerHTML = list.map((c) => `
-      <label class="row" style="padding:5px 6px;border-bottom:1px solid var(--border);cursor:pointer">
+      <label class="row ligne-choix cliquable">
         <input type="checkbox" data-ep="${c.id}" ${checked.has(c.id) ? 'checked' : ''}>
         <b>${esc(c.first_name)} ${esc(c.last_name)}</b> ${c.is_former_client ? '💰' : ''}
         <span class="muted small">${esc(c.company || '')} · ${esc(c.email)}</span>
@@ -1856,9 +2041,9 @@ async function sequencePickerModal(contactIds, after) {
   const { sequences } = await api('/sequences');
   const m = modal(`
     <h2>🤖 Enrôler ${contactIds.length} contact(s)</h2>
-    <div class="grid" style="margin-top:10px">
+    <div class="grid mt-3">
       ${sequences.filter((s) => s.active).map((s) => `
-        <button data-pick-seq="${s.id}" style="justify-content:flex-start;text-align:left">
+        <button class="debut a-gauche" data-pick-seq="${s.id}">
           <div><b>${esc(s.name)}</b><div class="muted small">${esc(s.description || '')} · ${s.steps.length} étapes</div></div>
         </button>`).join('')}
     </div>`);
@@ -1879,23 +2064,23 @@ async function sequencePickerModal(contactIds, after) {
 function seqEditModal(seq, tpls, after) {
   const steps = seq ? seq.steps.map((s) => ({ delay_days: s.delay_days, template_code: s.template_code })) : [{ delay_days: 0, template_code: 'pme_first' }];
   const stepRow = (s, i) => `
-    <div class="row" data-step-row style="margin-bottom:6px">
+    <div class="row mb-2" data-step-row>
       <span class="chip">${i === 0 ? 'J0' : '⏳ +'}</span>
-      ${i === 0 ? '' : `<input type="number" class="st-delay" value="${s.delay_days}" min="1" style="width:70px" title="jours après l'étape précédente"> j puis`}
-      <select class="st-tpl" style="flex:1">${tpls.map((t) => `<option value="${t.code}" ${t.code === s.template_code ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select>
+      ${i === 0 ? '' : `<input type="number" class="st-delay champ-court" value="${s.delay_days}" min="1" title="jours après l'étape précédente"> j puis`}
+      <select class="st-tpl flex-1">${tpls.map((t) => `<option value="${t.code}" ${t.code === s.template_code ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select>
       <button class="ghost st-del">🗑</button>
     </div>`;
   const m = modal(`
     <h2>${seq ? '✏️ Modifier' : '➕ Nouvelle'} séquence</h2>
-    <div class="form-grid" style="margin:10px 0">
+    <div class="form-grid my-3">
       <label class="field wide">Nom<input id="sq-name" value="${esc(seq ? seq.name : '')}" placeholder="Ex : Relance devis dormants"></label>
       <label class="field">Typologie<select id="sq-seg"><option value="">Toutes</option>${Object.entries(S.segments).filter(([k]) => k !== 'inconnu').map(([k, s]) => `<option value="${k}" ${seq && seq.segment === k ? 'selected' : ''}>${s.emoji} ${esc(s.label)}</option>`).join('')}</select></label>
-      <label class="chip" style="cursor:pointer;margin-top:18px"><input type="checkbox" id="sq-active" ${!seq || seq.active ? 'checked' : ''}> séquence active</label>
+      <label class="chip cliquable mt-5"><input type="checkbox" id="sq-active" ${!seq || seq.active ? 'checked' : ''}> séquence active</label>
     </div>
     <h3>Étapes</h3>
     <div id="sq-steps">${steps.map(stepRow).join('')}</div>
     <button class="ghost" id="sq-add">➕ Ajouter une étape</button>
-    <div class="row" style="justify-content:space-between;margin-top:14px">
+    <div class="row entre mt-4">
       ${seq && !seq.builtin ? `<button class="danger" id="sq-del">🗑 Supprimer</button>` : '<span></span>'}
       <button class="primary" id="sq-save">💾 Enregistrer</button>
     </div>`);
@@ -1920,8 +2105,7 @@ function seqEditModal(seq, tpls, after) {
   };
   const delBtn = $('#sq-del', m);
   if (delBtn) delBtn.onclick = async () => {
-    if (!confirm('Supprimer cette séquence ?')) return;
-    try { await api(`/sequences/${seq.id}`, { method: 'DELETE' }); m.remove(); if (after) after(); }
+    try { const r = await api(`/sequences/${seq.id}`, { method: 'DELETE' }); m.remove(); confirmerAvecRetour('Séquence supprimée', r, after); if (after) after(); }
     catch (e) { fx.error(e.message); }
   };
 }
@@ -1938,7 +2122,7 @@ async function vImport(view) {
 
   view.innerHTML = `
     <div class="view-header"><h1>📦 Imports & enrichissement</h1><div class="sub">Remplis ton terrain de chasse : anciens clients Pennylane, listes LinkedIn/Sales Nav, HubSpot.</div></div>
-    <div class="grid" style="grid-template-columns:1fr 1fr; align-items:start">
+    <div class="grid deux-col aligne-haut">
       <div class="grid">
       <div class="card">
         <h2>🧲 CSV (LinkedIn / Sales Navigator / autre)</h2>
@@ -1960,14 +2144,14 @@ async function vImport(view) {
         </div>
         <div id="rep-warn"></div>
         <div id="rep-results"></div>
-        <details style="margin-top:10px">
-          <summary class="small muted" style="cursor:pointer">WhatsApp n'est pas sur ce Mac ? Colle une conversation exportée</summary>
-          <p class="muted small" style="margin-top:8px">Sur ton téléphone : ouvre la discussion → tape le nom du contact en haut → <b>Exporter la discussion</b> → <b>Sans les médias</b> → envoie-toi le fichier .txt par mail, puis dépose-le ici.</p>
+        <details class="mt-3">
+          <summary class="small muted cliquable">WhatsApp n'est pas sur ce Mac ? Colle une conversation exportée</summary>
+          <p class="muted small mt-2">Sur ton téléphone : ouvre la discussion → tape le nom du contact en haut → <b>Exporter la discussion</b> → <b>Sans les médias</b> → envoie-toi le fichier .txt par mail, puis dépose-le ici.</p>
           <div class="row">
             <input type="file" id="rep-wa-file" accept=".txt,text/plain">
           </div>
-          <textarea id="rep-wa-text" rows="4" placeholder="…ou colle directement le contenu du fichier .txt ici" style="width:100%;margin-top:6px"></textarea>
-          <button id="rep-wa-go" style="margin-top:6px">💬 Analyser cette conversation</button>
+          <textarea class="plein mt-2" id="rep-wa-text" rows="4" placeholder="…ou colle directement le contenu du fichier .txt ici"></textarea>
+          <button class="mt-2" id="rep-wa-go">💬 Analyser cette conversation</button>
         </details>
       </div>
       </div>
@@ -1998,7 +2182,7 @@ async function vImport(view) {
             <button class="primary" id="fe-launch" ${enrichables.total === 0 ? 'disabled' : ''}>🧪 Enrichir les contacts incomplets</button>
             ${pendingJobs.length ? `<button id="fe-poll">🔄 Vérifier les résultats (${pendingJobs.length} en cours)</button>` : ''}
           </div>
-          ${jobs.length ? `<div style="margin-top:10px">${jobs.slice(0, 5).map((j) => `<div class="small muted">· Job #${j.id} · ${j.status === 'pending' ? '⏳ en cours' : j.status === 'done' ? '✅ terminé' : '⚠️ ' + esc(j.status)} ${j.error ? `<span class="faint">(${esc(j.error.slice(0, 80))})</span>` : ''}</div>`).join('')}</div>` : ''}
+          ${jobs.length ? `<div class="mt-3">${jobs.slice(0, 5).map((j) => `<div class="small muted">· Job #${j.id} · ${j.status === 'pending' ? '⏳ en cours' : j.status === 'done' ? '✅ terminé' : '⚠️ ' + esc(j.status)} ${j.error ? `<span class="faint">(${esc(j.error.slice(0, 80))})</span>` : ''}</div>`).join('')}</div>` : ''}
         </div>
       </div>
     </div>`;
@@ -2044,17 +2228,17 @@ async function vImport(view) {
       const { found } = await api('/mail/scan', { method: 'POST', body: { days: Number($('#gm-days').value) } });
       const news = found.filter((f) => !f.existing_id);
       $('#gm-results').innerHTML = `
-        <p style="margin-top:10px"><b>${found.length}</b> correspondant(s) trouvés : <b>${news.length}</b> pas encore dans le CRM :</p>
-        <div style="max-height:260px;overflow-y:auto">
+        <p class="mt-3"><b>${found.length}</b> correspondant(s) trouvés : <b>${news.length}</b> pas encore dans le CRM :</p>
+        <div class="defile-260">
           ${found.slice(0, 200).map((f, i) => `
-            <label class="row small" style="padding:3px 4px;border-bottom:1px solid var(--border);cursor:pointer">
+            <label class="row small ligne-choix cliquable">
               <input type="checkbox" data-gm="${i}" ${f.existing_id ? '' : 'checked'}>
               <b>${esc(f.name || f.email.split('@')[0])}</b>
               <span class="muted">${esc(f.email)} · ${f.count} email(s) · dernier ${String(f.last_date).slice(0, 10)}</span>
               ${f.existing_id ? '<span class="chip ok">déjà dans le CRM</span>' : ''}
             </label>`).join('')}
         </div>
-        <button class="primary" id="gm-import" style="margin-top:8px">📥 Importer la sélection</button>`;
+        <button class="primary mt-2" id="gm-import">📥 Importer la sélection</button>`;
       $('#gm-import').onclick = async () => {
         const entries = [...view.querySelectorAll('[data-gm]:checked')].map((cb) => found[Number(cb.dataset.gm)]);
         if (!entries.length) { fx.error('Coche au moins un correspondant.'); return; }
@@ -2079,7 +2263,7 @@ async function vImport(view) {
     const box = $('#rep-warn');
     if (!avertissements || !avertissements.length) { box.innerHTML = ''; return; }
     box.innerHTML = avertissements.map((a) => `
-      <div style="color:var(--gold2);background:rgba(234,179,8,.1);border:1px solid rgba(234,179,8,.4);border-radius:9px;padding:10px 12px;font-size:13px;margin-top:8px">
+      <div class="message-or">
         <b>${a.source === 'appels' ? '📞 Appels' : '💬 WhatsApp'}</b> : ${esc(a.message)}
       </div>`).join('');
   };
@@ -2089,20 +2273,20 @@ async function vImport(view) {
     repAvertir(data.avertissements);
     const st = data.stats || {};
     if (!repEntries.length) {
-      $('#rep-results').innerHTML = `<p class="muted small" style="margin-top:10px">Aucune relation exploitable trouvée sur cette période.${data.groupes_ignores ? ` (${data.groupes_ignores} groupe(s) WhatsApp ignoré(s) : un groupe n'est pas un contact à appeler.)` : ''}</p>`;
+      $('#rep-results').innerHTML = `<p class="muted small mt-3">Aucune relation exploitable trouvée sur cette période.${data.groupes_ignores ? ` (${data.groupes_ignores} groupe(s) WhatsApp ignoré(s) : un groupe n'est pas un contact à appeler.)` : ''}</p>`;
       return;
     }
     $('#rep-results').innerHTML = `
-      <p style="margin-top:10px"><b>${st.total}</b> relation(s)${titre ? ' ' + titre : ''} : <b>${st.nouveaux}</b> pas encore dans le CRM, dont <b>${st.chauds}</b> 🔥 chaudes et <b>${st.avec_signaux}</b> avec du vocabulaire de travail.</p>
-      <div class="row small muted" style="gap:8px;margin-bottom:4px">
+      <p class="mt-3"><b>${st.total}</b> relation(s)${titre ? ' ' + titre : ''} : <b>${st.nouveaux}</b> pas encore dans le CRM, dont <b>${st.chauds}</b> 🔥 chaudes et <b>${st.avec_signaux}</b> avec du vocabulaire de travail.</p>
+      <div class="row small muted gap-2 mb-1">
         <button id="rep-all">Tout cocher</button><button id="rep-none">Tout décocher</button>
         <span>Pré-cochés : les nouveaux contacts à partir de 45/100.</span>
       </div>
-      <div style="max-height:320px;overflow-y:auto">
+      <div class="defile-320">
         ${repEntries.slice(0, 300).map((e, i) => `
-          <label class="row small" style="padding:5px 4px;border-bottom:1px solid var(--border);cursor:pointer;align-items:flex-start;gap:8px">
+          <label class="row small ligne-choix cliquable aligne-haut gap-2">
             <input type="checkbox" data-rep="${i}" ${!e.existing_id && e.score >= 45 ? 'checked' : ''}>
-            <span style="flex:1">
+            <span class="flex-1">
               <b>${esc(e.name || e.phone_affiche || 'Inconnu')}</b>
               <span class="muted">${e.name && e.phone_affiche ? ' · ' + esc(e.phone_affiche) : ''}</span>
               ${repTemp(e.temperature)}
@@ -2110,13 +2294,13 @@ async function vImport(view) {
               ${e.existing_id ? '<span class="chip ok">déjà dans le CRM</span>' : ''}
               <br>
               <span class="faint">${e.calls ? `📞 ${e.calls} appel(s)${e.duration_sec ? ' · ' + Math.round(e.duration_sec / 60) + ' min' : ''}` : ''}${e.calls && e.messages ? ' · ' : ''}${e.messages ? `💬 ${e.messages} message(s)` : ''}${e.last_at ? ' · dernier échange le ' + new Date(e.last_at).toLocaleDateString('fr-FR') : ''}</span>
-              ${(e.signaux || []).length ? `<br><span style="color:var(--green2)">🎯 ${esc(e.signaux.slice(0, 6).join(', '))}</span>` : ''}
+              ${(e.signaux || []).length ? `<br><span class="texte-succes">🎯 ${esc(e.signaux.slice(0, 6).join(', '))}</span>` : ''}
               ${e.excerpt ? `<br><span class="faint">« ${esc(e.excerpt)} »</span>` : ''}
             </span>
           </label>`).join('')}
       </div>
       ${repEntries.length > 300 ? `<p class="faint small">Seules les 300 meilleures relations sont affichées (sur ${repEntries.length}).</p>` : ''}
-      <button class="primary" id="rep-import" style="margin-top:8px">📥 Ajouter la sélection à mes prospects</button>`;
+      <button class="primary mt-2" id="rep-import">📥 Ajouter la sélection à mes prospects</button>`;
 
     $('#rep-all').onclick = () => view.querySelectorAll('[data-rep]').forEach((cb) => { cb.checked = true; });
     $('#rep-none').onclick = () => view.querySelectorAll('[data-rep]').forEach((cb) => { cb.checked = false; });
@@ -2217,21 +2401,21 @@ function renderCsvMap(view) {
   ];
   const d = csvData;
   $('#csv-map').innerHTML = `
-    <div style="margin-top:12px">
+    <div class="mt-3">
       <p><b>${d.total}</b> ligne(s) détectée(s) (séparateur « ${d.delimiter === '\t' ? 'tab' : d.delimiter} »). Vérifie le mapping :</p>
       <div class="form-grid">
         ${FIELDS.map(([f, label]) => `<label class="field">${label}
           <select data-map="${f}"><option value="">(ignorer)</option>${d.headers.map((h, i) => `<option value="${i}" ${d.auto_mapping[f] === i ? 'selected' : ''}>${esc(h)}</option>`).join('')}</select>
         </label>`).join('')}
       </div>
-      <div class="row" style="margin-top:10px">
+      <div class="row mt-3">
         <label class="field">Typologie par défaut<select id="csv-seg">${Object.entries(S.segments).map(([k, s]) => `<option value="${k}" ${k === 'inconnu' ? 'selected' : ''}>${s.emoji} ${esc(s.label)}</option>`).join('')}</select></label>
         <label class="field">Origine<select id="csv-origin"><option>linkedin</option><option>csv</option></select></label>
         ${importCampaigns.length ? `<label class="field">📅 Campagne<select id="csv-camp"><option value="0">(aucune)</option>${importCampaigns.map((c) => `<option value="${c.id}" ${importCampaignId === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></label>` : ''}
-        <label class="chip" style="cursor:pointer;margin-top:14px"><input type="checkbox" id="csv-former"> 💰 anciens clients</label>
-        <button class="primary big" id="csv-go" style="margin-top:8px">📥 Importer ${d.total} contacts</button>
+        <label class="chip cliquable mt-4"><input type="checkbox" id="csv-former"> 💰 anciens clients</label>
+        <button class="primary big mt-2" id="csv-go">📥 Importer ${d.total} contacts</button>
       </div>
-      <div id="csv-report" class="muted small" style="margin-top:8px"></div>
+      <div id="csv-report" class="muted small mt-2"></div>
     </div>`;
 
   $('#csv-go').onclick = async () => {
@@ -2286,7 +2470,7 @@ async function vReglages(view) {
   const { settings: s } = await api('/settings');
   view.innerHTML = `
     <div class="view-header"><h1>⚙️ Réglages</h1><div class="sub">Tout reste en local sur ta machine (data/prospection.db).</div></div>
-    <div class="grid" style="grid-template-columns:1fr 1fr;align-items:start">
+    <div class="grid deux-col aligne-haut">
       <div class="grid">
         <div class="card">
           <h2>👤 Identité</h2>
@@ -2312,7 +2496,7 @@ async function vReglages(view) {
           <h2>🎮 Démo & données</h2>
           <div class="row">
             <button id="s-demo">🎮 Recharger la démo</button>
-            <a href="/api/export.csv" download><button>📤 Exporter mes contacts (CSV)</button></a>
+            <a class="btn" href="/api/export.csv" download>📤 Exporter mes contacts (CSV)</a>
           </div>
           <p class="muted small">Pour tout remettre à zéro : <code>npm run reset</code> (ou supprime data/prospection.db).</p>
         </div>
@@ -2326,21 +2510,21 @@ async function vReglages(view) {
           <label class="field">Mails lus sur <span class="faint">(jours)</span><input id="s-jmail" type="number" min="1" max="60" value="${esc(s.journee_jours_mail)}"></label>
           <label class="field">WhatsApp et appels sur <span class="faint">(jours)</span><input id="s-jwa" type="number" min="1" max="90" value="${esc(s.journee_jours_whatsapp)}"></label>
           <label class="field">Relancer un devis après <span class="faint">(jours sans nouvelle)</span><input id="s-jdevis" type="number" min="1" max="60" value="${esc(s.journee_delai_devis)}"></label>
-          <label class="chip wide" style="cursor:pointer"><input type="checkbox" id="s-jbriefmail" ${s.journee_brief_mail !== '0' ? 'checked' : ''}> m'envoyer le brief par mail chaque matin</label>
+          <label class="chip wide cliquable"><input type="checkbox" id="s-jbriefmail" ${s.journee_brief_mail !== '0' ? 'checked' : ''}> m'envoyer le brief par mail chaque matin</label>
         </div>
       </div>
       <div class="card" id="s-agenda-card">
         <h2>🗓️ Google Agenda</h2>
         <p class="muted small">Ma journée lit ton agenda (prods, RDV, couleurs) et pose tes tâches sur tes créneaux libres, colorées par urgence. Pas de projet Google Cloud : un petit script sur ton compte Google sert de pont. <b>3 minutes, une fois.</b></p>
-        <ol class="small" style="margin:6px 0 10px 18px;padding:0;line-height:1.6">
+        <ol class="small liste-etapes">
           <li>Ouvre <a href="https://script.google.com/home/projects/create" target="_blank" rel="noopener">script.google.com</a> → « Nouveau projet ». Efface tout, colle le code ci-dessous (📋), enregistre.</li>
           <li><b>Déployer → Nouveau déploiement</b> → ⚙️ « Application web » → Exécuter en tant que : <b>Moi</b> · Qui a accès : <b>Tout le monde</b> → Déployer.</li>
           <li>Google demande l'autorisation : ton compte → « Paramètres avancés » → « Accéder à OTEA Moteur (non sécurisé) ». C'est ton script, sur ton compte.</li>
           <li>Copie l'<b>URL qui finit par /exec</b>, colle-la ici, puis 🔌 Tester.</li>
         </ol>
-        <details style="margin-bottom:10px"><summary class="muted small" style="cursor:pointer">📋 Le code à coller dans Apps Script (ton secret est déjà dedans)</summary>
-          <div class="row" style="margin:8px 0"><button id="s-agenda-copy">📋 Copier le code</button></div>
-          <textarea id="s-agenda-code" rows="8" readonly class="mono" style="font-size:11.5px">Chargement…</textarea>
+        <details class="mb-3"><summary class="muted small cliquable">📋 Le code à coller dans Apps Script (ton secret est déjà dedans)</summary>
+          <div class="row my-2"><button id="s-agenda-copy">📋 Copier le code</button></div>
+          <textarea id="s-agenda-code" rows="8" readonly class="mono code-script">Chargement…</textarea>
         </details>
         <div class="form-grid">
           <label class="field wide">Adresse du script (finit par /exec)<input id="s-agenda-url" value="${esc(s.agenda_url)}" placeholder="https://script.google.com/macros/s/…/exec"></label>
@@ -2348,8 +2532,8 @@ async function vReglages(view) {
           <label class="field">à<input id="s-agenda-hf" type="time" value="${esc(s.agenda_heures_fin)}"></label>
           <label class="field">Alertes de prod jusqu'à <span class="faint">(jours devant)</span><input id="s-agenda-hz" type="number" min="1" max="30" value="${esc(s.agenda_horizon_jours)}"></label>
         </div>
-        <div class="row" style="margin-top:10px"><button data-test="agenda">🔌 Tester Google Agenda</button><span id="t-agenda" class="muted small"></span></div>
-        <div id="s-agenda-detail" style="margin-top:12px"></div>
+        <div class="row mt-3"><button data-test="agenda">🔌 Tester Google Agenda</button><span id="t-agenda" class="muted small"></span></div>
+        <div class="mt-3" id="s-agenda-detail"></div>
       </div>
       <div class="card">
         <h2>📧 Email & Autopilote</h2>
@@ -2368,53 +2552,53 @@ async function vReglages(view) {
           <label class="field">Adresse email d'envoi<input id="s-gmail" value="${esc(s.gmail_user)}" placeholder="contact@taboite.com"></label>
           <label class="field wide">Mot de passe <span class="faint">(d'application pour Gmail, normal pour les autres)</span><input id="s-gmailpw" type="password" value="${esc(s.gmail_app_password)}"></label>
           <label class="field">Cap d'envoi / jour<input id="s-cap" type="number" min="1" max="100" value="${esc(s.autopilot_daily_cap)}"></label>
-          <label class="field">Fenêtre d'envoi<div class="row"><input id="s-ws" type="number" min="0" max="23" value="${esc(s.autopilot_window_start)}" style="width:64px">h → <input id="s-we" type="number" min="1" max="24" value="${esc(s.autopilot_window_end)}" style="width:64px">h</div></label>
+          <label class="field">Fenêtre d'envoi<div class="row"><input class="champ-court" id="s-ws" type="number" min="0" max="23" value="${esc(s.autopilot_window_start)}">h → <input class="champ-court" id="s-we" type="number" min="1" max="24" value="${esc(s.autopilot_window_end)}">h</div></label>
           <label class="field wide">Lien de RDV (Calendly, Google…) : variable {lien_rdv}<input id="s-booking" value="${esc(s.booking_url)}" placeholder="https://calendly.com/…"></label>
-          <label class="chip wide" style="cursor:pointer"><input type="checkbox" id="s-weekdays" ${s.autopilot_weekdays_only !== '0' ? 'checked' : ''}> envoyer uniquement en jours ouvrés</label>
+          <label class="chip wide cliquable"><input type="checkbox" id="s-weekdays" ${s.autopilot_weekdays_only !== '0' ? 'checked' : ''}> envoyer uniquement en jours ouvrés</label>
         </div>
-        <details id="s-servers" style="margin-top:8px">
-          <summary class="muted small" style="cursor:pointer">⚙️ Serveurs d'envoi (remplis automatiquement selon le fournisseur)</summary>
-          <div class="form-grid" style="margin-top:8px">
+        <details class="mt-2" id="s-servers">
+          <summary class="muted small cliquable">⚙️ Serveurs d'envoi (remplis automatiquement selon le fournisseur)</summary>
+          <div class="form-grid mt-2">
             <label class="field">Serveur d'envoi (SMTP)<input id="s-smtph" value="${esc(s.smtp_host)}"></label>
             <label class="field">Port SMTP<input id="s-smtpp" type="number" value="${esc(s.smtp_port)}"></label>
             <label class="field">Serveur de réception (IMAP)<input id="s-imaph" value="${esc(s.imap_host)}"></label>
             <label class="field">Port IMAP<input id="s-imapp" type="number" value="${esc(s.imap_port)}"></label>
           </div>
         </details>
-        <div class="row" style="margin-top:10px">
+        <div class="row mt-3">
           <button data-mailtest="test_smtp">🔌 Tester SMTP</button>
           <button data-mailtest="test_imap">🔌 Tester IMAP</button>
           <button data-mailtest="send_test" class="gold">📤 M'envoyer un email de test</button>
         </div>
-        <p class="small" id="t-mail" style="font-weight:700"></p>
-        <div id="mail-err" class="hidden" style="color:var(--red2);background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.4);border-radius:9px;padding:10px 12px;font-size:13px;margin-top:8px"></div>
+        <p class="small gras" id="t-mail"></p>
+        <div id="mail-err" class="hidden message-erreur" role="alert"></div>
         <p class="muted small">💡 Les boutons de test enregistrent automatiquement tes réglages avant de tester. Démarre avec un cap bas (10-15/jour) puis monte progressivement : c'est la meilleure protection de ta délivrabilité.</p>
       </div>
       <div class="card">
         <h2>💾 Sauvegarde</h2>
         <p class="muted small">Télécharge tout ton OTEA Moteur dans un seul fichier : contacts, historique, réglages, campagnes. À faire de temps en temps, et surtout si l'app est hébergée en ligne : un hébergeur peut perdre un disque, pas toi.</p>
         <a class="btn primary" id="s-backup" href="/api/sauvegarde" download>💾 Télécharger ma sauvegarde</a>
-        <p class="muted small" style="margin-top:14px"><b>Remettre une sauvegarde</b> : c'est ainsi qu'on déménage OTEA Moteur d'un ordinateur vers la version en ligne. L'app remplace tout par le fichier et redémarre. L'ancienne base est mise de côté avant, au cas où.</p>
+        <p class="muted small mt-4"><b>Remettre une sauvegarde</b> : c'est ainsi qu'on déménage OTEA Moteur d'un ordinateur vers la version en ligne. L'app remplace tout par le fichier et redémarre. L'ancienne base est mise de côté avant, au cas où.</p>
         <input type="file" id="s-restore-file" accept=".db">
-        <div id="s-restore-msg" class="small muted" style="margin-top:6px"></div>
+        <div id="s-restore-msg" class="small muted mt-2"></div>
       </div>
       <div class="card">
         <h2>🔑 Clés API</h2>
         <p class="muted small">Chaque clé est stockée dans ta base de données, jamais dans le code. Les champs affichent « •••• » quand une clé est déjà enregistrée : ne les modifie que pour la remplacer.</p>
-        <label class="field" style="margin-bottom:10px">💶 Pennylane : <a href="https://app.pennylane.com" target="_blank" rel="noopener">app.pennylane.com</a> → Paramètres → API
-          <div class="row"><input id="s-pl" type="password" value="${esc(s.pennylane_api_key)}" style="flex:1"><button data-test="pennylane">🔌</button></div>
+        <label class="field mb-3">💶 Pennylane : <a href="https://app.pennylane.com" target="_blank" rel="noopener">app.pennylane.com</a> → Paramètres → API
+          <div class="row"><input class="flex-1" id="s-pl" type="password" value="${esc(s.pennylane_api_key)}"><button data-test="pennylane">🔌</button></div>
           <span class="small" id="t-pennylane"></span>
         </label>
-        <label class="field" style="margin-bottom:10px">🧪 FullEnrich : app.fullenrich.com → Settings → API
-          <div class="row"><input id="s-fe" type="password" value="${esc(s.fullenrich_api_key)}" style="flex:1"><button data-test="fullenrich">🔌</button></div>
+        <label class="field mb-3">🧪 FullEnrich : app.fullenrich.com → Settings → API
+          <div class="row"><input class="flex-1" id="s-fe" type="password" value="${esc(s.fullenrich_api_key)}"><button data-test="fullenrich">🔌</button></div>
           <span class="small" id="t-fullenrich"></span>
         </label>
-        <label class="field" style="margin-bottom:10px">🟠 HubSpot : token d'application privée (scopes contacts read/write)
-          <div class="row"><input id="s-hs" type="password" value="${esc(s.hubspot_token)}" style="flex:1"><button data-test="hubspot">🔌</button></div>
+        <label class="field mb-3">🟠 HubSpot : token d'application privée (scopes contacts read/write)
+          <div class="row"><input class="flex-1" id="s-hs" type="password" value="${esc(s.hubspot_token)}"><button data-test="hubspot">🔌</button></div>
           <span class="small" id="t-hubspot"></span>
         </label>
-        <label class="field" style="margin-bottom:10px">✨ Claude (rédaction IA) : console.anthropic.com → API keys
-          <div class="row"><input id="s-ai" type="password" value="${esc(s.anthropic_api_key)}" style="flex:1"></div>
+        <label class="field mb-3">✨ Claude (rédaction IA) : console.anthropic.com → API keys
+          <div class="row"><input class="flex-1" id="s-ai" type="password" value="${esc(s.anthropic_api_key)}"></div>
         </label>
         <label class="field">Modèle IA
           <input id="s-model" list="models" value="${esc(s.ai_model)}">
@@ -2423,7 +2607,7 @@ async function vReglages(view) {
       </div>
       </div>
     </div>
-    <div class="row" style="margin-top:16px"><button class="primary big" id="s-save">💾 Enregistrer les réglages</button><span id="s-status" class="muted"></span></div>`;
+    <div class="row mt-4"><button class="primary big" id="s-save">💾 Enregistrer les réglages</button><span id="s-status" class="muted"></span></div>`;
 
   const restoreInput = $('#s-restore-file');
   if (restoreInput) restoreInput.onchange = async (e) => {
@@ -2453,7 +2637,7 @@ async function vReglages(view) {
         msg.textContent = '✅ Sauvegarde restaurée. Recharge la page toi-même dans un instant.';
       })();
     } catch (err) {
-      msg.innerHTML = '<span style="color:var(--red2)">❌ ' + esc(err.message) + '</span>';
+      msg.innerHTML = '<span class="texte-alerte">❌ ' + esc(err.message) + '</span>';
       e.target.value = '';
     }
   };
@@ -2506,15 +2690,15 @@ async function vReglages(view) {
     if (!d.calendriers.length) { zone.innerHTML = ''; return; }
     const lus = new Set(d.lus);
     zone.innerHTML = `
-      <div class="grid" style="gap:12px">
+      <div class="grid gap-3">
         <div>
           <b class="small">Agendas à lire</b> <span class="faint small">(aucun coché = tous)</span>
-          <div class="row" style="flex-wrap:wrap;gap:6px;margin-top:6px">${d.calendriers.map((c) => `<label class="chip" style="cursor:pointer"><input type="checkbox" data-agenda-lu="${esc(c.id)}" ${lus.has(c.id) ? 'checked' : ''}> <span class="sw" style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${esc(c.couleur || '#64748b')}"></span> ${esc(c.nom)}</label>`).join('')}</div>
+          <div class="row gap-2 mt-2">${d.calendriers.map((c) => `<label class="chip"><input type="checkbox" data-agenda-lu="${esc(c.id)}" ${lus.has(c.id) ? 'checked' : ''}> <span class="sw-pastille" style="background:${esc(c.couleur || 'var(--seg-defaut)')}"></span> ${esc(c.nom)}</label>`).join('')}</div>
         </div>
         <label class="field">Poser mes tâches dans<select id="s-agenda-ecriture">${d.calendriers.filter((c) => c.a_moi !== false).map((c) => `<option value="${esc(c.id)}" ${c.id === d.ecriture ? 'selected' : ''}>${esc(c.nom)}</option>`).join('')}</select></label>
         <div>
           <b class="small">Ce que veulent dire tes couleurs</b> <span class="faint small">(c'est ton système d'urgence : l'app le lit, et l'applique quand elle pose ou reclasse un événement)</span>
-          <div class="j-couleurs" style="margin-top:6px">${Object.entries(d.palette).map(([id, p]) => `<label><span class="sw" style="background:${p.hex}"></span><span style="width:92px">${esc(p.nom)}</span><select data-agenda-coul="${id}">${[['3', '🔴 très urgent'], ['2', '🟠 urgent'], ['1', '🟡 moyen'], ['0', '🟢 pas urgent'], ['', '⚪ juste une info']].map(([v, l]) => `<option value="${v}" ${String(d.couleurs[id] === null || d.couleurs[id] === undefined ? '' : d.couleurs[id]) === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>`).join('')}</div>
+          <div class="j-couleurs mt-2">${Object.entries(d.palette).map(([id, p]) => `<label><span class="sw" style="background:${p.hex}"></span><span class="champ-court">${esc(p.nom)}</span><select data-agenda-coul="${id}">${[['3', '🔴 très urgent'], ['2', '🟠 urgent'], ['1', '🟡 moyen'], ['0', '🟢 pas urgent'], ['', '⚪ juste une info']].map(([v, l]) => `<option value="${v}" ${String(d.couleurs[id] === null || d.couleurs[id] === undefined ? '' : d.couleurs[id]) === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>`).join('')}</div>
         </div>
       </div>`;
   };
@@ -2601,22 +2785,22 @@ async function vReglages(view) {
 }
 
 // ---------------------------------------------------------------- init
+function dessinerBoutonSon() {
+  const coupe = localStorage.getItem('chasse_sounds') === '0';
+  const b = $('#sound-toggle');
+  b.innerHTML = `<svg class="ico" aria-hidden="true"><use href="#i-${coupe ? 'muet' : 'son'}"/></svg>`;
+  b.title = coupe ? 'Sons coupés' : 'Sons activés';
+  b.setAttribute('aria-label', coupe ? 'Remettre les sons' : 'Couper les sons');
+  b.setAttribute('aria-pressed', coupe ? 'false' : 'true');
+}
 $('#sound-toggle').onclick = () => {
   const on = localStorage.getItem('chasse_sounds') !== '0';
   localStorage.setItem('chasse_sounds', on ? '0' : '1');
-  $('#sound-toggle').textContent = on ? '🔇' : '🔊';
+  dessinerBoutonSon();
+  fx.toast(on ? 'Sons coupés' : 'Sons remis', '', 1800);
   if (!on) fx.play('pop');
 };
-$('#sound-toggle').textContent = localStorage.getItem('chasse_sounds') === '0' ? '🔇' : '🔊';
-
-// Barre du bas (téléphone) : le fondu du bord droit disparaît quand on est au bout.
-{
-  const barre = $('#sidebar');
-  const auBout = () => barre.classList.toggle('fin', barre.scrollLeft + barre.clientWidth >= barre.scrollWidth - 2);
-  barre.addEventListener('scroll', auBout, { passive: true });
-  addEventListener('resize', auBout);
-  auBout();
-}
+dessinerBoutonSon();
 
 // Échap ferme ce qui est ouvert : d'abord la fenêtre du dessus, sinon la fiche contact.
 addEventListener('keydown', (e) => {
@@ -2635,6 +2819,8 @@ addEventListener('keydown', (e) => {
   nommer(document);
 }
 
+$('#view').innerHTML = squeletteVue();
 refreshState().then(render).catch((e) => {
-  $('#view').innerHTML = `<div class="card"><h2>💥 Impossible de joindre le serveur</h2><p>${esc(e.message)}</p></div>`;
+  $('#view').innerHTML = `<div class="card erreur" role="alert"><h2>OTEA Moteur ne répond pas</h2><p>${esc(e.message)}</p><div class="row mt-3"><button class="primary" id="err-recharger">Recharger</button></div></div>`;
+  $('#err-recharger').onclick = () => location.reload();
 });
