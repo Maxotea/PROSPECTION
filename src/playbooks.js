@@ -80,7 +80,7 @@ const VEILLE_LONGUE = 180;
 
 // « Plus tard » : chaque report repousse plus loin que le précédent. Sinon on
 // retombe sur la même personne le lendemain, et le surlendemain, sans fin.
-const REPORTS = [3, 7, 14, 30, 60];
+const REPORTS = [45, 90, 180]; // « Pas maintenant » = un mois et demi, puis trois mois, puis six : on ne revoit pas les mêmes têtes à chaque session
 
 function etapeDeCadence(contact, touches) {
   const cad = CADENCES[contact.segment] || CADENCES.inconnu;

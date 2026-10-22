@@ -987,7 +987,7 @@ async function vPipeline(view) {
 }
 
 // ================================================================ CONTACTS
-const cFilter = { search: '', segment: '', stage: '', origin: '', former: false, enrichable: false, sansIce: false, campaign: 0, sort: 'updated_at', dir: 'desc', page: 0 };
+const cFilter = { search: '', segment: '', stage: '', origin: '', former: false, enrichable: false, sansIce: false, archived: false, campaign: 0, sort: 'updated_at', dir: 'desc', page: 0 };
 const cSelected = new Set();
 let cSearchFocus = false; // la liste se redessine pendant qu'on tape : on rend le curseur au champ
 const PAGE_CONTACTS = 100; // au-delà, la page devient lourde à faire défiler
@@ -1005,6 +1005,7 @@ async function vContacts(view) {
   if (cFilter.former) params.set('former', '1');
   if (cFilter.enrichable) params.set('enrichable', '1');
   if (cFilter.sansIce) params.set('sans_icebreaker', '1');
+  if (cFilter.archived) params.set('archived', '1'); // les contacts mis de côté : hors chasse, hors brief, mais toujours là
   if (cFilter.campaign) params.set('campaign', String(cFilter.campaign));
   params.set('sort', cFilter.sort);
   params.set('dir', cFilter.dir);
@@ -1039,6 +1040,7 @@ async function vContacts(view) {
       <label class="chip cliquable"><input type="checkbox" id="c-former" ${cFilter.former ? 'checked' : ''}> 💰 anciens clients</label>
       <label class="chip cliquable"><input type="checkbox" id="c-enrich" ${cFilter.enrichable ? 'checked' : ''}> 🕳️ email/tél manquant</label>
       <label class="chip cliquable"><input type="checkbox" id="c-noice" ${cFilter.sansIce ? 'checked' : ''}> 💎 sans icebreaker</label>
+      <label class="chip cliquable" title="Contacts sortis de la chasse et du brief, gardés au chaud"><input type="checkbox" id="c-archived" ${cFilter.archived ? 'checked' : ''}> 📦 mis de côté</label>
     </div>
     ${cSelected.size ? `<div class="toolbar card ">
       <b>${cSelected.size} sélectionné(s) :</b>
@@ -1046,6 +1048,7 @@ async function vContacts(view) {
       <button id="b-enrich">🧪 Enrichir (FullEnrich)</button>
       <button id="b-hubspot">⬆️ Pousser vers HubSpot</button>
       <select id="b-seg"><option value="">→ Typologie…</option>${Object.entries(S.segments).map(([k, s]) => `<option value="${k}">${s.emoji} ${esc(s.label)}</option>`).join('')}</select>
+      ${cFilter.archived ? '<button id="b-archive" title="Ils reviennent dans la chasse et le brief">↩️ Reprendre dans la chasse</button>' : '<button id="b-archive" title="Ils sortent de la chasse et du brief, sans être supprimés">📦 Mettre de côté</button>'}
       <button id="b-delete" class="danger">🗑️ Supprimer</button>
       <button id="b-clear" class="ghost">✖ Désélectionner</button>
     </div>` : ''}
@@ -1092,12 +1095,24 @@ async function vContacts(view) {
   $('#c-former').onchange = (e) => cSet('former', e.target.checked, view);
   $('#c-enrich').onchange = (e) => cSet('enrichable', e.target.checked, view);
   $('#c-noice').onchange = (e) => cSet('sansIce', e.target.checked, view);
+  $('#c-archived').onchange = (e) => { cSelected.clear(); cSet('archived', e.target.checked, view); };
   const prev = $('#c-prev'), next = $('#c-next');
   const allerPage = (p) => { cFilter.page = p; vContacts(view).then(() => view.scrollIntoView({ block: 'start' })); };
   if (prev) prev.onclick = () => allerPage(cFilter.page - 1);
   if (next) next.onclick = () => allerPage(cFilter.page + 1);
-  $('#c-all').onchange = (e) => {
+  $('#c-all').onchange = async (e) => {
     contacts.forEach((c) => e.target.checked ? cSelected.add(c.id) : cSelected.delete(c.id));
+    if (e.target.checked && total > contacts.length && confirm(`Sélectionner les ${total} contacts qui correspondent au filtre (pas seulement cette page) ?`)) {
+      // Le serveur sert 500 lignes au plus par appel : on avance page par page.
+      try {
+        for (let offset = 0; offset < total; offset += 500) {
+          const p = new URLSearchParams(params); p.set('limit', '500'); p.set('offset', String(offset));
+          const page = (await api(`/contacts?${p.toString()}`)).contacts;
+          page.forEach((c) => cSelected.add(c.id));
+          if (!page.length) break;
+        }
+      } catch (err) { fx.error(err.message); }
+    }
     vContacts(view);
   };
   $$('.c-check', view).forEach((cb) => {
@@ -1195,6 +1210,19 @@ async function vContacts(view) {
         const r = await api('/contacts/bulk', { method: 'POST', body: { ids, action: 'delete' } });
         cSelected.clear();
         confirmerAvecRetour(`${r.count} contact${r.count > 1 ? 's' : ''} supprimé${r.count > 1 ? 's' : ''}`, r, () => vContacts(view));
+      } catch (e) { fx.error(e.message); }
+      vContacts(view);
+    };
+    $('#b-archive').onclick = async () => {
+      const ids = [...cSelected];
+      const mettre = !cFilter.archived;
+      ids.forEach((id) => { const tr = $(`tr.rowc[data-id="${id}"]`, view); if (tr) tr.classList.add('ligne-part'); });
+      try {
+        const r = await api('/contacts/bulk', { method: 'POST', body: { ids, patch: { archived: mettre ? 1 : 0 } } });
+        cSelected.clear();
+        confirmerAvecRetour(mettre
+          ? `${r.count} contact${r.count > 1 ? 's' : ''} mis de côté : plus dans la chasse ni dans le brief (filtre « mis de côté » pour les retrouver)`
+          : `${r.count} contact${r.count > 1 ? 's' : ''} de retour dans la chasse`, r, () => vContacts(view));
       } catch (e) { fx.error(e.message); }
       vContacts(view);
     };

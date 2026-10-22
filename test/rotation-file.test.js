@@ -41,7 +41,8 @@ test('« pas maintenant » repousse de plus en plus loin', () => {
     game.logAction({ contact_id: id, type: 'reporte' });
     vus.push(ecart(dbApi.get('SELECT * FROM contacts WHERE id = ?', id)));
   }
-  assert.deepStrictEqual(vus, playbooks.REPORTS, `attendu ${playbooks.REPORTS}, obtenu ${vus}`);
+  const attendu = vus.map((_, i) => playbooks.REPORTS[Math.min(i, playbooks.REPORTS.length - 1)]); // après le dernier palier, on reste au dernier
+  assert.deepStrictEqual(vus, attendu, `attendu ${attendu}, obtenu ${vus}`);
   // Et surtout : jamais le lendemain, c'était ça le bug.
   assert.ok(vus.every((j) => j > 1), 'un report ne ramène jamais la personne dès demain');
 });
