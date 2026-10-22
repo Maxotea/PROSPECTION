@@ -605,6 +605,9 @@ function agendaDuJour(radar, today, now) {
 const RELANCES_GROUPEES = 3;
 // Passé ce retard, même une relance de contact chaud rejoint le lot.
 const RELANCE_VIEILLE_J = 7;
+// Une demande restée sans suite plus de trois semaines n'est plus une urgence :
+// à partir de deux, elles tiennent sur une ligne, à répondre ou à classer.
+const DEMANDE_VIEILLE_J = 21;
 function relanceItem(c, retard) {
   return item({
     cle: `crm:relance:${c.id}:${c.next_action_at}`, source: 'crm', emoji: '🔁',
@@ -615,7 +618,7 @@ function relanceItem(c, retard) {
   });
 }
 
-function signauxCrm(today) {
+function signauxCrm(today, radar = {}) {
   const items = [];
   const delaiDevis = Math.max(1, Number(getSetting('journee_delai_devis')) || 5);
 
@@ -664,9 +667,17 @@ function signauxCrm(today) {
   }
 
   // Demandes entrantes collées dans « Réponses » et pas encore traitées.
-  // Une réponse automatique n'est pas une demande.
-  const demandes = all(`SELECT i.*, c.first_name, c.last_name, c.company, c.stage FROM inbox i LEFT JOIN contacts c ON c.id = i.contact_id WHERE i.status = 'nouveau' ORDER BY i.id`)
-    .filter((r) => !REPONSE_AUTO.test(String(r.content || '').slice(0, 300)));
+  // Une réponse automatique n'est pas une demande. Si tu lui as écrit depuis
+  // (le dossier Envoyés de Gmail le dit), tu as répondu : la balle est chez lui.
+  const gmail = (radar.gmail && radar.gmail.charge) || {};
+  const ecritsA = new Map(Object.entries(gmail.ecritsA || {}).map(([email, t]) => [email.toLowerCase(), Number(t) || 0]));
+  const dejaRepondu = (r) => {
+    const email = String(r.email || '').toLowerCase();
+    return !!email && (ecritsA.get(email) || 0) > (Date.parse(r.created_at) || 0);
+  };
+  const demandes = all(`SELECT i.*, c.first_name, c.last_name, c.company, c.stage, c.email FROM inbox i LEFT JOIN contacts c ON c.id = i.contact_id WHERE i.status = 'nouveau' ORDER BY i.id`)
+    .filter((r) => !REPONSE_AUTO.test(String(r.content || '').slice(0, 300)))
+    .filter((r) => !dejaRepondu(r));
   const contactsAvecDemande = new Set(demandes.map((r) => r.contact_id).filter(Boolean));
 
   // Relances programmées par le CRM et arrivées à échéance. Un contact chaud a sa
@@ -696,13 +707,29 @@ function signauxCrm(today) {
     }));
   }
 
+  const vieilles = demandes.filter((r) => heuresDepuis(r.created_at) >= DEMANDE_VIEILLE_J * 24);
+  const groupees = vieilles.length >= 2 ? new Set(vieilles) : new Set();
+  if (groupees.size) {
+    const noms = vieilles.slice(0, 3).map((r) => (r.contact_id ? avecSociete(r) : r.source));
+    const reste = vieilles.length - noms.length;
+    const plusVieille = Math.max(...vieilles.map((r) => Math.floor(heuresDepuis(r.created_at) / 24)));
+    items.push(item({
+      cle: `crm:demandes_anciennes:${today}`, source: 'crm', emoji: '📥',
+      titre: `Répondre ou classer ${vieilles.length} demandes de plus de 3 semaines`,
+      pourquoi: `${noms.join(', ')}${reste > 0 ? ` et ${reste} autre${reste > 1 ? 's' : ''}` : ''}, la plus ancienne reçue il y a ${plusVieille} j`,
+      duree: 'court', importance: 2, urgence: Math.min(5, Math.floor(plusVieille / 7)),
+      actions: [{ type: 'lien', label: '📥 Ouvrir Réponses', href: '#/inbox' }],
+    }));
+  }
+
   for (const r of demandes) {
+    if (groupees.has(r)) continue;
     const heures = heuresDepuis(r.created_at);
     items.push(item({
       cle: `crm:demande:${r.id}`, source: 'crm', emoji: '📥',
       titre: `Répondre à la demande ${r.contact_id ? `de ${avecSociete(r)}` : `(${r.source})`}`,
       pourquoi: `Reçue ${depuis(r.created_at)} : « ${String(r.content || '').slice(0, 90)}${String(r.content || '').length > 90 ? '…' : ''} »`,
-      duree: 'court', importance: 2 + (heures >= 48 ? 1 : 0), urgence: Math.floor(heures / 24), date: r.created_at,
+      duree: 'court', importance: 2 + (heures >= 48 && heures < DEMANDE_VIEILLE_J * 24 ? 1 : 0), urgence: Math.floor(heures / 24), date: r.created_at,
       contact: r.contact_id ? fiche(r) : null, actions: [{ type: 'lien', label: '📥 Ouvrir Réponses', href: '#/inbox' }],
     }));
   }
@@ -857,7 +884,7 @@ function plan({ now = new Date() } = {}) {
     ...signauxWhatsapp(radar, index, nowMs),
     ...signauxAppels(radar, index, nowMs),
     ...signauxAgenda(radar, today, nowMs),
-    ...signauxCrm(today),
+    ...signauxCrm(today, radar),
     ...signauxTaches(today),
   ];
   const visibles = bruts.filter((it) => !estMasque(it, decs, today));
