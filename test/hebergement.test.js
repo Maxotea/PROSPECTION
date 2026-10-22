@@ -107,6 +107,35 @@ test('cinq essais ratés et l’adresse est mise en pause', async () => {
   assert.strictEqual(bonMaisBloque.status, 429);
 });
 
+test('la page de connexion porte l’identité de l’app et ses fichiers passent sans code', async () => {
+  const page = await (await fetch(BASE + '/')).text();
+  assert.match(page, /href="\/jetons\.css"/, 'mêmes jetons que l’app : couleurs, police, thèmes');
+  assert.match(page, /<label[^>]*for="c-code"/, 'le champ a une étiquette lisible');
+  assert.ok(!/style="/.test(page), 'aucun style écrit en dur dans la page');
+  for (const f of ['/jetons.css', '/connexion.css', '/connexion.js', '/theme.js', '/fonts/bricolage-grotesque.woff2']) {
+    assert.strictEqual((await fetch(BASE + f)).status, 200, `${f} est servi sans code`);
+  }
+  // Le reste de l'app, lui, reste fermé.
+  const app = await fetch(BASE + '/app.js');
+  assert.strictEqual(app.status, 401);
+  assert.match(await app.text(), /Entre ton mot de passe/);
+});
+
+test('un mauvais mot de passe dit ce qui s’est passé et quoi faire', async () => {
+  const r = await fetch(BASE + '/acces', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded', 'x-forwarded-for': '198.51.100.23' },
+    body: 'code=pas-le-bon', redirect: 'manual',
+  });
+  assert.strictEqual(r.status, 401);
+  const html = await r.text();
+  assert.match(html, /role="alert"/, 'annoncé aux lecteurs d’écran');
+  assert.match(html, /ne correspond pas/, 'ce qui s’est passé');
+  assert.match(html, /Vérifie les majuscules/, 'quoi faire');
+  assert.match(html, /Encore 4 essais avant une pause de 15 minutes/, 'combien d’essais il reste');
+  assert.match(html, /aria-invalid="true"/);
+});
+
 test('la sauvegarde rend une vraie base de données lisible', async () => {
   const ouvre = await fetch(BASE + '/acces', {
     method: 'POST',

@@ -36,12 +36,31 @@ const fx = (() => {
   function play(name) { if (soundOn()) { try { sounds[name] && sounds[name](); } catch { /* autoplay bloqué : tant pis */ } } }
 
   // ------------------------------------------------ toasts
-  function toast(html, cls = '', ms = 3200) {
+  // Une confirmation discrète. Avec { action: { label, faire } }, elle porte un
+  // bouton (« Annuler ») et reste un peu plus longtemps pour laisser le temps de cliquer.
+  function toast(html, cls = '', ms = 3200, { action } = {}) {
     const el = document.createElement('div');
     el.className = `toast ${cls}`;
-    el.innerHTML = html;
+    if (cls === 'err') el.setAttribute('role', 'alert');
+    el.innerHTML = `<span class="toast-texte">${html}</span>`;
+    let minuterie = null;
+    const fermer = () => { clearTimeout(minuterie); el.classList.add('out'); setTimeout(() => el.remove(), 260); };
+    el.fermer = fermer;
+    // Survolé ou atteint au clavier, il reste : le temps de lire et de cliquer.
+    el.addEventListener('pointerenter', () => clearTimeout(minuterie));
+    el.addEventListener('focusin', () => clearTimeout(minuterie));
+    el.addEventListener('pointerleave', () => { clearTimeout(minuterie); minuterie = setTimeout(fermer, 2500); });
+    if (action) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'toast-action';
+      b.textContent = action.label;
+      b.onclick = () => { fermer(); action.faire(); };
+      el.appendChild(b);
+      ms = Math.max(ms, 6500);
+    }
     document.getElementById('toasts').appendChild(el);
-    setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 350); }, ms);
+    minuterie = setTimeout(fermer, ms);
     return el;
   }
 
@@ -52,10 +71,15 @@ const fx = (() => {
   let rafId = null;
   function resize() { canvas.width = innerWidth; canvas.height = innerHeight; }
   addEventListener('resize', resize); resize();
-  const COLORS = ['#eab308', '#8b5cf6', '#34d399', '#f87171', '#60a5fa', '#facc15'];
+  // Les couleurs des confettis viennent des jetons du thème courant (jetons.css).
+  const couleurs = () => {
+    const cs = getComputedStyle(document.documentElement);
+    return ['--accent', '--accent-texte', '--or', '--or-texte', '--succes', '--info'].map((j) => cs.getPropertyValue(j).trim()).filter(Boolean);
+  };
   const sansAnimation = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
   function confetti(count = 120, { spread = 1 } = {}) {
     if (sansAnimation()) return; // réglage système « réduire les animations » respecté
+    const COLORS = couleurs();
     for (let i = 0; i < count; i++) {
       particles.push({
         x: canvas.width / 2 + (Math.random() - 0.5) * canvas.width * 0.6 * spread,
@@ -97,11 +121,12 @@ const fx = (() => {
       <div class="c-emoji">${emoji}</div>
       <h2>${title}</h2>
       <p class="muted">${sub || ''}</p>
-      <p style="margin-top:16px"><button class="primary big">${btn}</button></p>
+      <p style="margin-top:16px"><button class="gold big">${btn}</button></p>
     </div>`;
     wrap.querySelector('button').onclick = () => wrap.remove();
     wrap.addEventListener('click', (e) => { if (e.target === wrap) wrap.remove(); });
     root.appendChild(wrap);
+    wrap.querySelector('button').focus();
   }
 
   // ------------------------------------------------ API publique
@@ -149,7 +174,7 @@ const fx = (() => {
       setTimeout(() => confetti(200), 1400);
     },
     error(msg) {
-      toast(`⚠️ ${msg}`, 'err', 6500);
+      toast(msg, 'err', 7000);
       play('err');
     },
   };
