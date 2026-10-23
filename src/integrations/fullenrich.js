@@ -1,8 +1,9 @@
 'use strict';
 // Intégration FullEnrich : enrichissement email + téléphone en cascade (waterfall).
-// API v2 : POST /api/v2/contact/enrich/bulk (max 100 contacts), puis polling
-// GET /api/v2/contact/enrich/bulk/{enrichment_id}. Fallback v1 si le compte
-// n'a pas accès à la v2 (champs firstname/lastname au lieu de first_name/last_name).
+// API v2 : POST /api/v2/contact/enrich/bulk avec { name, data: [...] } (max 100
+// contacts), puis polling GET /api/v2/contact/enrich/bulk/{enrichment_id}.
+// Fallback v1 si le compte n'a pas accès à la v2 : la v1 attend { name, datas }
+// et des champs firstname/lastname. Mélanger les deux donne « data is empty ».
 // ⚠️ Chaque enrichissement consomme des crédits FullEnrich.
 
 const dbApi = require('../db');
@@ -89,7 +90,9 @@ function traduireErreur(e) {
   const code = String(corps.code || '');
   const texte = String(corps.message || corps.error || e.message || '');
   let message;
-  if (code.includes('domain.empty') || /domain.*empty/i.test(texte)) {
+  if (/\bdata\b.*empty/i.test(texte) || code.includes('data.empty')) {
+    message = "FullEnrich n'a reçu aucun contact exploitable. Vérifie que chaque fiche sélectionnée a un prénom, un nom et une entreprise, ou une URL LinkedIn, puis relance.";
+  } else if (code.includes('domain.empty') || /domain.*empty/i.test(texte)) {
     message = "FullEnrich a refusé le lot : au moins un contact n'a ni site web, ni entreprise, ni URL LinkedIn. Complète ces fiches (une entreprise suffit) ou retire-les de la sélection, puis relance.";
   } else if (e.status === 401 || e.status === 403) {
     message = 'Clé API FullEnrich refusée. Vérifie-la dans Réglages (app.fullenrich.com → Settings → API).';
@@ -110,13 +113,22 @@ function traduireErreur(e) {
   return err;
 }
 
+// Ce que FullEnrich exige pour chercher quelqu'un : une URL LinkedIn, ou bien
+// prénom + nom + entreprise (nom de société ou domaine). Un contact qui n'a
+// qu'un nom de famille fait refuser la demande : on ne l'envoie pas.
+const pret = (v) => typeof v === 'string' && v.trim() !== '';
+function enrichissable(c) {
+  if (pret(c.linkedin_url)) return true;
+  return pret(c.first_name) && pret(c.last_name) && (pret(c.company) || pret(domainFromContact(c)));
+}
+
 // Lance un enrichissement bulk pour une liste de contacts (ids). Retourne le job créé.
 async function startEnrich(contactIds) {
-  const contacts = contactIds
-    .map((id) => get('SELECT * FROM contacts WHERE id = ?', id))
-    .filter(Boolean)
-    .filter((c) => (c.first_name || c.last_name) && (c.company || c.domain || c.linkedin_url || c.email));
-  if (!contacts.length) throw new Error('Aucun contact enrichissable : il faut au minimum un nom ET (entreprise, domaine ou URL LinkedIn).');
+  const fiches = contactIds.map((id) => get('SELECT * FROM contacts WHERE id = ?', id)).filter(Boolean);
+  const contacts = fiches.filter(enrichissable);
+  if (!contacts.length) {
+    throw new Error(`Aucun des ${fiches.length} contact(s) sélectionné(s) ne peut partir chez FullEnrich : il faut une URL LinkedIn, ou bien prénom, nom et entreprise. Complète les fiches puis relance.`);
+  }
   const batch = contacts.slice(0, 100);
 
   const name = `la-chasse ${dbApi.localDay()} (${batch.length} contacts)`;
@@ -125,7 +137,7 @@ async function startEnrich(contactIds) {
   try {
     res = await apiFetch(`${base()}/contact/enrich/bulk`, {
       method: 'POST', headers: headers(),
-      body: { name, datas: batch.map(contactPayloadV2) },
+      body: { name, data: batch.map(contactPayloadV2) },
     });
   } catch (e) {
     if ((e.status === 404 || e.status === 405) && base().includes('/v2')) {
@@ -156,7 +168,7 @@ async function startEnrich(contactIds) {
     `fullenrich-${apiVersion}`, externalId, 'pending', JSON.stringify(batch.map((c) => c.id)), now, now
   );
   for (const c of batch) dbApi.updateContact(c.id, { enrich_status: 'pending' });
-  return { job_id: lastId, external_id: externalId, count: batch.length, skipped: contacts.length - batch.length };
+  return { job_id: lastId, external_id: externalId, count: batch.length, skipped: contacts.length - batch.length, incomplets: fiches.length - contacts.length };
 }
 
 // FullEnrich renvoie chaque email et chaque téléphone sous forme d'objet
@@ -306,4 +318,4 @@ async function pollPending() {
   return results;
 }
 
-module.exports = { test, startEnrich, pollJob, pollPending, contactPayloadV2, traduireErreur };
+module.exports = { test, startEnrich, pollJob, pollPending, contactPayloadV2, traduireErreur, enrichissable };

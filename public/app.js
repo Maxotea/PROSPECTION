@@ -1258,7 +1258,7 @@ async function launchEnrich(ids, after) {
   enrichEnCours = true;
   try {
     const r = await api('/fullenrich/enrich', { method: 'POST', body: { contact_ids: ids } });
-    fx.toast(`🧪 Enrichissement lancé (${r.count} contacts). Les résultats arrivent tout seuls dans quelques minutes, même si tu fermes l'app.`);
+    fx.toast(`🧪 Enrichissement lancé (${r.count} contacts)${r.incomplets ? ` · ${r.incomplets} fiche(s) laissée(s) de côté : il leur manque une URL LinkedIn, ou prénom, nom et entreprise` : ''}. Les résultats arrivent tout seuls dans quelques minutes, même si tu fermes l'app.`, '', r.incomplets ? 7000 : 4000);
     if (after) after();
   } catch (e) { fx.error(e.message); }
   finally { enrichEnCours = false; }

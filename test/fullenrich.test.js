@@ -33,8 +33,16 @@ test.before(async () => {
       if (req.method === 'POST' && req.url.endsWith('/contact/enrich/bulk')) {
         etat.recu = JSON.parse(brut || '{}');
         etat.urlsAppelees.push(req.url);
+        // Comme le vrai : la v2 lit la liste dans « data », la v1 dans « datas ».
+        // Une liste absente sous le bon nom donne « data is empty » (le bug d'octobre).
+        const liste = req.url.includes('/api/v2/') ? etat.recu.data : etat.recu.data;
+        if (!Array.isArray(liste) || !liste.length) {
+          res.statusCode = 400;
+          res.end(JSON.stringify({ code: 'error.validation', message: 'data is empty' }));
+          return;
+        }
         // Refuse comme le vrai : un champ vide, ou un contact marqué exprès pour le test.
-        const vide = (etat.recu.datas || []).some((d) => Object.values(d).some((v) => v === '') || d.company_name === 'REFUSE-MOI');
+        const vide = liste.some((d) => Object.values(d).some((v) => v === '') || d.company_name === 'REFUSE-MOI');
         if (vide) {
           res.statusCode = 400;
           res.end(JSON.stringify({ code: 'error.enrichment.domain.empty', message: 'Domain cannot be empty' }));
@@ -76,7 +84,7 @@ test('un enrichissement se lance et met les fiches en attente', async () => {
   const r = await fullenrich.startEnrich(ids);
   assert.strictEqual(r.count, 2);
   assert.strictEqual(r.external_id, 'job-test-1');
-  assert.strictEqual(etat.recu.datas.length, 2, 'les deux contacts sont bien envoyés');
+  assert.strictEqual(etat.recu.data.length, 2, 'les deux contacts sont bien envoyés');
   for (const id of ids) {
     assert.strictEqual(dbApi.get('SELECT * FROM contacts WHERE id = ?', id).enrich_status, 'pending');
   }
@@ -152,7 +160,7 @@ test('un contact sans site web ne fait plus échouer tout le lot', async () => {
   const sansSite = dbApi.insertContact({ first_name: 'Karim', last_name: 'Sans', company: 'Sans Site', segment: 'pme', stage: 'a_contacter' }).id;
   const r = await fullenrich.startEnrich([avecSite, sansSite]);
   assert.strictEqual(r.count, 2, 'les deux partent');
-  const karim = etat.recu.datas.find((d) => d.first_name === 'Karim');
+  const karim = etat.recu.data.find((d) => d.first_name === 'Karim');
   assert.ok(karim, 'Karim est bien dans le lot');
   assert.ok(!('domain' in karim), 'sans domaine, pas de champ domain du tout');
   assert.ok(!('linkedin_url' in karim), 'sans LinkedIn, pas de champ linkedin_url');
@@ -182,4 +190,37 @@ test('un domaine fait d’espaces ou d’une URL complète est nettoyé', () => 
   assert.ok(!('domain' in p), 'des espaces ne sont pas un domaine');
   const q = fullenrich.contactPayloadV2({ id: 2, first_name: 'A', last_name: 'B', domain: ' https://www.exemple.fr/contact ' });
   assert.strictEqual(q.domain, 'exemple.fr');
+});
+
+test('la v2 reçoit la liste sous « data » : plus de « data is empty »', async () => {
+  // Le bug de Maxime du 23/10 : l'app envoyait « datas » (le nom de la v1) à la v2,
+  // FullEnrich répondait « data is empty » alors que des contacts étaient sélectionnés.
+  etat.urlsAppelees = [];
+  const id = creer('Julie', 'Cordel', 'Maville Immobilier', { domain: 'maville-immobilier.fr' }).id;
+  const r = await fullenrich.startEnrich([id]);
+  assert.strictEqual(r.count, 1);
+  assert.ok(Array.isArray(etat.recu.data) && etat.recu.data.length === 1, 'la liste part sous « data »');
+  assert.ok(!('datas' in etat.recu), 'plus de clé « datas » vers la v2');
+  assert.deepStrictEqual(etat.recu.data[0].enrich_fields, ['contact.work_emails', 'contact.phones'], 'emails et téléphones demandés');
+});
+
+test('seules les fiches que FullEnrich sait chercher partent, les autres sont comptées', async () => {
+  const complet = creer('Romain', 'Tibi', 'Century 21 Cayla').id;
+  const linkedinSeul = dbApi.insertContact({ last_name: 'Assas', linkedin_url: 'https://www.linkedin.com/in/raphael-assas', segment: 'pme', stage: 'a_contacter' }).id;
+  const nomSeul = dbApi.insertContact({ last_name: 'Bittoun', company: 'MMA Puteaux', segment: 'pme', stage: 'a_contacter' }).id;
+  const r = await fullenrich.startEnrich([complet, linkedinSeul, nomSeul]);
+  assert.strictEqual(r.count, 2, 'complet + LinkedIn seul');
+  assert.strictEqual(r.incomplets, 1, 'le nom de famille seul reste de côté');
+  assert.ok(!etat.recu.data.some((d) => d.last_name === 'Bittoun'));
+  const assas = etat.recu.data.find((d) => d.last_name === 'Assas');
+  assert.ok(assas && !('first_name' in assas), 'pas de prénom vide envoyé');
+  let erreur = null;
+  try { await fullenrich.startEnrich([nomSeul]); } catch (e) { erreur = e; }
+  assert.ok(erreur && /LinkedIn|prénom, nom et entreprise/.test(erreur.message), `message clair, obtenu : ${erreur && erreur.message}`);
+});
+
+test('« data is empty » est traduit en français', () => {
+  const e = fullenrich.traduireErreur({ status: 400, body: { message: 'data is empty' }, message: 'HTTP 400' });
+  assert.match(e.message, /aucun contact exploitable/);
+  assert.ok(!/data is empty/.test(e.message));
 });
