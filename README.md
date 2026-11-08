@@ -1,8 +1,8 @@
 # ⚙️ OTEA Moteur · ta journée, ta prospection, ton autopilote (OTEA Production)
 
-Un outil de travail **local, zéro dépendance**, sur une seule adresse : le matin, **☀️ Ma journée** dit quoi faire ; le reste du temps, **⚔️ La Chasse** (le Mode Chasse, les campagnes, l'Autopilote, le CRM) fait rentrer les factures. Objectif : **déclencher 5 factures**.
+Un outil de travail **local, zéro dépendance**, sur une seule adresse : le matin, **☀️ Ma journée** dit quoi faire ; le reste du temps, **⚔️ la Prospection** (les prospects un par un, les campagnes, l'Autopilote, le CRM) fait rentrer les factures. Objectif : **déclencher 5 factures**.
 
-*L'app s'appelait « La Chasse ». Elle a grandi : La Chasse est devenue son moteur de prospection, OTEA Moteur est l'ensemble.*
+*L'app s'appelait « La Chasse ». Elle a grandi : la chasse est devenue l'écran Prospection et le jeu, OTEA Moteur est l'ensemble. Le service en ligne garde son nom technique `la-chasse` (changer le nom d'un service Render recréerait un service sans son disque), mais tout ce que tu vois s'appelle OTEA Moteur.*
 
 **Identité visuelle « Affût »** : papier chaud le jour, ardoise le soir (thème clair, sombre ou automatique), un seul signal fort, l'orange de chasse, réservé à l'action principale et à ce qui est vital. Le matin, Ma journée s'ouvre sur les trois choses à faire en premier. `Ctrl K` (ou `⌘K`) ouvre la palette : un écran, un contact, une action ; `?` affiche tous les raccourcis. Détail des couleurs, des polices et des règles d'usage : [`docs/design.md`](docs/design.md).
 
@@ -11,7 +11,7 @@ Quatre moteurs :
 0. **☀️ Ma journée** : la to-do du matin, faite par la machine au lieu de la tête. Elle lit **Gmail** (les mails sans réponse), **WhatsApp** et **les appels** du Mac (les conversations où le dernier mot n'est pas de toi, les appels manqués jamais rappelés), et le **CRM** (relances dues, devis à relancer ou à faire, factures à émettre), classe chaque chose par **importance** et par **durée**, et la place dans la journée : les courtes ce matin, la grosse pierre, les moyennes cet après-midi. Le brief part par mail chaque matin.
 1. **📅 Les Campagnes hebdo** : la stratégie : une semaine = un secteur (grande distribution, aéronautique, agriculture, hôtellerie, agences de voyage…) et un persona cible. Chaque campagne se crée en 2 clics avec sa **recette Sales Navigator** prête à copier, sa **séquence email** citant tes vraies références (le Galec, La Poste, Pullman…), son **post LinkedIn** et son **script DM** : pour qu'on voie OTEA partout, partout, partout.
 2. **🤖 L'Autopilote** : la machine qui prospecte à ta place : elle enrôle tes contacts (anciens clients Pennylane, HubSpot, ta boîte Gmail) dans des **séquences email**, envoie depuis **ton Gmail** (chaque relance reste dans le même fil), respecte un cap quotidien et des horaires ouvrés, **détecte les réponses dans ta boîte** et stoppe la séquence dès qu'on te répond : il ne te reste qu'à transformer la réponse en call.
-3. **🎮 Le CRM gamifié** : import Pennylane / LinkedIn / HubSpot, enrichissement FullEnrich, typologies de clients, Mode Chasse, devis Pennylane en 2 clics, XP, quêtes, streak, badges, boss final « 5 factures ».
+3. **🎮 Le CRM gamifié** : import Pennylane / LinkedIn / HubSpot, enrichissement FullEnrich, typologies de clients, Prospection, devis Pennylane en 2 clics, XP, quêtes, streak, badges, boss final « 5 factures ».
 
 Et, au-dessus des quatre, **🧭 le Cockpit** : tout ce qui se passe en un seul écran, l'argent d'abord (à facturer, devis en attente, devis à faire, facturé ce mois), le plan et ses paliers, le facturé par mois, la journée, le radar du pipeline, les relances, et le tableau de chasse (XP, quêtes, badges, célébrations) qui fait du Cockpit un jeu. Il se rafraîchit tout seul et possède un **mode écran** pour rester affiché sur l'iMac toute la journée. Détail plus bas.
 
@@ -202,6 +202,24 @@ répare rien et ne touche à aucune donnée : il vérifie Node, les fichiers, ta
 port, essaie de démarrer l'app, et écrit un rapport lisible (une copie est déposée sur
 ton Bureau) à envoyer tel quel.
 
+### 🧩 Fusionner deux OTEA Moteur en un seul
+
+Le cas classique : l'app a tourné sur le Mac **et** en ligne pendant des semaines, chacune avec
+ses contacts, son XP, ses réglages. « Remettre une sauvegarde » écraserait l'une des deux.
+**Fusionner** les additionne :
+
+1. Sur la version que tu veux abandonner : Réglages → **Télécharger ma sauvegarde**.
+2. Sur la version que tu gardes (en ligne, en général) : Réglages → **Fusionner avec une autre
+   base**, choisis le fichier. L'app lit d'abord l'autre base et t'annonce ce qui va se passer
+   (« 112 contacts ajoutés, 38 rapprochés, 540 actions d'historique… »). Tu confirmes.
+3. Ce qui se passe : un contact connu des deux côtés (même email, même LinkedIn, même client
+   Pennylane, ou même nom dans la même société) devient une seule fiche, l'étape la plus
+   avancée l'emporte, les champs vides d'ici prennent la valeur de là-bas, les notes se
+   cumulent. L'historique, les devis, l'XP, les badges et les quêtes s'additionnent sans
+   doublon. Les réglages déjà remplis ici restent, les vides sont repris. Les emails encore en
+   attente là-bas arrivent « à relire », jamais prêts à partir.
+4. Rien n'est effacé de ce côté-ci, et la base d'ici est mise de côté avant (`.avant-fusion`).
+
 ### 🔄 Mettre à jour sans perdre tes données
 
 Tes contacts, tes clés API et ton historique vivent dans le dossier **`data/`** : jamais dans le code. Donc pour passer à une nouvelle version :
@@ -363,7 +381,7 @@ Premier projet livré : **Sponsoring HYROX · Pierre & Antoine** (jusqu'au 13 ju
 
 - Une réponse (même détectée à la main) **stoppe la séquence** : personne ne reçoit une relance après avoir répondu ;
 - Un bounce (adresse refusée) marque l'email invalide et stoppe la séquence ;
-- Un contact = **une seule séquence à la fois** ; jamais d'enrôlement sans email ; les contacts en séquence sortent de la file du Mode Chasse ;
+- Un contact = **une seule séquence à la fois** ; jamais d'enrôlement sans email ; les contacts en séquence sortent de la file de la Prospection ;
 - Cap quotidien + fenêtre horaire + jours ouvrés + espacement aléatoire : le rythme d'un humain, pas d'un robot ;
 - **Délivrabilité** : tu envoies depuis ton vrai Gmail (SPF/DKIM déjà en place), à faible volume, en texte simple : la meilleure config possible. Monte le cap progressivement.
 - **Cadre légal (France/RGPD)** : la réactivation de clients existants est du B2B légitime ; pour la prospection B2B à froid, reste sur des adresses professionnelles, propose toujours une porte de sortie et honore immédiatement tout « stop » (la séquence s'arrête à la moindre réponse, quelle qu'elle soit).
@@ -427,11 +445,11 @@ et les glissements.
 ## 🎮 La boucle de jeu
 
 1. **🏰 Quartier général** : le boss (« 5 factures ») en barre de progression, tes 3 quêtes du jour, ta streak 🔥, tes KPI et ton XP de la semaine.
-2. **🎯 Mode Chasse** : le cœur de l'outil : l'app te sert les prospects **un par un, triés par priorité** (anciens clients d'abord, relances dues, grands comptes…), avec **le bon message déjà rédigé** selon la typologie et l'étape. Toi tu n'as qu'à : copier → envoyer → cliquer « Message envoyé ». XP, combo, suite.
+2. **🎯 Prospection** : le cœur de l'outil : l'app te sert les prospects **un par un, triés par priorité** (anciens clients d'abord, relances dues, grands comptes…), avec **le bon message déjà rédigé** selon la typologie et l'étape. Toi tu n'as qu'à : copier → envoyer → cliquer « Message envoyé ». XP, combo, suite.
 3. Chaque action rapporte de l'XP : message +10, réponse reçue +25, RDV +50, devis +75, **facture +250**. Les quêtes et badges tombent tout seuls.
 4. Un deal marqué **« Facturée ! »** remplit un segment du boss. À 5 → 🏆.
 
-Raccourcis clavier en Mode Chasse : `1` message envoyé · `2` connexion LinkedIn · `3` appelé · `4` a répondu · `5` RDV pris · `6` pas maintenant · `7` disqualifier.
+Raccourcis clavier dans la Prospection : `1` message envoyé · `2` connexion LinkedIn · `3` appelé · `4` a répondu · `5` RDV pris · `6` pas maintenant · `7` disqualifier.
 
 ### Pourquoi la liste ne te ressert pas toujours les mêmes têtes
 

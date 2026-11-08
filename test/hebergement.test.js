@@ -147,7 +147,7 @@ test('la sauvegarde rend une vraie base de données lisible', async () => {
 
   const r = await fetch(BASE + '/api/sauvegarde', { headers: { cookie: jeton } });
   assert.strictEqual(r.status, 200);
-  assert.match(r.headers.get('content-disposition') || '', /attachment; filename="la-chasse-\d{4}-\d{2}-\d{2}\.db"/);
+  assert.match(r.headers.get('content-disposition') || '', /attachment; filename="otea-moteur-\d{4}-\d{2}-\d{2}\.db"/);
 
   const fichier = path.join(dossier, 'telecharge.db');
   fs.writeFileSync(fichier, Buffer.from(await r.arrayBuffer()));

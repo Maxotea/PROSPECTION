@@ -115,7 +115,7 @@ function jEssentielHtml(P) {
           </div>
         </li>`;
       }).join('')}</ol>`
-      : `<div class="j-ess-vide"><div class="vide-etat"><b>Rien d'urgent ce matin.</b><br>${P.faits_aujourdhui ? `${P.faits_aujourdhui} chose${P.faits_aujourdhui > 1 ? 's' : ''} déjà faite${P.faits_aujourdhui > 1 ? 's' : ''}. ` : ''}C'est le bon moment pour provoquer des réponses.<div class="row centre mt-3"><a class="btn primary" href="#/chasse">Lancer La Chasse</a></div></div></div>`}
+      : `<div class="j-ess-vide"><div class="vide-etat"><b>Rien d'urgent ce matin.</b><br>${P.faits_aujourdhui ? `${P.faits_aujourdhui} chose${P.faits_aujourdhui > 1 ? 's' : ''} déjà faite${P.faits_aujourdhui > 1 ? 's' : ''}. ` : ''}C'est le bon moment pour provoquer des réponses.<div class="row centre mt-3"><a class="btn primary" href="#/chasse">Lancer la prospection</a></div></div></div>`}
     </section>`;
 }
 
@@ -210,7 +210,7 @@ function dessinerJournee(view) {
   const total = P.total;
   const titre = total
     ? `${total} chose${total > 1 ? 's' : ''} à faire${P.vitaux ? `, dont <b class="texte-alerte">${P.vitaux} vitale${P.vitaux > 1 ? 's' : ''}</b>` : ''}${P.argent ? ` · ${eur(P.argent)} en jeu` : ''}${P.faits_aujourdhui ? ` · ✅ ${P.faits_aujourdhui} déjà fait${P.faits_aujourdhui > 1 ? 's' : ''}` : ''}`
-    : `Rien qui attend. ${P.faits_aujourdhui ? `✅ ${P.faits_aujourdhui} fait${P.faits_aujourdhui > 1 ? 's' : ''} aujourd'hui. ` : ''}Va provoquer des réponses : <a href="#/chasse">Mode Chasse</a>.`;
+    : `Rien qui attend. ${P.faits_aujourdhui ? `✅ ${P.faits_aujourdhui} fait${P.faits_aujourdhui > 1 ? 's' : ''} aujourd'hui. ` : ''}Va provoquer des réponses : <a href="#/chasse">Prospection</a>.`;
 
   const enHaut = new Set(jTop3(P).top.map((it) => it.cle));
   view.innerHTML = `

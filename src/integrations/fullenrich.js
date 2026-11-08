@@ -131,7 +131,7 @@ async function startEnrich(contactIds) {
   }
   const batch = contacts.slice(0, 100);
 
-  const name = `la-chasse ${dbApi.localDay()} (${batch.length} contacts)`;
+  const name = `otea-moteur ${dbApi.localDay()} (${batch.length} contacts)`;
   let res;
   let apiVersion = 'v2';
   try {

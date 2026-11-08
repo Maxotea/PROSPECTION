@@ -1,6 +1,6 @@
 'use strict';
 /* ⚙️ OTEA Moteur : SPA vanilla (aucune dépendance, aucun build).
-   Vues : QG, Mode Chasse, Pipeline, Contacts, Réponses, Imports, Réglages. */
+   Vues : QG, Prospection, Pipeline, Contacts, Réponses, Imports, Réglages. */
 
 // ---------------------------------------------------------------- helpers
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -214,7 +214,7 @@ async function vQG(view) {
       <ol>
         <li><b>📦 Importe tes anciens clients</b> : bouton Pennylane dans <a href="#/import">Imports</a> (ou un CSV) : ce sont tes prospects les plus chauds.</li>
         <li><b>🧲 Ajoute tes cibles LinkedIn</b> : export Sales Navigator via FullEnrich → CSV → <a href="#/import">Imports</a>.</li>
-        <li><b>⚔️ Lance le <a href="#/chasse">Mode Chasse</a></b> : l'app te sert les bons prospects avec le bon message.</li>
+        <li><b>⚔️ Lance la <a href="#/chasse">Prospection</a></b> : l'app te sert les bons prospects avec le bon message.</li>
       </ol>
       <div class="row"><button class="gold" id="btn-demo">🎮 Ou charge la démo pour essayer</button></div>
     </div>` : '';
@@ -222,7 +222,7 @@ async function vQG(view) {
   view.innerHTML = `
     <div class="view-header spread">
       <div><h1>🏰 Quartier général</h1><div class="sub">Salut chasseur. ${S.streak.alive_today ? 'Streak sécurisée pour aujourd’hui ✅' : 'Ta streak attend une action aujourd’hui 👀'}</div></div>
-      <a class="btn primary big" href="#/chasse">⚔️ Lancer La Chasse</a>
+      <a class="btn primary big" href="#/chasse">⚔️ Lancer la prospection</a>
     </div>
     ${onboarding}
     <div class="grid qg-grille">
@@ -396,7 +396,7 @@ async function vChasse(view) {
   if (!hunt) {
     await refreshState();
     view.innerHTML = `
-      <div class="view-header"><h1>⚔️ La Chasse</h1><div class="sub">L'app te sert les prospects prioritaires un par un, avec le bon message pré-rempli. Toi, tu dégaines.</div></div>
+      <div class="view-header"><h1>⚔️ Prospection</h1><div class="sub">L'app te sert les prospects prioritaires un par un, avec le bon message pré-rempli. Toi, tu dégaines.</div></div>
       <div class="card hunt-empty">
         <div class="big-emoji">🏹</div>
         <h2>Prêt à chasser ?</h2>
@@ -589,7 +589,7 @@ async function vChasse(view) {
     hunt.xp += res.xp_gained || 0; hunt.actions++;
     await celebrate(res);
   };
-  // Chaque geste de la Chasse se rattrape : « Annuler » remet le prospect
+  // Chaque geste de la Prospection se rattrape : « Annuler » remet le prospect
   // dans son état d'avant et le replace en tête de la file de la session.
   const nomChasse = esc(`${c.first_name || ''} ${c.last_name || ''}`.trim() || c.company || 'Prospect');
   const proposerRetour = (message, res) => {
@@ -629,7 +629,7 @@ async function vChasse(view) {
       }
     },
     send: async () => { await copyText($('#hunt-body').value); act(c.touches > 0 ? 'relance' : 'message_envoye', { note: tplName() }); },
-    connect: () => act('connexion_linkedin', { note: 'Depuis le Mode Chasse' }),
+    connect: () => act('connexion_linkedin', { note: 'Depuis la Prospection' }),
     call: () => act('appel'),
     replied: () => act('reponse_recue'),
     meeting: () => act('rdv_pris'),
@@ -732,7 +732,7 @@ async function vCampagnes(view) {
         <div class="card">
           <div class="spread"><h3>💬 Script DM LinkedIn</h3><button data-copy-text="camp-dm">📋 Copier</button></div>
           <textarea id="camp-dm" rows="4">${esc(current.dm_draft)}</textarea>
-          <p class="muted small">Pour les prospects sans email trouvé : DM après la connexion. {prenom} et {entreprise} à remplacer (ou passe par le Mode Chasse qui le fait tout seul).</p>
+          <p class="muted small">Pour les prospects sans email trouvé : DM après la connexion. {prenom} et {entreprise} à remplacer (ou passe par la Prospection qui le fait tout seul).</p>
         </div>
         <div class="card">
           <h3>📧 La séquence email de la campagne</h3>
@@ -1652,7 +1652,7 @@ async function vInbox(view) {
       </div>
     </div>
     <div class="grid mt-4">
-      ${requests.length === 0 ? '<div class="card"><p class="muted">Aucune demande en attente. C’est le moment d’aller en provoquer → <a href="#/chasse">Mode Chasse</a> 😏</p></div>' : ''}
+      ${requests.length === 0 ? '<div class="card"><p class="muted">Aucune demande en attente. C’est le moment d’aller en provoquer → <a href="#/chasse">Prospection</a> 😏</p></div>' : ''}
       ${requests.map((r) => `
         <div class="card" data-req="${r.id}">
           <div class="spread">
@@ -2621,6 +2621,9 @@ async function vReglages(view) {
         <p class="muted small mt-4"><b>Remettre une sauvegarde</b> : c'est ainsi qu'on déménage OTEA Moteur d'un ordinateur vers la version en ligne. L'app remplace tout par le fichier et redémarre. L'ancienne base est mise de côté avant, au cas où.</p>
         <input type="file" id="s-restore-file" accept=".db">
         <div id="s-restore-msg" class="small muted mt-2"></div>
+        <p class="muted small mt-4"><b>Fusionner avec une autre base</b> : quand OTEA Moteur a tourné à deux endroits à la fois (le Mac et la version en ligne), on verse l'autre sauvegarde ici. Les contacts se rapprochent, l'historique s'additionne, rien n'est effacé de ce côté-ci. L'app montre d'abord ce qui va arriver, puis tu confirmes.</p>
+        <input type="file" id="s-fusion-file" accept=".db">
+        <div id="s-fusion-msg" class="small muted mt-2"></div>
       </div>
       <div class="card">
         <h2>🔑 Clés API</h2>
@@ -2648,6 +2651,37 @@ async function vReglages(view) {
       </div>
     </div>
     <div class="row mt-4"><button class="primary big" id="s-save">💾 Enregistrer les réglages</button><span id="s-status" class="muted"></span></div>`;
+
+  const fusionInput = $('#s-fusion-file');
+  if (fusionInput) fusionInput.onchange = async (e) => {
+    const fichier = e.target.files[0];
+    const msg = $('#s-fusion-msg');
+    if (!fichier) return;
+    const corps = await fichier.arrayBuffer();
+    const envoyer = async (simulation) => {
+      const r = await fetch('/api/fusion' + (simulation ? '?simulation=1' : ''), { method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: corps });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Fusion impossible');
+      return data;
+    };
+    try {
+      msg.textContent = '⏳ Lecture de l\'autre base…';
+      const essai = await envoyer(true);
+      if (!confirm(`Voici ce que la fusion avec « ${fichier.name} » va faire :\n\n${essai.resume}\n\nRien n'est effacé ici. On y va ?`)) {
+        msg.textContent = 'Fusion annulée, rien n\'a changé.';
+        e.target.value = '';
+        return;
+      }
+      msg.textContent = '⏳ Fusion en cours…';
+      const fait = await envoyer(false);
+      msg.textContent = '✅ ' + fait.message + ' ' + fait.resume;
+      if (window.fx) { fx.play('quest'); fx.confetti(60); }
+      setTimeout(() => location.reload(), 2500);
+    } catch (err) {
+      msg.innerHTML = '<span class="texte-alerte">❌ ' + esc(err.message) + '</span>';
+      e.target.value = '';
+    }
+  };
 
   const restoreInput = $('#s-restore-file');
   if (restoreInput) restoreInput.onchange = async (e) => {

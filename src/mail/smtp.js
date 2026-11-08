@@ -122,7 +122,7 @@ async function sendMail(opts) {
   const r = reader(sock);
   try {
     await expect(r, sock, null, [220]);
-    await expect(r, sock, `EHLO la-chasse.local`, [250]);
+    await expect(r, sock, `EHLO otea-moteur.local`, [250]);
     if (user) {
       const token = Buffer.from(`\u0000${user}\u0000${pass}`, 'utf8').toString('base64');
       await expect(r, sock, `AUTH PLAIN ${token}`, [235]);
@@ -152,7 +152,7 @@ async function testAuth({ host, port, secure = true, user, pass }) {
   const r = reader(sock);
   try {
     await expect(r, sock, null, [220]);
-    await expect(r, sock, `EHLO la-chasse.local`, [250]);
+    await expect(r, sock, `EHLO otea-moteur.local`, [250]);
     const token = Buffer.from(`\u0000${user}\u0000${pass}`, 'utf8').toString('base64');
     await expect(r, sock, `AUTH PLAIN ${token}`, [235]);
     sock.write('QUIT\r\n');
