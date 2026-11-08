@@ -196,6 +196,21 @@ function activite(today, n = 14) {
   return out;
 }
 
+// ---------------------------------------------------------------- 📜 le fil : les dernières actions, pour la bande qui défile
+function fil(limite = 12) {
+  const rows = all(`SELECT a.type, a.note, a.xp, a.created_at, c.first_name, c.last_name, c.company, c.id AS contact_id
+    FROM activities a LEFT JOIN contacts c ON c.id = a.contact_id
+    WHERE a.type != 'note' ORDER BY a.created_at DESC, a.id DESC LIMIT ?`, limite);
+  return rows.map((r) => {
+    const def = game.ACTIONS[r.type] || {};
+    return {
+      type: r.type, emoji: def.emoji || '•', label: def.label || r.type.replace(/_/g, ' '),
+      nom: r.contact_id ? nomContact(r) : '', societe: r.company || '', xp: Number(r.xp) || 0,
+      quand: r.created_at, note: String(r.note || '').slice(0, 80),
+    };
+  });
+}
+
 // ---------------------------------------------------------------- ☀️ la journée : les trois choses qui comptent
 function scoreItem(it) { return it.importance * 100 + (it.urgence || 0) * 20 + Math.min(50, Math.round((it.argent || 0) / 200)); }
 function journeeResume(p) {
@@ -255,6 +270,7 @@ function etat({ now = new Date() } = {}) {
     journee: journeeResume(p),
     agenda: agendaResume(p, now),
     activite: activite(today),
+    fil: fil(),
     jeu: etatJeu,
     campagne: camp ? { id: camp.id, name: camp.name, status: camp.status, stats: camp.stats, posted: !!camp.posted } : null,
     rafraichissement_s: Math.max(15, Number(getSetting('cockpit_rafraichissement')) || 60),
@@ -262,4 +278,4 @@ function etat({ now = new Date() } = {}) {
   };
 }
 
-module.exports = { etat, argent, plan, caParMois, pipeline, conversion, relances, reponses, activite, journeeResume };
+module.exports = { etat, argent, plan, caParMois, pipeline, conversion, relances, reponses, activite, fil, journeeResume };

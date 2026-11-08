@@ -217,7 +217,7 @@
    un cran et demi plus grande ; tout le reste (couleurs, rythme) ne bouge pas. */
 @media (min-width: 1101px) {
   :root[data-ecran="1"] {
-    --t-xs: 14px; --t-sm: 16px; --t-ui: 17px; --t-base: 18px; --t-md: 21px; --t-lg: 25px;
-    --t-xl: 32px; --t-2xl: 40px; --t-3xl: 60px; --t-affiche: 80px;
+    --t-xs: 14px; --t-sm: 16px; --t-ui: 17px; --t-base: 18px; --t-md: 20px; --t-lg: 24px;
+    --t-xl: 28px; --t-2xl: 36px; --t-3xl: 54px; --t-affiche: 72px;
   }
 }

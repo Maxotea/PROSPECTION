@@ -817,14 +817,24 @@ tr.ligne-part { opacity: .3; pointer-events: none; }
 }
 
 /* ================================================================ 🧭 Cockpit
-   Tout ce qui se passe, en un écran : l'argent d'abord (quatre tuiles), le
-   plan et ses paliers, puis le facturé par mois, le pipeline, la journée, les
-   relances et l'activité. Une grille de douze colonnes qui se replie seule
-   sur l'iPad et le téléphone. Les graphiques parlent en encre : l'orange ne
-   marque que ce qui est vital, le vert ce qui est acquis. */
-.ck-tete { align-items: flex-start; }
+   Tout ce qui se passe, en un écran : l'argent d'abord (une tuile héros et
+   trois tuiles), le plan et ses paliers, puis la journée, les relances, le
+   pipeline, le facturé par mois, l'activité, le fil des dernières actions.
+   Une grille de douze colonnes qui se replie seule sur l'iPad et le téléphone.
+   Les graphiques parlent en encre : l'orange ne marque que ce qui est vital,
+   le vert ce qui est acquis. Derrière, la lunette de visée dérive (canvas). */
+#ck-fond { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; }
+/* Tant que le Cockpit est affiché, le fond de page est celui de la racine : le canvas passe entre les deux. */
+:root.ck-actif body { background: transparent; }
+.ck-tete { align-items: flex-start; position: relative; }
 .ck-tete .ck-outils { align-items: center; gap: var(--e-3); flex-wrap: wrap; justify-content: flex-end; }
-.ck-tete .ck-heure { font-family: var(--f-titre); font-size: var(--t-2xl); font-weight: 700; letter-spacing: -.03em; line-height: 1; font-variant-numeric: tabular-nums; color: var(--encre); }
+.ck-cadran { display: flex; align-items: center; gap: var(--e-3); }
+.ck-anneau-svg { width: var(--ctrl); height: var(--ctrl); flex: none; transform: rotate(-90deg); }
+.ck-anneau-fond { fill: none; stroke: var(--trait); stroke-width: 3; }
+.ck-anneau-avance { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 100; transition: stroke-dashoffset .9s linear; }
+.ck-heure { font-family: var(--f-titre); font-size: var(--t-2xl); font-weight: 700; letter-spacing: -.03em; line-height: 1; font-variant-numeric: tabular-nums; color: var(--encre); display: flex; align-items: baseline; gap: var(--e-1); }
+.ck-heure .ck-sec { font-size: var(--t-sm); font-weight: 600; color: var(--encre-3); letter-spacing: 0; min-width: 2ch; }
+.ck-heure .ck-sec::before { content: ':'; }
 .ck-sous-titre { margin-bottom: var(--e-3); }
 
 .ck-grille { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--e-4); align-items: stretch; }
@@ -834,53 +844,102 @@ tr.ligne-part { opacity: .3; pointer-events: none; }
 .ck-graph { display: flex; flex-direction: column; }
 .ck-graph .ck-chart { display: block; flex: 1; min-height: 0; width: 100%; height: auto; }
 
-/* Les quatre tuiles de l'argent */
+/* L'entrée : les cartes montent l'une après l'autre, les barres poussent, la jauge se remplit. */
+@keyframes ck-apparait { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes ck-pousse { from { transform: scaleY(0); } to { transform: none; } }
+@keyframes ck-remplit { from { width: 0; } }
+@keyframes ck-trace { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 0; } }
+@keyframes ck-glisse { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
+.ck-entree > * { animation: ck-apparait var(--d-3) var(--anim) both; animation-delay: calc(var(--i, 0) * 45ms); }
+.ck-entree .ck-barre { animation: ck-pousse .7s var(--anim) both; animation-delay: calc(var(--i, 0) * 60ms + .2s); transform-box: fill-box; transform-origin: bottom; }
+.ck-entree .ck-jauge > i { animation: ck-remplit 1.1s var(--anim) both .25s; }
+.ck-entree .ck-trait { animation: ck-trace 1.2s var(--anim) both .3s; }
+.ck-entree .ck-ess, .ck-entree .funnel-row { animation: ck-glisse var(--d-3) var(--anim) both; animation-delay: calc(var(--i, 0) * 50ms + .25s); }
+.ck-entree .funnel-row .f-bar > i { animation: ck-remplit .8s var(--anim) both; animation-delay: calc(var(--i, 0) * 50ms + .3s); }
+
+/* Les tuiles de l'argent : une héros, trois à sa droite */
 .ck-tuile {
-  grid-column: span 3; display: flex; flex-direction: column; gap: var(--e-1); min-height: 132px;
+  grid-column: span 2; display: flex; flex-direction: column; gap: var(--e-1); min-height: 148px; position: relative; overflow: hidden;
   background: var(--surface); border: 1px solid var(--trait); border-radius: var(--r-lg); padding: var(--e-5);
   box-shadow: var(--ombre-1); text-decoration: none; color: inherit;
-  transition: border-color var(--d-1), box-shadow var(--d-2) var(--anim);
+  transition: border-color var(--d-1), box-shadow var(--d-2) var(--anim), transform var(--d-2) var(--anim);
 }
-.ck-tuile:hover { border-color: var(--trait-fort); box-shadow: var(--ombre-2); }
+.ck-tuile:hover { border-color: var(--trait-fort); box-shadow: var(--ombre-2); transform: translateY(-2px); }
 .ck-tuile:focus-visible { outline: none; box-shadow: var(--focus); }
-.ck-l { font-size: var(--t-xs); font-weight: 650; letter-spacing: .08em; text-transform: uppercase; color: var(--encre-3); }
+.ck-l { font-size: var(--t-xs); font-weight: 650; letter-spacing: .08em; text-transform: uppercase; color: var(--encre-3); display: flex; gap: var(--e-2); align-items: baseline; flex-wrap: wrap; }
+.ck-l .ck-l-note { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--encre-3); }
 .ck-tuile .ck-n, .ck-plan .ck-n { font-family: var(--f-titre); font-size: var(--t-3xl); font-weight: 750; letter-spacing: -.03em; line-height: 1; font-variant-numeric: tabular-nums; margin-top: var(--e-1); overflow-wrap: anywhere; }
 .ck-plan .ck-n small { font-size: var(--t-md); color: var(--encre-2); font-weight: 550; letter-spacing: 0; }
 .ck-tuile .ck-s { font-size: var(--t-sm); color: var(--encre-2); line-height: 1.4; margin-top: auto; padding-top: var(--e-2); }
-.ck-tuile.vital { border-color: var(--accent-trait); box-shadow: var(--ombre-accent); }
-.ck-tuile.vital .ck-n { color: var(--accent-texte); }
 .ck-tuile.attention .ck-s b { color: var(--accent-texte); }
 .ck-tuile.calme .ck-n { color: var(--encre-3); }
 .ck-tuile.succes { border-color: var(--succes-trait); }
 .ck-tuile.succes .ck-n { color: var(--succes); }
 
-/* Le plan : une jauge, trois paliers */
+.ck-hero { grid-column: span 6; padding: var(--e-6); min-height: 196px; }
+.ck-hero .ck-n { font-size: var(--t-affiche); }
+.ck-hero.vital { border-color: var(--accent-trait); background: linear-gradient(135deg, var(--accent-doux), var(--surface) 55%); }
+.ck-hero.vital .ck-n { color: var(--accent-texte); }
+.ck-hero.vital .ck-l { color: var(--accent-texte); }
+.ck-hero.calme { background: linear-gradient(135deg, var(--creux), var(--surface) 60%); }
+/* Le héros respire : l'ombre va et vient, lentement. */
+@keyframes ck-respire { 0%, 100% { box-shadow: var(--ombre-1); } 50% { box-shadow: var(--ombre-accent); } }
+.ck-hero.vital { animation: ck-respire 3.6s ease-in-out infinite; }
+.ck-lignes { display: flex; flex-direction: column; gap: var(--e-05); margin-top: var(--e-3); }
+.ck-lignes-titre { font-size: var(--t-xs); font-weight: 650; letter-spacing: .08em; text-transform: uppercase; color: var(--encre-3); margin-bottom: var(--e-1); }
+.ck-ligne-argent { display: grid; grid-template-columns: 1fr auto auto; gap: var(--e-3); align-items: baseline; padding: var(--e-15) 0; border-top: 1px solid var(--trait); font-size: var(--t-sm); border-radius: var(--r-xxs); }
+.ck-ligne-argent:first-of-type { border-top: 0; }
+.ck-ligne-argent:hover b { text-decoration: underline; text-underline-offset: 3px; }
+.ck-ligne-argent:focus-visible { outline: none; box-shadow: var(--focus); }
+.ck-ligne-qui { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ck-ligne-montant { font-variant-numeric: tabular-nums; font-weight: 650; }
+.ck-ligne-jours { font-variant-numeric: tabular-nums; color: var(--encre-3); min-width: 3ch; text-align: right; }
+.ck-ligne-jours.tard { color: var(--alerte); font-weight: 650; }
+
+/* Le plan : une piste, trois paliers, le repère du jour */
 .ck-plan .spread { align-items: flex-start; gap: var(--e-4); }
-.ck-plan-phrase { font-size: var(--t-base); color: var(--encre-2); margin-top: var(--e-1); max-width: 40ch; }
+.ck-plan-phrase { font-size: var(--t-base); color: var(--encre-2); margin-top: var(--e-1); max-width: 44ch; }
 .ck-plan-phrase b { color: var(--encre); }
-.ck-jauge { position: relative; height: 18px; border-radius: var(--r-plein); background: var(--creux); box-shadow: var(--filet); margin: var(--e-6) var(--e-2) var(--e-8); }
-.ck-jauge > i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: var(--r-plein); background: var(--encre); transition: width .6s var(--anim); min-width: 0; }
+.ck-piste { position: relative; margin: var(--e-8) var(--e-2) var(--e-8); }
+.ck-jauge { position: relative; height: 20px; border-radius: var(--r-plein); background: var(--creux); box-shadow: var(--filet); }
+.ck-jauge > i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: var(--r-plein); background: var(--encre); min-width: 0; overflow: hidden; }
 .ck-jauge.ok > i { background: var(--succes); }
+/* Un reflet passe sur la jauge, toutes les six secondes : la piste est vivante. */
+@keyframes ck-reflet { from { transform: translateX(-120%); } to { transform: translateX(220%); } }
+.ck-jauge > i::after { content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 45%; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--surface) 45%, transparent), transparent); animation: ck-reflet 6s var(--anim) infinite 1.5s; }
 .ck-palier { position: absolute; top: calc(-1 * var(--e-15)); bottom: calc(-1 * var(--e-15)); width: 2px; background: var(--trait-fort); transform: translateX(-1px); }
 .ck-palier span { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); margin-top: var(--e-2); font-size: var(--t-xs); font-weight: 650; color: var(--encre-2); white-space: nowrap; }
 .ck-palier:last-child span { left: auto; right: 0; transform: none; }
 .ck-palier.atteint { background: var(--succes); }
 .ck-palier.atteint span { color: var(--succes); }
+.ck-repere { position: absolute; top: calc(-1 * var(--e-5)); bottom: calc(-1 * var(--e-2)); width: 0; border-left: 2px dashed var(--accent); transform: translateX(-1px); }
+.ck-repere span { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: var(--e-1); font-size: var(--t-xs); font-weight: 650; color: var(--accent-texte); white-space: nowrap; }
 
-/* Graphiques en SVG : une teinte, des libellés directs, une table pour le lecteur d'écran */
+/* Graphiques en SVG : une teinte, une grille légère, des libellés directs, une table pour le lecteur d'écran */
 .ck-chart text { font: 600 var(--t-xs) var(--f-texte); fill: var(--encre-3); }
 .ck-chart .ck-base { stroke: var(--trait-fort); }
+.ck-chart .ck-grille-l { stroke: var(--trait); stroke-dasharray: 2 5; }
 .ck-chart .ck-barre { fill: var(--encre-3); transition: fill var(--d-1); }
 .ck-chart .ck-barre.courant { fill: var(--encre); }
 .ck-chart .ck-barre:hover { fill: var(--accent); }
 .ck-chart .ck-val { fill: var(--encre); font-weight: 700; }
 .ck-chart .ck-val.vide { fill: var(--encre-3); font-weight: 500; }
 .ck-chart .ck-mois.courant { fill: var(--encre); font-weight: 700; }
-.ck-spark { display: block; margin: var(--e-2) 0 var(--e-3); }
-.ck-spark .ck-barre { fill: var(--encre-3); }
-.ck-spark .ck-barre.courant { fill: var(--accent); }
+.ck-courbe { display: block; margin: var(--e-2) 0 var(--e-3); overflow: visible; }
+.ck-courbe .ck-aire { fill: color-mix(in srgb, var(--encre) 8%, transparent); }
+.ck-courbe .ck-trait { fill: none; stroke: var(--encre); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 100; stroke-dashoffset: 0; }
+.ck-courbe .ck-point { fill: var(--accent); }
+.ck-courbe .ck-halo { fill: var(--accent); opacity: .25; transform-box: fill-box; transform-origin: center; }
+.ck-courbe .ck-cible { fill: transparent; }
+.ck-courbe .ck-cible:hover { fill: color-mix(in srgb, var(--encre) 10%, transparent); }
+/* Le point du jour bat : un halo qui s'ouvre et s'efface, toutes les deux secondes. */
+@keyframes ck-pouls { 0% { transform: scale(.4); opacity: .55; } 70% { transform: scale(1.6); opacity: 0; } 100% { transform: scale(1.6); opacity: 0; } }
+.ck-courbe .ck-halo { animation: ck-pouls 2.4s ease-out infinite; }
+.ck-point-vif { display: inline-block; width: 7px; height: 7px; border-radius: var(--r-plein); background: var(--succes); margin-right: var(--e-15); vertical-align: middle; animation: ck-clignote 1.6s ease-in-out infinite; }
+@keyframes ck-clignote { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
 
 /* Pipeline : le funnel du QG, avec les euros en face */
+.ck-pipe .funnel-row .f-bar > i { transform-origin: left; }
 .ck-pipe .funnel-row .f-eur { width: 64px; text-align: right; font-size: var(--t-xs); color: var(--encre-2); font-variant-numeric: tabular-nums; flex: none; }
 .ck-pipe .funnel-row .f-eur.vide::before { content: '·'; color: var(--encre-3); }
 
@@ -888,10 +947,11 @@ tr.ligne-part { opacity: .3; pointer-events: none; }
 .ck-ess { display: flex; gap: var(--e-3); align-items: flex-start; padding: var(--e-25) 0; border-top: 1px solid var(--trait); text-decoration: none; color: inherit; border-radius: var(--r-xs); }
 .ck-ess:hover .ck-ess-titre { text-decoration: underline; text-underline-offset: 3px; }
 .ck-ess:focus-visible { outline: none; box-shadow: var(--focus); }
+.ck-ess-liste { display: flex; flex-direction: column; min-height: 0; }
 .ck-ess-corps { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--e-05); }
 .ck-imp { width: 10px; height: 10px; border-radius: var(--r-plein); flex: none; margin-top: var(--e-15); background: var(--encre-3); }
 .ck-imp.imp-2 { background: var(--accent); }
-.ck-imp.imp-3 { background: var(--alerte); }
+.ck-imp.imp-3 { background: var(--alerte); box-shadow: var(--halo-alerte); }
 .ck-ess-titre { font-weight: 650; line-height: 1.35; overflow-wrap: anywhere; }
 .ck-ess-why { font-size: var(--t-sm); color: var(--encre-2); line-height: 1.4; }
 
@@ -899,7 +959,7 @@ tr.ligne-part { opacity: .3; pointer-events: none; }
 .ck-duo { display: grid; grid-template-columns: 1fr 1fr; gap: var(--e-3); margin-bottom: var(--e-3); }
 .ck-chiffre { display: block; text-decoration: none; color: inherit; border-radius: var(--r-sm); }
 .ck-chiffre .ck-n { font-family: var(--f-titre); font-size: var(--t-xl); font-weight: 750; letter-spacing: -.02em; line-height: 1.05; font-variant-numeric: tabular-nums; }
-.ck-chiffre .ck-l { text-transform: none; letter-spacing: 0; font-size: var(--t-sm); color: var(--encre-2); font-weight: 500; margin-top: var(--e-05); line-height: 1.35; }
+.ck-chiffre .ck-l { text-transform: none; letter-spacing: 0; font-size: var(--t-sm); color: var(--encre-2); font-weight: 500; margin-top: var(--e-05); line-height: 1.35; display: block; }
 .ck-chiffre.alerte .ck-n { color: var(--alerte); }
 a.ck-chiffre:hover .ck-l { text-decoration: underline; text-underline-offset: 3px; }
 .ck-ligne-info { font-size: var(--t-sm); color: var(--encre-2); padding-top: var(--e-2); border-top: 1px solid var(--trait); display: flex; gap: var(--e-2); flex-wrap: wrap; align-items: center; }
@@ -920,48 +980,82 @@ a.ck-chiffre:hover .ck-l { text-decoration: underline; text-underline-offset: 3p
 .ck-agenda-heure { flex: none; width: 56px; color: var(--encre-2); font-size: var(--t-sm); font-weight: 600; }
 .ck-agenda-titre { overflow-wrap: anywhere; }
 
-/* iPad et petit portable : deux tuiles par ligne, les cartes à pleine largeur */
+/* Le fil : les dernières actions défilent, de droite à gauche, et s'arrêtent sous la souris */
+@keyframes ck-defile { to { transform: translateX(-50%); } }
+.ck-fil { grid-column: span 12; display: flex; align-items: center; gap: var(--e-4); background: var(--creux); border: 1px solid var(--trait); border-radius: var(--r-plein); padding: var(--e-2) var(--e-4); min-height: var(--ctrl-lg); overflow: hidden; }
+.ck-fil-etiquette { flex: none; font-size: var(--t-2xs); font-weight: 650; letter-spacing: .1em; text-transform: uppercase; color: var(--encre-3); }
+.ck-fil-fenetre { flex: 1; min-width: 0; overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, black 6%, black 94%, transparent); mask-image: linear-gradient(90deg, transparent, black 6%, black 94%, transparent); }
+.ck-fil-piste { display: inline-flex; gap: var(--e-7); white-space: nowrap; width: max-content; animation: ck-defile 48s linear infinite; }
+.ck-fil:hover .ck-fil-piste { animation-play-state: paused; }
+.ck-fil-item { display: inline-flex; align-items: baseline; gap: var(--e-2); font-size: var(--t-sm); color: var(--encre-2); }
+.ck-fil-quand { color: var(--encre-3); font-size: var(--t-xs); }
+.ck-fil-texte b { color: var(--encre); font-weight: 600; }
+.ck-fil-xp { color: var(--or-texte); font-weight: 650; font-size: var(--t-xs); }
+
+/* iPad et petit portable : le héros prend la largeur, les tuiles trois par ligne, les cartes à pleine largeur */
 @media (max-width: 1100px) {
-  .ck-tuile { grid-column: span 6; }
+  .ck-hero { grid-column: span 12; }
+  .ck-tuile:not(.ck-hero) { grid-column: span 4; }
   .ck-8, .ck-7, .ck-5, .ck-4, .ck-3 { grid-column: span 12; }
 }
 /* Téléphone : tout en une colonne, l'heure se range sous le titre */
 @media (max-width: 700px) {
-  .ck-grille > * { grid-column: span 12; }
+  .ck-grille > *, .ck-tuile:not(.ck-hero) { grid-column: span 12; }
   .ck-tuile { min-height: 0; }
+  .ck-hero .ck-n { font-size: var(--t-3xl); }
   .ck-tete { flex-direction: column; align-items: stretch; }
   .ck-tete.spread > :first-child:not(:only-child) { flex: 0 0 auto; }
   .ck-tete .ck-outils { justify-content: space-between; }
   .ck-duo { grid-template-columns: 1fr 1fr; }
   .ck-palier span { display: none; }
   .ck-palier:first-of-type span, .ck-palier:last-child span { display: block; }
+  .ck-repere span { font-size: var(--t-2xs); }
+}
+
+/* Moins d'animations : tout se pose d'un coup, rien ne bouge en continu. */
+@media (prefers-reduced-motion: reduce) {
+  .ck-entree > *, .ck-entree .ck-barre, .ck-entree .ck-jauge > i, .ck-entree .ck-trait, .ck-entree .ck-ess, .ck-entree .funnel-row, .ck-entree .funnel-row .f-bar > i,
+  .ck-hero.vital, .ck-jauge > i::after, .ck-courbe .ck-halo, .ck-point-vif, .ck-fil-piste { animation: none; }
+  .ck-courbe .ck-halo { opacity: 0; }
+  .ck-anneau-avance { transition: none; }
+  .ck-fil-piste { animation: none; }
 }
 
 /* ================================================================ mode écran
    Le Cockpit seul, plein écran, pour l'iMac : plus de menu, plus de barre du
-   bas, le texte monte d'un cran et demi (jetons.css), l'heure en grand.
-   Échap ou « Quitter le mode écran » pour revenir à l'app. */
+   bas, le texte monte d'un cran et demi (jetons.css), l'heure en grand, la
+   lunette balaie. Échap ou « Quitter le mode écran » pour revenir à l'app. */
 :root[data-ecran="1"] #sidebar, :root[data-ecran="1"] #tabbar, :root[data-ecran="1"] #nav-voile, :root[data-ecran="1"] .lien-evitement { display: none; }
 :root[data-ecran="1"] #view.vue-entree > * { animation: none; }
-:root[data-ecran="1"] .ck-tete .ck-heure { font-size: var(--t-affiche); }
+:root[data-ecran="1"] .ck-heure { font-size: var(--t-affiche); }
+:root[data-ecran="1"] .ck-anneau-svg { width: var(--ctrl-lg); height: var(--ctrl-lg); }
 :root[data-ecran="1"] .ck-tete #ck-rafraichir, :root[data-ecran="1"] .ck-detail { display: none; }
 :root[data-ecran="1"] .ck-tete { margin-bottom: var(--e-4); }
 /* Sur un grand écran posé, tout tient dans la hauteur, sans défiler : les deux
-   rangées du bas se partagent la place qui reste, les graphiques se plient. */
+   rangées du milieu se partagent la place qui reste, les graphiques se plient. */
 @media (min-width: 1101px) {
   :root[data-ecran="1"] #app, :root[data-ecran="1"] #view { height: 100vh; height: 100dvh; }
   :root[data-ecran="1"] #view { max-width: none; padding: var(--e-5) var(--e-7) var(--e-6); display: flex; flex-direction: column; overflow: hidden; }
-  :root[data-ecran="1"] .ck-grille { flex: 1; min-height: 0; grid-template-rows: auto auto minmax(0, 1.7fr) minmax(0, 1fr) auto; }
+  :root[data-ecran="1"] .ck-grille { flex: 1; min-height: 0; grid-template-rows: auto auto minmax(0, 1.3fr) minmax(0, 1fr) auto auto; }
   :root[data-ecran="1"] .ck-grille > .card { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
-  :root[data-ecran="1"] .ck-tuile { min-height: 0; }
-  :root[data-ecran="1"] .ck-jauge { margin-top: var(--e-5); margin-bottom: var(--e-7); }
-  :root[data-ecran="1"] .ck-haut > :last-child, :root[data-ecran="1"] .ck-pipe { min-height: 0; overflow: hidden; }
+  :root[data-ecran="1"] .ck-tuile { min-height: 0; padding: var(--e-5); }
+  :root[data-ecran="1"] .ck-hero .ck-n { font-size: var(--t-3xl); }
+  :root[data-ecran="1"] .ck-hero .ck-lignes { margin-top: var(--e-2); }
+  :root[data-ecran="1"] .ck-hero .ck-lignes .ck-ligne-argent:nth-child(n+3) { display: none; }
+  :root[data-ecran="1"] .ck-plan .ck-n { font-size: var(--t-2xl); }
+  :root[data-ecran="1"] .ck-plan .ck-plan-phrase { font-size: var(--t-sm); }
+  :root[data-ecran="1"] .ck-piste { margin: var(--e-8) var(--e-2) var(--e-6); }
+  :root[data-ecran="1"] .ck-ess { padding: var(--e-15) 0; }
+  :root[data-ecran="1"] .ck-fil { min-height: var(--ctrl); padding-top: var(--e-1); padding-bottom: var(--e-1); }
+  :root[data-ecran="1"] .ck-ess-liste, :root[data-ecran="1"] .ck-pipe { min-height: 0; overflow: hidden; -webkit-mask-image: linear-gradient(black 78%, transparent); mask-image: linear-gradient(black 78%, transparent); }
+  :root[data-ecran="1"] .ck-haut .mt-3, :root[data-ecran="1"] .ck-graph .ck-sous-titre { display: none; }
+  :root[data-ecran="1"] .ck-grille > .card { padding: var(--e-4) var(--e-5); }
   :root[data-ecran="1"] .ck-pipe .funnel-row { padding: 0; }
-  :root[data-ecran="1"] .ck-spark { flex: 1; min-height: 0; height: auto; }
+  :root[data-ecran="1"] .ck-courbe { flex: 1; min-height: 0; height: auto; }
   :root[data-ecran="1"] .ck-agenda .ck-agenda-lignes { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 /* Téléphone ou iPad en mode écran : la page défile, le texte garde sa taille d'appareil */
 @media (max-width: 1100px) {
   :root[data-ecran="1"] #view { max-width: none; }
-  :root[data-ecran="1"] .ck-tete .ck-heure { font-size: var(--t-2xl); }
+  :root[data-ecran="1"] .ck-heure { font-size: var(--t-2xl); }
 }

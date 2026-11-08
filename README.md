@@ -62,6 +62,11 @@ trésorerie :
 
 Chaque chiffre vient de la base : un devis, un contact, une activité. Rien n'est estimé.
 
+L'écran est vivant : la lunette de visée dérive derrière les cartes et suit la souris, l'horloge
+bat la seconde et son anneau se remplit jusqu'au prochain rafraîchissement, les chiffres comptent
+quand ils changent, le fil des dernières actions défile en bas. Si ton appareil demande « moins
+d'animations », tout se pose d'un coup et plus rien ne bouge.
+
 **Le mode écran** (bouton en haut à droite, ou `⌘K` → « Mode écran ») enlève le menu, agrandit
 tout d'un cran et demi, affiche l'heure en grand, se rafraîchit toutes les 60 secondes (réglable)
 et empêche l'écran de s'endormir tant que la page est visible. `Échap` ou « Quitter le mode

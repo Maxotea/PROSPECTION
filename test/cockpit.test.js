@@ -201,6 +201,15 @@ test('activité : quatorze jours, les notes exclues, aujourd’hui en dernier', 
   assert.strictEqual(A[13].day, today);
   assert.deepStrictEqual({ n: A[13].n, xp: A[13].xp }, { n: 2, xp: 25 });
   assert.strictEqual(A[0].n, 1);
+
+  // Le fil : les dernières actions, la plus récente en premier, les notes exclues, le nom du contact posé.
+  const F = cockpit.fil();
+  assert.strictEqual(F.length, 4);
+  assert.strictEqual(F[0].type, 'appel');
+  assert.strictEqual(F[0].nom, 'A B');
+  assert.strictEqual(F[0].societe, 'Client');
+  assert.ok(F[0].label && F[0].emoji, 'chaque action a un libellé et un emoji');
+  assert.ok(F.every((f) => f.type !== 'note'));
 });
 
 // ================================================================ l'état complet

@@ -35,6 +35,14 @@ qu'on ouvre tous les matins. Il doit se lire en un coup d'œil, rester dense san
   atteint, facturé du mois). Chaque graphique a sa table `sr-only`. Le **mode écran**
   (`:root[data-ecran="1"]`) cache la navigation et monte toute l'échelle typographique d'un
   cran et demi, dans `jetons.css` comme le reste : rien n'est écrit en dur dans les composants.
+  Le Cockpit est vivant, mais chaque mouvement dit quelque chose : derrière les cartes, la
+  lunette de visée (canvas) dérive lentement et suit la souris, le cercle proche plus que le
+  lointain (parallaxe) ; en mode écran, un balayage tourne comme un radar. L'horloge bat la
+  seconde et son anneau se remplit jusqu'au prochain rafraîchissement ; les chiffres comptent
+  de l'ancienne valeur à la nouvelle ; à l'entrée, les cartes montent l'une après l'autre, les
+  barres poussent, la jauge se remplit, la courbe se trace ; la tuile héros respire, un reflet
+  passe sur la piste, le point du jour bat, le fil des dernières actions défile et s'arrête
+  sous la souris. Tout s'éteint sous « moins d'animations ».
 
 - **Ma journée** s'ouvre sur « L'essentiel du jour » : les trois choses à faire en premier, chacune avec Ouvrir, Demain et Fait. Le reste suit, sans répéter ces trois-là.
 - **Palette** (`Ctrl K`, `⌘K` ou `/`) : aller à un écran, chercher un contact, lancer une action. Raccourcis : `G` puis une lettre pour changer d'écran, `N` nouveau contact, `T` nouvelle tâche, `?` pour la liste complète.
