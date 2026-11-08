@@ -87,6 +87,7 @@ const repertoire = require('./src/importers/repertoire');
 const { seedDemo } = require('./seed');
 const migrationTirets = require('./src/migrations/tirets');
 const journee = require('./src/journee');
+const cockpit = require('./src/cockpit');
 const agenda = require('./src/integrations/agenda');
 const annulation = require('./src/annulation');
 const { avecRetour, cible, ciblesContact } = annulation;
@@ -339,6 +340,9 @@ route('GET', '/api/state', async () => {
     journee: { total: p.total, vitaux: p.vitaux, matin: p.blocs.matin.length, pierre: p.blocs.pierre.length, faits: p.faits_aujourdhui },
   };
 });
+
+// ---- 🧭 Cockpit : tout ce qui se passe, en un appel, pour l'écran qui reste affiché
+route('GET', '/api/cockpit', async () => cockpit.etat());
 
 // ---- ☀️ Ma journée : la to-do du matin, lue dans Gmail, WhatsApp, les appels et le CRM
 route('GET', '/api/journee', async () => journee.plan());

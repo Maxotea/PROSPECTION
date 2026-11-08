@@ -45,7 +45,7 @@ for (const fichier of ['app.css', 'connexion.css']) {
 
 test('le JS de l’interface n’écrit ni couleur ni taille de texte en dur', () => {
   const fautes = [];
-  for (const f of ['app.js', 'journee.js', 'ui.js', 'game.js', 'connexion.js']) {
+  for (const f of ['app.js', 'journee.js', 'cockpit.js', 'ui.js', 'game.js', 'connexion.js']) {
     lire(f).split('\n').forEach((ligne, i) => {
       if (/^\s*\/\//.test(ligne)) return;
       if (/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b(?![\w-])/.test(ligne.replace(/href="#[^"]*"|'#[\w-]+'|"#[\w-]+"|`#[\w-]+|#\/\w+|#i-\w+/g, ''))) fautes.push(`${f}:${i + 1} couleur`);

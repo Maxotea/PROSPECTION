@@ -13,6 +13,8 @@ Quatre moteurs :
 2. **🤖 L'Autopilote** : la machine qui prospecte à ta place : elle enrôle tes contacts (anciens clients Pennylane, HubSpot, ta boîte Gmail) dans des **séquences email**, envoie depuis **ton Gmail** (chaque relance reste dans le même fil), respecte un cap quotidien et des horaires ouvrés, **détecte les réponses dans ta boîte** et stoppe la séquence dès qu'on te répond : il ne te reste qu'à transformer la réponse en call.
 3. **🎮 Le CRM gamifié** : import Pennylane / LinkedIn / HubSpot, enrichissement FullEnrich, typologies de clients, Mode Chasse, devis Pennylane en 2 clics, XP, quêtes, streak, badges, boss final « 5 factures ».
 
+Et, au-dessus des quatre, **🧭 le Cockpit** : tout ce qui se passe en un seul écran, l'argent d'abord (à facturer, devis en attente, devis à faire, facturé ce mois), le plan et ses paliers, le facturé par mois, la journée, le radar du pipeline, les relances, et le tableau de chasse (XP, quêtes, badges, célébrations) qui fait du Cockpit un jeu. Il se rafraîchit tout seul et possède un **mode écran** pour rester affiché sur l'iMac toute la journée. Détail plus bas.
+
 ---
 
 ## 🚀 Démarrage (2 minutes)
@@ -40,6 +42,60 @@ npm start          # ou : node server.js
 Pour essayer avec des données fictives : `npm run demo` (et `npm run reset` pour tout remettre à zéro).
 
 Toutes tes données (contacts, clés API, historique) restent **sur ta machine**, dans `data/prospection.db` (gitignoré). Le serveur n'écoute que sur `127.0.0.1`.
+
+### 🧭 Le Cockpit : l'écran qui reste allumé
+
+Le Cockpit (`#/cockpit`, ou `G` puis `K`) rassemble en un écran ce que le QG, Ma journée,
+le Pipeline et l'Autopilote savent chacun de leur côté, dans l'ordre qui compte pour la
+trésorerie :
+
+1. **L'argent, en quatre tuiles** : à facturer (devis acceptés pas encore facturés, le plus
+   ancien depuis combien de jours), devis en attente (et combien sont à relancer), devis à
+   faire (RDV pris sans devis), facturé ce mois.
+2. **Le plan** : le facturé entre deux dates face à trois paliers Moyen / Bien / Wow, avec ce
+   qu'il manque pour le prochain et le temps qu'il reste. Les dates et les paliers se règlent
+   dans Réglages → Cockpit ; sans réglage, c'est le trimestre en cours.
+3. **Le facturé par mois** (six mois), **la journée** (les trois choses qui comptent, cliquables),
+   **le radar** (chaque contact du pipeline est un point, du premier contact au centre : plus il
+   est proche, plus il est près de la facture ; les chauds brillent, le balayage tourne),
+   **relances et réponses**, **l'activité** des 14 derniers jours avec les segments du boss, et
+   l'agenda du jour s'il est branché.
+4. **Le tableau de chasse**, le jeu de la Chasse posé dans le Cockpit : niveau et barre d'XP,
+   XP du jour, série de jours (la flamme), cadence du jour face au record (une jauge à aiguille),
+   les trois quêtes du jour avec leur avancement et leur récompense, et la vitrine des badges
+   (les gagnés en couleur, les autres en silhouette). La tuile « à facturer » dit ce que rapporte
+   la facture (+100 XP et un segment du boss), les paliers du plan portent des trophées.
+
+Chaque chiffre vient de la base : un devis, un contact, une activité. Rien n'est estimé.
+
+Et quand quelque chose se passe, le Cockpit le fête : à chaque rafraîchissement il compare
+l'état d'avant et l'état d'après. De l'XP gagnée flotte au-dessus du tableau de chasse, une
+quête finie, un badge débloqué ou un devis accepté font un toast avec le bon son, une facture
+émise, un niveau gagné, le boss battu, un palier du plan atteint ou la série qui passe un cap
+(7, 14, 30 jours) déclenchent une grande célébration plein écran, confettis compris. Les cartes
+s'inclinent légèrement sous la souris, la lunette de visée tourne dans la tuile « à facturer ».
+
+L'écran est vivant : la lunette de visée dérive derrière les cartes et suit la souris, l'horloge
+bat la seconde et son anneau se remplit jusqu'au prochain rafraîchissement, les chiffres comptent
+quand ils changent, le fil des dernières actions défile en bas. Si ton appareil demande « moins
+d'animations », tout se pose d'un coup et plus rien ne bouge.
+
+**Le mode écran** (bouton en haut à droite, ou `⌘K` → « Mode écran ») enlève le menu, agrandit
+tout d'un cran et demi, affiche l'heure en grand, se rafraîchit toutes les 60 secondes (réglable)
+et empêche l'écran de s'endormir tant que la page est visible. `Échap` ou « Quitter le mode
+écran » pour revenir à l'app. L'adresse directe : **`http://localhost:1337/?ecran=1#/cockpit`**.
+
+**Sur l'iMac** : double-clique **`ecran-imac.command`**. Il lance OTEA Moteur si besoin et ouvre
+le Cockpit en plein écran (Chrome en mode application s'il est installé, sinon Safari : `⌃⌘F`).
+Pour que l'iMac ne coupe jamais l'écran : Réglages Système → Écran de verrouillage → « Éteindre
+l'écran sur secteur » : jamais. Avec `demarrer-toujours.command` installé, l'app est déjà là au
+réveil : il ne reste qu'à rouvrir la fenêtre du Cockpit.
+
+**Sur le MacBook, l'iPad et l'iPhone** : la même adresse que le reste de l'app (mode réseau sur
+le même Wi-Fi, Tailscale en déplacement, ou la version en ligne) suivie de `#/cockpit`. La grille
+se replie seule : deux tuiles par ligne sur l'iPad, une colonne sur l'iPhone. Safari → Partager →
+**Sur l'écran d'accueil** sur l'adresse `…/?ecran=1#/cockpit` donne une icône qui ouvre directement
+le tableau de bord, plein écran, sans menu.
 
 ### ☁️ Mettre OTEA Moteur en ligne (comme Make)
 
