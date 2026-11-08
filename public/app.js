@@ -1,6 +1,7 @@
 'use strict';
 /* ⚙️ OTEA Moteur : SPA vanilla (aucune dépendance, aucun build).
-   Vues : QG, Mode Chasse, Pipeline, Contacts, Réponses, Imports, Réglages. */
+   Vues : Ma journée, Pilotage, Résultats clients (public/pilotage.js), puis la
+   prospection (La Chasse, Score, Autopilote, Campagnes), le CRM et les outils. */
 
 // ---------------------------------------------------------------- helpers
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -152,7 +153,7 @@ async function celebrate(res) {
 }
 
 // ---------------------------------------------------------------- routeur
-const VIEWS = { journee: vJournee, qg: vQG, chasse: vChasse, autopilot: vAutopilot, campagnes: vCampagnes, pipeline: vPipeline, contacts: vContacts, inbox: vInbox, import: vImport, reglages: vReglages };
+const VIEWS = { journee: vJournee, pilotage: vPilotage, clients: vClients, qg: vQG, chasse: vChasse, autopilot: vAutopilot, campagnes: vCampagnes, pipeline: vPipeline, contacts: vContacts, inbox: vInbox, import: vImport, reglages: vReglages };
 
 // Pendant qu'une vue charge : sa silhouette, plutôt qu'un écran vide.
 function squeletteVue() {
@@ -221,7 +222,7 @@ async function vQG(view) {
 
   view.innerHTML = `
     <div class="view-header spread">
-      <div><h1>🏰 Quartier général</h1><div class="sub">Salut chasseur. ${S.streak.alive_today ? 'Streak sécurisée pour aujourd’hui ✅' : 'Ta streak attend une action aujourd’hui 👀'}</div></div>
+      <div><h1>🏰 Score de chasse</h1><div class="sub">Salut chasseur. ${S.streak.alive_today ? 'Streak sécurisée pour aujourd’hui ✅' : 'Ta streak attend une action aujourd’hui 👀'}</div></div>
       <a class="btn primary big" href="#/chasse">⚔️ Lancer La Chasse</a>
     </div>
     ${onboarding}
