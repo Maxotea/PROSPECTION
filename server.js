@@ -88,6 +88,7 @@ const { seedDemo } = require('./seed');
 const migrationTirets = require('./src/migrations/tirets');
 const journee = require('./src/journee');
 const cockpit = require('./src/cockpit');
+const fusion = require('./src/fusion');
 const agenda = require('./src/integrations/agenda');
 const annulation = require('./src/annulation');
 const { avecRetour, cible, ciblesContact } = annulation;
@@ -542,7 +543,7 @@ route('GET', '/api/export.csv', async (req, params, query, res) => {
   const rows = all('SELECT * FROM contacts WHERE archived = 0 ORDER BY id');
   const headers = ['first_name', 'last_name', 'email', 'phone', 'company', 'job_title', 'linkedin_url', 'segment', 'stage', 'origin', 'is_former_client', 'revenue_history', 'city', 'notes'];
   const body = csv.toCsv(headers, rows);
-  res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="la-chasse-contacts.csv"' });
+  res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="otea-moteur-contacts.csv"' });
   res.end(body);
   return null; // réponse déjà envoyée
 });
@@ -892,7 +893,7 @@ route('GET', '/api/sauvegarde', async (req, params, query, res) => {
     const jour = dbApi.localDay();
     res.writeHead(200, {
       'Content-Type': 'application/octet-stream',
-      'Content-Disposition': `attachment; filename="la-chasse-${jour}.db"`,
+      'Content-Disposition': `attachment; filename="otea-moteur-${jour}.db"`,
       'Content-Length': contenu.length,
       'Cache-Control': 'no-store',
     });
@@ -944,6 +945,43 @@ route('POST', '/api/restauration', async (req) => {
     // lire la nouvelle. L'hébergeur (ou le démarrage automatique) la relance seul.
     setTimeout(() => process.exit(1), 400);
     return { ok: true, message: 'Sauvegarde restaurée. OTEA Moteur redémarre, recharge la page dans quelques secondes.' };
+  } finally {
+    try { fs.rmSync(dossier, { recursive: true, force: true }); } catch { /* rien à nettoyer */ }
+  }
+});
+
+// ---- 🧩 Fusion : verser une autre base dans celle-ci, sans rien effacer ici
+// Le cas des deux OTEA Moteur qui ont vécu chacun leur vie (le Mac et la version
+// en ligne). Les contacts se rapprochent, l'historique s'additionne, les
+// réglages déjà remplis ici restent. ?simulation=1 compte sans rien changer.
+route('POST', '/api/fusion', async (req, params, query) => {
+  const contenu = await readRaw(req);
+  if (contenu.length < 1024) throw httpError(400, 'Fichier vide ou trop petit pour être une sauvegarde.');
+  const dossier = fs.mkdtempSync(path.join(os.tmpdir(), 'moteur-fusion-'));
+  const candidat = path.join(dossier, 'autre.db');
+  fs.writeFileSync(candidat, contenu);
+  try {
+    const { DatabaseSync } = require('node:sqlite');
+    try {
+      const essai = new DatabaseSync(candidat, { readOnly: true });
+      essai.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all();
+      essai.close();
+    } catch {
+      throw httpError(400, "Ce fichier n'est pas une sauvegarde d'OTEA Moteur. Reprends le fichier téléchargé depuis Réglages de l'autre version.");
+    }
+    const simulation = String(query.simulation || '') === '1';
+    if (!simulation) {
+      // Filet : la base d'ici est mise de côté avant d'être complétée.
+      try { dbApi.db.exec(`VACUUM INTO '${(dbApi.DB_PATH + '.avant-fusion').replace(/'/g, "''")}'`); } catch { /* pas de place pour le filet : on continue, la fusion est transactionnelle */ }
+    }
+    let rapport;
+    try {
+      rapport = fusion.fusionnerBase(candidat, { simulation });
+    } catch (e) {
+      if (/pas une sauvegarde/.test(e.message)) throw httpError(400, e.message);
+      throw e;
+    }
+    return { ok: true, simulation, rapport, resume: fusion.resumer(rapport), message: simulation ? 'Simulation terminée, rien n\'a changé.' : 'Fusion terminée. Les deux bases n\'en font plus qu\'une.' };
   } finally {
     try { fs.rmSync(dossier, { recursive: true, force: true }); } catch { /* rien à nettoyer */ }
   }
