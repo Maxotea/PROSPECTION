@@ -43,6 +43,18 @@ qu'on ouvre tous les matins. Il doit se lire en un coup d'œil, rester dense san
   barres poussent, la jauge se remplit, la courbe se trace ; la tuile héros respire, un reflet
   passe sur la piste, le point du jour bat, le fil des dernières actions défile et s'arrête
   sous la souris. Tout s'éteint sous « moins d'animations ».
+  **Le jeu dans le Cockpit** parle en or laiton (`--or`, `--or-texte`), jamais en orange : l'orange
+  reste l'argent et le vital. Le radar (`ckRadarHtml`) place chaque contact du pipeline sur des
+  anneaux concentriques, du premier contact dehors à la facture au centre ; les chauds pulsent,
+  un balayage conique tourne. Le tableau de chasse (`ckChasseHtml`) reprend les pièces de la
+  Chasse : niveau, barre d'XP, flamme de série, jauge de cadence à aiguille (`--angle`), quêtes
+  avec barre d'avancement, badges en silhouette. Les événements (`ckEvenements`) comparent l'état
+  précédent et le nouveau : XP qui flotte (`ckFlotte`), toasts de `fx` pour les petites choses,
+  grande célébration plein écran (`ckGrandeCelebration`, `CK_FETES`) pour la facture, le niveau,
+  le boss, un palier atteint ou un cap de série. Les cartes s'inclinent sous la souris
+  (`--rx`/`--ry`), jamais plus de deux degrés. En mode écran, les rangées se compactent (héros
+  plus bas, piste du plan resserrée, courbe d'activité plus courte) pour que la rangée du milieu
+  (Aujourd'hui, Radar, Tableau de chasse) garde la place.
 
 - **Ma journée** s'ouvre sur « L'essentiel du jour » : les trois choses à faire en premier, chacune avec Ouvrir, Demain et Fait. Le reste suit, sans répéter ces trois-là.
 - **Palette** (`Ctrl K`, `⌘K` ou `/`) : aller à un écran, chercher un contact, lancer une action. Raccourcis : `G` puis une lettre pour changer d'écran, `N` nouveau contact, `T` nouvelle tâche, `?` pour la liste complète.

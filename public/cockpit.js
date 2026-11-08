@@ -1,4 +1,4 @@
-/* 🧭 Cockpit : tout ce qui se passe, en un écran.
+/* 🧭 Cockpit : tout ce qui se passe, en un écran, et le jeu qui va avec.
    La vue #/cockpit de l'app, et son mode écran (plein écran, sans menu, texte
    lisible à trois mètres) pour l'iMac qui reste allumé toute la journée.
    Les mêmes chiffres s'ouvrent sur le MacBook, l'iPad et l'iPhone : même
@@ -8,13 +8,22 @@
    lentement et suit la souris (parallaxe) ; l'horloge bat la seconde, son
    anneau se remplit jusqu'au prochain rafraîchissement ; les chiffres comptent
    quand ils changent, les barres poussent, la jauge respire, le fil des
-   dernières actions défile. Tout s'éteint si l'appareil demande moins
-   d'animations.
+   dernières actions défile.
+
+   Le jeu de la Chasse, vu du Cockpit : le radar où chaque contact est un
+   point (plus il est près du centre, plus il est près de signer), le tableau
+   de chasse (niveau, XP, streak, quêtes du jour, badges, cadence face à ton
+   record), et les célébrations quand quelque chose arrive pendant que
+   l'écran est allumé : une réponse, un devis accepté, une facture, un
+   niveau, un palier du plan. Même sons et confettis que la Chasse (game.js).
+   Tout s'éteint si l'appareil demande moins d'animations.
 
    Rien n'est calculé ici : le serveur (/api/cockpit) donne l'état complet,
    l'écran le dessine et se rafraîchit tout seul. */
 
 let ckEtat = null;        // dernier état reçu du serveur
+let ckAncien = null;      // l'état d'avant, pour voir ce qui vient d'arriver
+let ckDernierFil = null;  // id de la dernière action vue dans le fil
 let ckTimer = null;       // rafraîchissement des données
 let ckSeconde = null;     // l'horloge, l'anneau et « mis à jour il y a », chaque seconde
 let ckVerrou = null;      // verrou d'écran (le Mac ne s'endort pas en mode écran)
@@ -43,6 +52,8 @@ function ckDepuisTexte() {
   return `il y a ${Math.round(s / 60)} min`;
 }
 function ckDateCourte(j) { return j ? `${j.slice(8, 10)}/${j.slice(5, 7)}` : ''; }
+// Un nombre toujours identique pour un même contact : sa place sur le radar ne change pas d'un rafraîchissement à l'autre.
+function ckHash(n) { let h = (Number(n) * 2654435761) >>> 0; h ^= h >>> 15; h = Math.imul(h, 2246822519) >>> 0; return h ^ (h >>> 13); }
 
 // ---------------------------------------------------------------- mode écran
 function ckEnModeEcran() { return document.documentElement.dataset.ecran === '1'; }
@@ -89,6 +100,7 @@ function ckArreter() {
   if (ckSeconde) clearInterval(ckSeconde);
   ckTimer = null; ckSeconde = null; ckVue = null; ckPremier = true;
   ckFondDemonter();
+  $$('.ck-celebration').forEach((el) => el.remove());
   // Le menu revient dès qu'on quitte le Cockpit ; le choix reste mémorisé pour la prochaine fois.
   ckPoserModeEcran(false, { memoriser: false });
 }
@@ -99,6 +111,7 @@ async function vCockpit(view) {
   ckVue = view;
   ckPoserModeEcran(ckModeEcranDemande(), { memoriser: false });
   ckFondMonter();
+  ckInclinaison(view);
   await ckCharger();
   ckPeriode = Math.max(15, (ckEtat && ckEtat.rafraichissement_s) || 60) * 1000;
   ckTimer = setInterval(ckCharger, ckPeriode);
@@ -108,9 +121,12 @@ async function vCockpit(view) {
 async function ckCharger() {
   if (!ckVue || !location.hash.startsWith('#/cockpit')) return;
   try {
-    ckEtat = await api('/cockpit');
+    const nouvel = await api('/cockpit');
+    ckAncien = ckEtat;
+    ckEtat = nouvel;
     ckDepuis = Date.now();
     ckDessiner();
+    ckEvenements();
   } catch (e) {
     if (!ckEtat) ckVue.innerHTML = `<div class="card erreur" role="alert"><h2>Le Cockpit n’a pas pu charger</h2><p>${esc(e.message)}</p><div class="row mt-3"><button class="primary" id="ck-reessayer">Réessayer</button></div></div>`;
     const b = $('#ck-reessayer'); if (b) b.onclick = ckCharger;
@@ -156,18 +172,22 @@ function ckDessiner() {
       ${ckHeroHtml(E.argent, idx)}
       ${ckTuilesArgent(E.argent, idx)}
       ${ckPlanHtml(E.plan, idx)}
-      <div class="card ck-5 ck-haut ${E.journee.vitaux ? 'bord-alerte' : ''}" ${idx()}>${ckJourneeHtml(E.journee)}</div>
-      <div class="card ck-3 ck-haut" ${idx()}>${ckRelancesHtml(E)}</div>
-      <div class="card ck-4 ck-haut" ${idx()}><div class="spread"><h2>Pipeline</h2>${ckConversionChip(E.conversion)}</div>${ckPipelineHtml(E.pipeline)}</div>
-      <div class="card ck-8 ck-graph" ${idx()}><div class="spread"><h2>Facturé par mois</h2><span class="chip faint ck-detail">devis marqués « facturé »</span></div>${ckGrapheMois(E.ca_mois, ecran ? 120 : 170)}</div>
+      <div class="card ck-4 ck-haut ${E.journee.vitaux ? 'bord-alerte' : ''}" ${idx()}>${ckJourneeHtml(E.journee)}</div>
+      <div class="card ck-4 ck-haut ck-radar-carte" ${idx()}>${ckRadarHtml(E)}</div>
+      <div class="card ck-4 ck-haut ck-chasse" ${idx()}>${ckChasseHtml(E)}</div>
+      <div class="card ck-5 ck-graph" ${idx()}><div class="spread"><h2>Facturé par mois</h2><span class="chip faint ck-detail">devis marqués « facturé »</span></div>${ckGrapheMois(E.ca_mois, ecran ? 120 : 170)}</div>
       <div class="card ck-4 ck-graph" ${idx()}>${ckActiviteHtml(E)}</div>
+      <div class="card ck-3" ${idx()}>${ckRelancesHtml(E)}</div>
       ${ckAgendaHtml(E.agenda, idx)}
       ${ckFilHtml(E.fil, idx)}
     </section>`;
 
   $('#ck-rafraichir').onclick = ckCharger;
   $('#ck-ecran').onclick = () => { ckPoserModeEcran(!ckEnModeEcran()); ckPremier = true; ckDessiner(); };
-  $$('[data-open-contact]', ckVue).forEach((el) => { el.onclick = (e) => { e.preventDefault(); openContact(el.dataset.openContact); }; });
+  $$('[data-open-contact]', ckVue).forEach((el) => {
+    el.onclick = (e) => { e.preventDefault(); openContact(el.dataset.openContact); };
+    el.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openContact(el.dataset.openContact); } };
+  });
   ckCompterLesChiffres();
   ckTic();
   ckPremier = false;
@@ -207,6 +227,107 @@ function ckCompterLesChiffres() {
   });
 }
 
+// ---------------------------------------------------------------- 🎉 ce qui vient d'arriver
+// Entre deux rafraîchissements, le fil dit ce qui s'est passé. Chaque nouveauté a
+// sa célébration : discrète pour une relance, grande pour une facture. Sons et
+// confettis sont ceux de la Chasse (fx, dans game.js), donc le même réglage de son.
+const CK_FETES = {
+  reponse_recue: { son: 'pop', confettis: 40, texte: (f) => `💬 Réponse de <b>${esc(f.nom || f.societe)}</b>` },
+  rdv_pris: { son: 'quest', confettis: 70, texte: (f) => `📅 RDV pris avec <b>${esc(f.societe || f.nom)}</b>` },
+  devis_envoye: { son: 'coin', confettis: 0, texte: (f) => `📄 Devis envoyé à <b>${esc(f.societe || f.nom)}</b>` },
+  devis_accepte: { son: 'quest', confettis: 120, grand: (f) => ({ emoji: '🤝', titre: 'Devis accepté', sous: `${esc(f.societe || f.nom)} : à facturer maintenant` }) },
+  facture: { son: 'cash', confettis: 200, grand: (f) => ({ emoji: '💰', titre: 'FACTURE', sous: `${esc(f.societe || f.nom)}${f.note ? ` · ${esc(f.note)}` : ''}` }) },
+  quest_bonus: { son: 'quest', confettis: 50, texte: (f) => `Quête accomplie : <b>${esc(f.note)}</b>` },
+  badge_bonus: { son: 'badge', confettis: 90, texte: (f) => `Badge : <b>${esc(f.note.replace(/^.*?Badge\s*:\s*/, ''))}</b>` },
+};
+function ckEvenements() {
+  const E = ckEtat;
+  const ids = (E.fil || []).map((f) => f.id);
+  const plusRecent = ids.length ? Math.max(...ids) : 0;
+  if (ckDernierFil === null) { ckDernierFil = plusRecent; return; } // première peinture : on part d'ici
+  const nouveaux = (E.fil || []).filter((f) => f.id > ckDernierFil).sort((a, b) => a.id - b.id);
+  ckDernierFil = Math.max(ckDernierFil, plusRecent);
+  const A = ckAncien;
+  if (!A) return;
+
+  // L'XP gagnée depuis la dernière fois flotte au-dessus de la barre.
+  const dxp = E.jeu.xp_total - A.jeu.xp_total;
+  if (dxp > 0) { ckFlotte(`+${dxp} XP`, '.ck-xp'); fx.play('coin'); }
+
+  let retard = 0;
+  for (const f of nouveaux) {
+    const fete = CK_FETES[f.type];
+    if (!fete) continue;
+    setTimeout(() => {
+      if (fete.grand) ckGrandeCelebration(fete.grand(f));
+      else fx.toast(fete.texte(f), 'quest', 4500);
+      fx.play(fete.son);
+      if (fete.confettis) fx.confetti(fete.confettis);
+    }, retard);
+    retard += 900;
+  }
+  if (E.jeu.level.level > A.jeu.level.level) {
+    setTimeout(() => { ckGrandeCelebration({ emoji: '🆙', titre: `Niveau ${E.jeu.level.level}`, sous: `Tu es maintenant <b>${esc(E.jeu.level.title)}</b>` }); fx.play('level'); fx.confetti(140); }, retard); retard += 1200;
+  }
+  if (E.plan.atteint && E.plan.atteint !== A.plan.atteint) {
+    const noms = { moyen: 'Moyen', bien: 'Bien', wow: 'Wow' };
+    setTimeout(() => { ckGrandeCelebration({ emoji: '🏁', titre: `Palier ${noms[E.plan.atteint]} atteint`, sous: `${eur(E.plan.total)} facturés sur le plan`, duree: 9000 }); fx.play('boss'); fx.confetti(260, { spread: 1.4 }); }, retard); retard += 1200;
+  }
+  if (E.jeu.boss.done && !A.jeu.boss.done) {
+    setTimeout(() => { ckGrandeCelebration({ emoji: '🏆', titre: 'BOSS VAINCU', sous: `${E.jeu.boss.count} factures déclenchées · ${eur(E.jeu.boss.revenue)}`, duree: 12000 }); fx.play('boss'); fx.confetti(300, { spread: 1.4 }); setTimeout(() => fx.confetti(200), 700); }, retard);
+  }
+  if (E.jeu.streak.current > A.jeu.streak.current) {
+    const fl = $('.ck-flamme', ckVue); if (fl) { fl.classList.add('boum'); setTimeout(() => fl.classList.remove('boum'), 1200); }
+  }
+}
+// Une grande célébration, qui se ferme toute seule : sur l'iMac personne ne clique.
+function ckGrandeCelebration({ emoji, titre, sous = '', duree = 7000 }) {
+  $$('.ck-celebration').forEach((el) => el.remove());
+  const el = document.createElement('div');
+  el.className = 'ck-celebration';
+  el.setAttribute('role', 'status');
+  el.innerHTML = `<div class="ck-celebration-carte"><div class="ck-celebration-emoji">${emoji}</div><div class="ck-celebration-titre">${titre}</div>${sous ? `<div class="ck-celebration-sous">${sous}</div>` : ''}</div>`;
+  const fermer = () => { el.classList.add('sort'); setTimeout(() => el.remove(), 500); };
+  el.onclick = fermer;
+  document.body.appendChild(el);
+  setTimeout(fermer, duree);
+}
+// Un petit texte qui monte et s'efface, posé sur un élément.
+function ckFlotte(texte, selecteur) {
+  const cible = $(selecteur, ckVue) || ckVue;
+  const r = cible.getBoundingClientRect();
+  const el = document.createElement('div');
+  el.className = 'ck-flotte';
+  el.textContent = texte;
+  el.style.left = `${r.left + r.width / 2}px`;
+  el.style.top = `${r.top}px`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1800);
+}
+
+// ---------------------------------------------------------------- 🎛️ les tuiles s'inclinent sous la souris
+// Trois degrés, pas plus : la carte suit le pointeur comme un panneau sur pivot.
+function ckInclinaison(view) {
+  if (view.dataset.inclinaison) return;
+  view.dataset.inclinaison = '1';
+  if (!matchMedia('(pointer: fine)').matches) return;
+  view.addEventListener('pointermove', (e) => {
+    if (ckMoinsDeMouvement()) return;
+    const carte = e.target.closest && e.target.closest('.ck-tuile, .ck-grille > .card');
+    if (!carte) return;
+    const r = carte.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width - 0.5;
+    const y = (e.clientY - r.top) / r.height - 0.5;
+    carte.style.setProperty('--rx', `${(-y * 3).toFixed(2)}deg`);
+    carte.style.setProperty('--ry', `${(x * 3).toFixed(2)}deg`);
+    carte.classList.add('ck-incline');
+  });
+  view.addEventListener('pointerout', (e) => {
+    const carte = e.target.closest && e.target.closest('.ck-tuile, .ck-grille > .card');
+    if (carte && !carte.contains(e.relatedTarget)) { carte.classList.remove('ck-incline'); carte.style.removeProperty('--rx'); carte.style.removeProperty('--ry'); }
+  });
+}
+
 // ---------------------------------------------------------------- 💰 l'argent : une tuile héros et trois tuiles
 function ckLigneArgent(l, { montant = true } = {}) {
   return `<span class="ck-ligne-argent" data-open-contact="${l.contact_id}" role="link" tabindex="0">
@@ -219,10 +340,11 @@ function ckHeroHtml(A, idx) {
   const f = A.a_facturer;
   if (f.n) {
     return `<a class="ck-tuile ck-hero vital" href="#/pipeline" ${idx()}>
+      <span class="ck-viseur" aria-hidden="true"></span>
       <div class="ck-l">À facturer<span class="ck-l-note">${ckPluriel(f.n, 'devis accepté', 'devis acceptés')}, pas encore facturé${f.n > 1 ? 's' : ''}</span></div>
       <div class="ck-n">${ckChiffre('a_facturer', f.total)}</div>
       <div class="ck-lignes">${f.lignes.slice(0, 3).map((l) => ckLigneArgent(l)).join('')}</div>
-      <div class="ck-s">${f.plus_vieux_j ? `Le plus ancien attend depuis <b>${f.plus_vieux_j} j</b>. Chaque jour de plus repousse l’encaissement d’autant.` : 'Accepté aujourd’hui : facture-le avant ce soir.'}</div>
+      <div class="ck-s"><span class="ck-s-texte">${f.plus_vieux_j ? `Le plus ancien attend depuis <b>${f.plus_vieux_j} j</b>. Chaque jour de plus repousse l’encaissement d’autant.` : 'Accepté aujourd’hui : facture-le avant ce soir.'}</span> <b class="ck-recompense">+100 XP et un segment du boss à la facture</b></div>
     </a>`;
   }
   const d = A.devis_en_cours;
@@ -262,9 +384,10 @@ function ckTuilesArgent(A, idx) {
 function ckPlanHtml(P, idx) {
   const pct = (v) => Math.min(100, Math.round((v / P.paliers.wow) * 1000) / 10);
   const noms = { moyen: 'Moyen', bien: 'Bien', wow: 'Wow' };
+  const trophees = { moyen: '🥉', bien: '🥈', wow: '🏆' };
   const ordre = ['moyen', 'bien', 'wow'];
   const atteintIdx = ordre.indexOf(P.atteint);
-  const paliers = ordre.map((k, i) => `<div class="ck-palier ${i <= atteintIdx ? 'atteint' : ''}" style="left:${pct(P.paliers[k])}%"><span>${noms[k]} · ${ckKeur(P.paliers[k])}</span></div>`).join('');
+  const paliers = ordre.map((k, i) => `<div class="ck-palier ${i <= atteintIdx ? 'atteint' : ''}" style="left:${pct(P.paliers[k])}%"><em>${trophees[k]}</em><span>${noms[k]} · ${ckKeur(P.paliers[k])}</span></div>`).join('');
   const phrase = P.atteint === 'wow'
     ? 'Palier Wow atteint. Monte les paliers dans Réglages.'
     : P.prochain
@@ -273,6 +396,7 @@ function ckPlanHtml(P, idx) {
   // Le repère du jour : où en est le temps sur la même piste. La barre devant le
   // repère, c'est de l'avance ; derrière, du retard sur le rythme du palier Wow.
   const repere = Math.round(P.avancement * 1000) / 10;
+  const avance = P.pct >= P.avancement;
   return `<div class="card ck-12 ck-plan" ${idx()}>
     <div class="spread">
       <div>
@@ -280,7 +404,7 @@ function ckPlanHtml(P, idx) {
         <div class="ck-n">${ckChiffre('plan', P.total)}<small> · ${ckPluriel(P.n, 'facture', 'factures')}</small></div>
       </div>
       <div class="a-droite">
-        <div class="ck-l">J-${P.jours_restants}</div>
+        <div class="ck-l">J-${P.jours_restants} · <span class="${avance ? 'texte-succes' : 'texte-alerte'}">${avance ? 'en avance sur le temps' : 'en retard sur le temps'}</span></div>
         <div class="ck-plan-phrase">${phrase}</div>
       </div>
     </div>
@@ -313,22 +437,98 @@ function ckGrapheMois(mois, H = 170) {
   return `<svg class="ck-chart" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Facturé par mois sur six mois">${grille}<line class="ck-base" x1="${padL}" y1="${H - padB}" x2="${W - padR}" y2="${H - padB}"/>${barres}</svg>${table}`;
 }
 
-// ---------------------------------------------------------------- 📊 pipeline : contacts par étape, euros en face
+// ---------------------------------------------------------------- 📡 le radar : chaque contact est un point
+// Les anneaux sont les étapes : « à contacter » au bord, « gagné » au centre. Un
+// point qui se rapproche du centre, c'est un prospect qui avance. Les chauds
+// sont en orange et portent leur nom ; les anciens clients froids en or (les
+// plus faciles à réveiller) ; les gagnés en vert, au cœur de la cible.
+const CK_ANNEAUX = [
+  { code: 'a_contacter', r: 148 }, { code: 'contacte', r: 126 }, { code: 'en_discussion', r: 102 },
+  { code: 'rdv', r: 78 }, { code: 'devis_envoye', r: 54 }, { code: 'negociation', r: 32 }, { code: 'gagne', r: 12 },
+];
 function ckConversionChip(C) {
   if (C.taux === null) return `<span class="chip faint" title="Aucun devis créé sur ${C.jours} jours">pas de devis sur ${C.jours} j</span>`;
-  return `<span class="chip ${C.taux >= 0.5 ? 'ok' : ''}" title="${C.signes} devis signés (acceptés ou facturés) sur ${C.envoyes} envoyés depuis ${C.jours} jours">${Math.round(C.taux * 100)} % signés · ${C.signes}/${C.envoyes} sur ${C.jours} j</span>`;
+  return `<span class="chip ${C.taux >= 0.5 ? 'ok' : ''}" title="${C.signes} devis signés (acceptés ou facturés) sur ${C.envoyes} envoyés depuis ${C.jours} jours">${Math.round(C.taux * 100)} % signés · ${C.signes}/${C.envoyes}</span>`;
 }
-function ckPipelineHtml(stages) {
-  const rows = stages.filter((s) => s.code !== 'perdu');
-  const max = Math.max(...rows.map((s) => s.count), 1);
-  return `<div class="ck-pipe">${rows.map((s, i) => {
-    const pct = Math.round((s.count / max) * 100);
-    const mix = 30 + Math.round((i / Math.max(rows.length - 1, 1)) * 65);
-    return `<div class="funnel-row" style="--i:${i}"><div class="f-label">${s.emoji} ${esc(s.label)}</div>
-      <div class="f-bar"><i style="width:${pct}%; background: color-mix(in srgb, var(--encre) ${mix}%, var(--trait-fort))"></i></div>
-      <div class="f-n">${s.count}</div>
-      <div class="f-eur ${s.montant ? '' : 'vide'}">${s.montant ? ckKeur(s.montant) : ''}</div></div>`;
-  }).join('')}</div>`;
+function ckRadarHtml(E) {
+  const R = E.radar, C = 160;
+  const anneaux = CK_ANNEAUX.map((a) => `<circle class="ck-radar-anneau" cx="${C}" cy="${C}" r="${a.r}"/>`).join('');
+  const etiquettes = E.pipeline.filter((s) => s.code !== 'perdu').map((s) => `<span class="ck-radar-etiquette" title="${esc(s.label)}">${s.emoji} <b>${s.count}</b></span>`).join('');
+  const rayonDe = (st) => (CK_ANNEAUX.find((a) => a.code === st) || CK_ANNEAUX[0]).r;
+  const maxMontant = Math.max(1, ...R.points.map((p) => p.montant));
+  let etiquetes = 0;
+  const points = R.points.map((p) => {
+    const h = ckHash(p.id);
+    const angle = ((h % 3600) / 3600) * Math.PI * 2;
+    const r0 = rayonDe(p.stage);
+    const r = p.stage === 'gagne' ? ((h >> 12) % 100) / 100 * 10 : r0 - 11 + (((h >> 12) % 100) / 100) * 22;
+    const x = C + Math.cos(angle) * r, y = C + Math.sin(angle) * r;
+    const taille = p.stage === 'gagne' ? 5 : p.chaud ? 4 + (p.montant / maxMontant) * 4 : p.ancien ? 3.2 : 2.4;
+    const classe = p.stage === 'gagne' ? 'gagne' : p.chaud ? 'chaud' : p.ancien ? 'ancien' : 'froid';
+    const delai = ((h >> 20) % 100) / 100 * 3;
+    const texte = (p.chaud || p.stage === 'gagne') && etiquetes < 9 ? (etiquetes++, `<text class="ck-radar-nom" x="${(x + (x > C ? 8 : -8)).toFixed(1)}" y="${(y + 3.5).toFixed(1)}" text-anchor="${x > C ? 'start' : 'end'}">${esc((p.societe || p.nom).slice(0, 18))}</text>`) : '';
+    return `<g class="ck-blip ${classe}" style="--d:${delai.toFixed(2)}s" data-open-contact="${p.id}" role="link" tabindex="0" aria-label="${esc(p.nom)}${p.societe ? `, ${esc(p.societe)}` : ''}">
+      <circle class="ck-blip-halo" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(taille * 2.2).toFixed(1)}"/>
+      <circle class="ck-blip-point" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${taille.toFixed(1)}"><title>${esc(p.nom)}${p.societe ? ` · ${esc(p.societe)}` : ''}${p.montant ? ` · ${eur(p.montant)}` : ''}${p.ancien ? ' · ancien client' : ''}</title></circle>
+      <circle class="ck-blip-cible" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="11"/>
+      ${texte}</g>`;
+  }).join('');
+  return `<div class="spread"><h2>Radar</h2>${ckConversionChip(E.conversion)}</div>
+    <p class="muted small ck-sous-titre">${ckPluriel(R.total, 'contact', 'contacts')} sur le radar, ${ckPluriel(R.chauds, 'chaud', 'chauds')}. Plus un point est près du centre, plus il est près de signer.</p>
+    <svg class="ck-radar" viewBox="0 0 320 320" role="img" aria-label="Radar des contacts par étape">
+      ${anneaux}
+      <path class="ck-radar-croix" d="M${C} 8V312M8 ${C}H312"/>
+      <g class="ck-radar-balayage" aria-hidden="true"><path d="M${C} ${C} L${C} 8 A152 152 0 0 1 ${(C + 152 * Math.sin(0.9)).toFixed(1)} ${(C - 152 * Math.cos(0.9)).toFixed(1)} Z"/></g>
+      ${points}
+      <circle class="ck-radar-coeur" cx="${C}" cy="${C}" r="2.5"/>
+    </svg>
+    <div class="ck-radar-legende">${etiquettes}</div>`;
+}
+
+// ---------------------------------------------------------------- 🏹 le tableau de chasse : niveau, XP, streak, quêtes, badges, cadence
+function ckJauge(valeur, max, { libelle }) {
+  // Un compte-tours : l'aiguille va de gauche (0) à droite (le record), et peut le dépasser un peu.
+  const ratio = max ? Math.min(1.15, valeur / max) : (valeur ? 1.15 : 0);
+  const angle = -90 + ratio * 180;
+  return `<div class="ck-compteur" title="${esc(libelle)}">
+    <svg viewBox="0 0 120 68" aria-hidden="true">
+      <path class="ck-compteur-fond" d="M10 60 A50 50 0 0 1 110 60"/>
+      <path class="ck-compteur-zone" d="M10 60 A50 50 0 0 1 110 60" pathLength="100" style="stroke-dashoffset:${(100 - Math.min(100, ratio * 100)).toFixed(1)}"/>
+      ${[0, .25, .5, .75, 1].map((f) => { const a = Math.PI + f * Math.PI; return `<line class="ck-compteur-trait" x1="${(60 + Math.cos(a) * 44).toFixed(1)}" y1="${(60 + Math.sin(a) * 44).toFixed(1)}" x2="${(60 + Math.cos(a) * 50).toFixed(1)}" y2="${(60 + Math.sin(a) * 50).toFixed(1)}"/>`; }).join('')}
+      <g class="ck-compteur-aiguille" style="--angle:${angle.toFixed(1)}deg"><line x1="60" y1="60" x2="60" y2="18"/><circle cx="60" cy="60" r="4"/></g>
+    </svg>
+  </div>`;
+}
+function ckChasseHtml(E) {
+  const J = E.jeu, K = E.cadence;
+  const niveau = J.level;
+  const pct = Math.round((niveau.progress || 0) * 100);
+  const quetes = J.quetes.map((q, i) => `<div class="ck-quete ${q.done ? 'done' : ''}" style="--i:${i}">
+      <span class="ck-quete-emoji">${q.emoji}</span>
+      <span class="ck-quete-corps"><span class="ck-quete-label">${esc(q.label)}</span><span class="ck-quete-barre"><i style="width:${Math.round((q.progress / q.target) * 100)}%"></i></span></span>
+      <span class="ck-quete-compte">${q.done ? ckIco('check') : `${q.progress}/${q.target}`}</span>
+      <span class="ck-quete-bonus">+${q.bonus}</span>
+    </div>`).join('');
+  const badges = J.badges.tous.map((b) => `<span class="ck-badge ${b.won ? 'won' : ''}" title="${esc(b.name)} : ${esc(b.desc)}${b.won ? '' : ' (à débloquer)'}">${b.emoji}</span>`).join('');
+  const cadenceTexte = K.record
+    ? (K.aujourdhui > K.record ? `<b class="texte-succes">Record battu !</b> ${K.aujourdhui} actions, contre ${K.record} le ${ckDateCourte(K.record_jour)}` : `${ckPluriel(K.aujourdhui, 'action', 'actions')} · record : ${K.record} le ${ckDateCourte(K.record_jour)}`)
+    : `${ckPluriel(K.aujourdhui, 'action', 'actions')} aujourd’hui · premier record à poser`;
+  return `<div class="spread"><h2>Tableau de chasse</h2><span class="chip or">⚡ ${J.xp_jour} XP aujourd’hui</span></div>
+    <div class="ck-niveau">
+      <div class="ck-niveau-num">${niveau.level}</div>
+      <div class="ck-niveau-corps">
+        <div class="ck-niveau-titre">${esc(niveau.title)}</div>
+        <div class="ck-xp"><i style="width:${pct}%"></i></div>
+        <div class="ck-niveau-sous muted small">${J.xp_total} XP${niveau.next_at ? ` · niveau ${niveau.level + 1} à ${niveau.next_at}` : ' · niveau max'}</div>
+      </div>
+      <div class="ck-streak" title="Jours d’affilée avec au moins une action"><span class="ck-flamme" aria-hidden="true">🔥</span><b>${J.streak.current}</b><span class="muted small">j</span></div>
+    </div>
+    <div class="ck-cadence">
+      ${ckJauge(K.aujourdhui, K.record, { libelle: 'Cadence du jour face à ton record' })}
+      <div class="ck-cadence-texte"><div class="ck-l">Cadence</div><div class="small">${cadenceTexte}</div></div>
+    </div>
+    <div class="ck-quetes">${quetes}</div>
+    <div class="ck-badges"><span class="ck-badges-compte">${J.badges.gagnes}/${J.badges.total}</span>${badges}</div>`;
 }
 
 // ---------------------------------------------------------------- ☀️ la journée : les trois choses qui comptent
@@ -372,7 +572,7 @@ function ckRelancesHtml(E) {
       ${ckChiffreCarte(R.dues, R.dues ? `relance${R.dues > 1 ? 's' : ''} due${R.dues > 1 ? 's' : ''}${R.plus_vieille_j ? `, la plus vieille : ${R.plus_vieille_j} j` : ''}` : 'relance due', { alerte: R.plus_vieille_j >= 7, href: '#/chasse', cle: 'relances' })}
       ${ckChiffreCarte(Q.a_traiter, Q.a_traiter ? `réponse${Q.a_traiter > 1 ? 's' : ''} à traiter` : 'réponse à traiter', { alerte: Q.a_traiter > 0, href: '#/inbox', cle: 'reponses' })}
     </div>
-    <div class="ck-ligne-info"><span class="muted small">${R.chaudes ? `${ckPluriel(R.chaudes, 'contact chaud', 'contacts chauds')} dans les relances dues · ` : ''}${ckPluriel(Q.recues_7j, 'réponse reçue', 'réponses reçues')} sur 7 j</span></div>
+    <div class="ck-ligne-info ck-ligne-contexte"><span class="muted small">${R.chaudes ? `${ckPluriel(R.chaudes, 'contact chaud', 'contacts chauds')} dans les relances dues · ` : ''}${ckPluriel(Q.recues_7j, 'réponse reçue', 'réponses reçues')} sur 7 j</span></div>
     <div class="ck-ligne-info"><a href="#/autopilot" class="lien-texte"><b>Autopilote</b></a> ${auto}</div>`;
 }
 
@@ -406,14 +606,12 @@ function ckCourbe(jours) {
 function ckActiviteHtml(E) {
   const total = E.activite.reduce((s, j) => s + j.n, 0);
   const aujourdhui = E.activite[E.activite.length - 1];
-  const J = E.jeu;
   return `<div class="spread"><h2>Activité</h2><span class="chip">${ckPluriel(total, 'action', 'actions')} sur 14 j</span></div>
     <p class="muted small ck-sous-titre">Aujourd’hui : ${ckPluriel(aujourdhui.n, 'action', 'actions')}, ${aujourdhui.xp} XP${E.campagne ? ` · campagne « ${esc(E.campagne.name)} » ${({ a_venir: 'à venir', en_cours: 'en cours', terminee: 'terminée' })[E.campagne.status] || ''}` : ''}</p>
     ${ckCourbe(E.activite)}
     <div class="ck-jeu">
-      <span>🔥 <b>${J.streak.current}</b> j de suite</span>
-      <span>Niveau <b>${J.level.level}</b> · ${esc(J.level.title)}</span>
-      <span>🎯 <b>${J.boss.count}</b>/${J.boss.goal} factures</span>
+      <span>🎯 Boss : <b>${E.jeu.boss.count}</b>/${E.jeu.boss.goal} factures</span>
+      <span class="ck-boss-segments" aria-hidden="true">${Array.from({ length: E.jeu.boss.goal }, (_, k) => `<i class="${k < E.jeu.boss.count ? 'full' : ''}"></i>`).join('')}</span>
     </div>`;
 }
 

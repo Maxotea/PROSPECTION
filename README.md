@@ -13,7 +13,7 @@ Quatre moteurs :
 2. **🤖 L'Autopilote** : la machine qui prospecte à ta place : elle enrôle tes contacts (anciens clients Pennylane, HubSpot, ta boîte Gmail) dans des **séquences email**, envoie depuis **ton Gmail** (chaque relance reste dans le même fil), respecte un cap quotidien et des horaires ouvrés, **détecte les réponses dans ta boîte** et stoppe la séquence dès qu'on te répond : il ne te reste qu'à transformer la réponse en call.
 3. **🎮 Le CRM gamifié** : import Pennylane / LinkedIn / HubSpot, enrichissement FullEnrich, typologies de clients, Mode Chasse, devis Pennylane en 2 clics, XP, quêtes, streak, badges, boss final « 5 factures ».
 
-Et, au-dessus des quatre, **🧭 le Cockpit** : tout ce qui se passe en un seul écran, l'argent d'abord (à facturer, devis en attente, devis à faire, facturé ce mois), le plan et ses paliers, le facturé par mois, le pipeline, la journée, les relances. Il se rafraîchit tout seul et possède un **mode écran** pour rester affiché sur l'iMac toute la journée. Détail plus bas.
+Et, au-dessus des quatre, **🧭 le Cockpit** : tout ce qui se passe en un seul écran, l'argent d'abord (à facturer, devis en attente, devis à faire, facturé ce mois), le plan et ses paliers, le facturé par mois, la journée, le radar du pipeline, les relances, et le tableau de chasse (XP, quêtes, badges, célébrations) qui fait du Cockpit un jeu. Il se rafraîchit tout seul et possède un **mode écran** pour rester affiché sur l'iMac toute la journée. Détail plus bas.
 
 ---
 
@@ -55,12 +55,25 @@ trésorerie :
 2. **Le plan** : le facturé entre deux dates face à trois paliers Moyen / Bien / Wow, avec ce
    qu'il manque pour le prochain et le temps qu'il reste. Les dates et les paliers se règlent
    dans Réglages → Cockpit ; sans réglage, c'est le trimestre en cours.
-3. **Le facturé par mois** (six mois), **le pipeline** par étape avec les euros en face et le
-   taux de signature sur 90 jours, **la journée** (les trois choses qui comptent, cliquables),
-   **relances et réponses**, **l'activité** des 14 derniers jours, et l'agenda du jour s'il
-   est branché.
+3. **Le facturé par mois** (six mois), **la journée** (les trois choses qui comptent, cliquables),
+   **le radar** (chaque contact du pipeline est un point, du premier contact au centre : plus il
+   est proche, plus il est près de la facture ; les chauds brillent, le balayage tourne),
+   **relances et réponses**, **l'activité** des 14 derniers jours avec les segments du boss, et
+   l'agenda du jour s'il est branché.
+4. **Le tableau de chasse**, le jeu de la Chasse posé dans le Cockpit : niveau et barre d'XP,
+   XP du jour, série de jours (la flamme), cadence du jour face au record (une jauge à aiguille),
+   les trois quêtes du jour avec leur avancement et leur récompense, et la vitrine des badges
+   (les gagnés en couleur, les autres en silhouette). La tuile « à facturer » dit ce que rapporte
+   la facture (+100 XP et un segment du boss), les paliers du plan portent des trophées.
 
 Chaque chiffre vient de la base : un devis, un contact, une activité. Rien n'est estimé.
+
+Et quand quelque chose se passe, le Cockpit le fête : à chaque rafraîchissement il compare
+l'état d'avant et l'état d'après. De l'XP gagnée flotte au-dessus du tableau de chasse, une
+quête finie, un badge débloqué ou un devis accepté font un toast avec le bon son, une facture
+émise, un niveau gagné, le boss battu, un palier du plan atteint ou la série qui passe un cap
+(7, 14, 30 jours) déclenchent une grande célébration plein écran, confettis compris. Les cartes
+s'inclinent légèrement sous la souris, la lunette de visée tourne dans la tuile « à facturer ».
 
 L'écran est vivant : la lunette de visée dérive derrière les cartes et suit la souris, l'horloge
 bat la seconde et son anneau se remplit jusqu'au prochain rafraîchissement, les chiffres comptent

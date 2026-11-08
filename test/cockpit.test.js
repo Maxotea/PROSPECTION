@@ -210,6 +210,40 @@ test('activité : quatorze jours, les notes exclues, aujourd’hui en dernier', 
   assert.strictEqual(F[0].societe, 'Client');
   assert.ok(F[0].label && F[0].emoji, 'chaque action a un libellé et un emoji');
   assert.ok(F.every((f) => f.type !== 'note'));
+  assert.ok(F.every((f) => Number.isInteger(f.id)), 'chaque entrée du fil porte l’identifiant de son activité');
+
+  // La cadence : les actions du jour face au meilleur jour des 30 derniers (les notes et les bonus ne comptent pas).
+  const C = cockpit.cadence(today);
+  assert.deepStrictEqual(C, { aujourdhui: 2, record: 1, record_jour: addDays(today, -13) });
+});
+
+test('radar : les chauds d’abord avec leurs euros, les froids ensuite, les anciens clients en tête des froids', () => {
+  nettoyer();
+  const a = contact({ prenom: 'A', nom: 'A', societe: 'Alpha', stage: 'devis_envoye' });
+  deal({ contactId: a, titre: 'x', montant: 1500, statut: 'devis_envoye' });
+  contact({ prenom: 'B', nom: 'B', societe: 'Beta', stage: 'a_contacter' });
+  contact({ prenom: 'C', nom: 'C', societe: 'Gamma', stage: 'contacte', ancien: 1 });
+  contact({ prenom: 'D', nom: 'D', societe: 'Delta', stage: 'perdu' });
+  const R = cockpit.radar();
+  assert.strictEqual(R.total, 3, 'un perdu n’est plus sur le radar');
+  assert.strictEqual(R.chauds, 1);
+  assert.strictEqual(R.points[0].societe, 'Alpha');
+  assert.strictEqual(R.points[0].chaud, true);
+  assert.strictEqual(R.points[0].montant, 1500);
+  assert.strictEqual(R.points[1].societe, 'Gamma', 'l’ancien client passe devant parmi les froids');
+  assert.strictEqual(R.points[1].ancien, true);
+  assert.strictEqual(R.points.length, 3);
+});
+
+test('jeu : niveau, quêtes du jour et badges, prêts pour le tableau de chasse', () => {
+  nettoyer();
+  const J = cockpit.jeu(today);
+  assert.ok(J.level && typeof J.level.level === 'number');
+  assert.strictEqual(J.quetes.length, 3, 'trois quêtes par jour');
+  assert.ok(J.quetes.every((q) => 'progress' in q && 'target' in q && 'bonus' in q && 'done' in q));
+  assert.strictEqual(J.badges.total, J.badges.tous.length);
+  assert.strictEqual(J.badges.gagnes, J.badges.tous.filter((b) => b.won).length);
+  assert.strictEqual(typeof J.xp_jour, 'number');
 });
 
 // ================================================================ l'état complet
@@ -218,7 +252,7 @@ test('etat : toutes les clés, et aucun tiret cadratin dans ce qui s’affiche',
   const c = contact({ prenom: 'Clara', nom: 'Bertinatti', societe: 'EBRA Events', stage: 'rdv' });
   activite({ contactId: c, type: 'rdv_pris', jour: addDays(today, -3) });
   const E = cockpit.etat();
-  for (const cle of ['genere_le', 'jour', 'jour_long', 'argent', 'plan', 'ca_mois', 'pipeline', 'conversion', 'relances', 'reponses', 'autopilote', 'journee', 'agenda', 'activite', 'jeu', 'rafraichissement_s', 'stages']) {
+  for (const cle of ['genere_le', 'jour', 'jour_long', 'argent', 'plan', 'ca_mois', 'pipeline', 'conversion', 'relances', 'reponses', 'autopilote', 'journee', 'agenda', 'activite', 'fil', 'radar', 'cadence', 'jeu', 'rafraichissement_s', 'stages']) {
     assert.ok(cle in E, `clé manquante : ${cle}`);
   }
   assert.strictEqual(E.jour, today);

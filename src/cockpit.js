@@ -198,17 +198,56 @@ function activite(today, n = 14) {
 
 // ---------------------------------------------------------------- 📜 le fil : les dernières actions, pour la bande qui défile
 function fil(limite = 12) {
-  const rows = all(`SELECT a.type, a.note, a.xp, a.created_at, c.first_name, c.last_name, c.company, c.id AS contact_id
+  const rows = all(`SELECT a.id, a.type, a.note, a.xp, a.created_at, a.meta, c.first_name, c.last_name, c.company, c.id AS contact_id
     FROM activities a LEFT JOIN contacts c ON c.id = a.contact_id
     WHERE a.type != 'note' ORDER BY a.created_at DESC, a.id DESC LIMIT ?`, limite);
   return rows.map((r) => {
     const def = game.ACTIONS[r.type] || {};
     return {
-      type: r.type, emoji: def.emoji || '•', label: def.label || r.type.replace(/_/g, ' '),
+      id: Number(r.id), type: r.type, emoji: def.emoji || '•', label: def.label || r.type.replace(/_/g, ' '),
       nom: r.contact_id ? nomContact(r) : '', societe: r.company || '', xp: Number(r.xp) || 0,
       quand: r.created_at, note: String(r.note || '').slice(0, 80),
     };
   });
+}
+
+// ---------------------------------------------------------------- 📡 le radar : chaque contact est un point, plus il est proche du centre, plus il est près de signer
+const STAGES_RADAR_CHAUDS = ['en_discussion', 'rdv', 'devis_envoye', 'negociation', 'gagne'];
+function radar(limiteFroids = 70) {
+  const chauds = all(`SELECT c.id, c.first_name, c.last_name, c.email, c.company, c.stage, c.is_former_client,
+      (SELECT COALESCE(SUM(d.amount), 0) FROM deals d WHERE d.contact_id = c.id AND d.status IN ('brouillon', 'devis_envoye', 'accepte')) AS montant
+    FROM contacts c WHERE c.archived = 0 AND c.stage IN ('en_discussion', 'rdv', 'devis_envoye', 'negociation', 'gagne')
+    ORDER BY c.updated_at DESC LIMIT 80`);
+  // Les froids : les anciens clients d'abord (ce sont les plus faciles à réveiller), puis les plus récents.
+  const froids = all(`SELECT id, first_name, last_name, email, company, stage, is_former_client FROM contacts
+    WHERE archived = 0 AND stage IN ('a_contacter', 'contacte') ORDER BY is_former_client DESC, updated_at DESC LIMIT ?`, limiteFroids);
+  const point = (c, chaud) => ({ id: c.id, nom: nomContact(c), societe: c.company || '', stage: c.stage, chaud, ancien: !!c.is_former_client, montant: Number(c.montant) || 0 });
+  const total = Number(get(`SELECT COUNT(*) AS n FROM contacts WHERE archived = 0 AND stage != 'perdu'`).n);
+  return { points: [...chauds.map((c) => point(c, true)), ...froids.map((c) => point(c, false))], total, chauds: chauds.length };
+}
+
+// ---------------------------------------------------------------- 🏁 la cadence : les actions du jour face au record des 30 derniers jours
+function cadence(today) {
+  const row = get(`SELECT day, COUNT(*) AS n FROM activities WHERE type NOT IN ('note', 'quest_bonus', 'badge_bonus') AND day >= ? AND day < ? GROUP BY day ORDER BY n DESC, day DESC LIMIT 1`, addDays(today, -30), today);
+  const aujourdhui = Number(get(`SELECT COUNT(*) AS n FROM activities WHERE type NOT IN ('note', 'quest_bonus', 'badge_bonus') AND day = ?`, today).n);
+  return { aujourdhui, record: row ? Number(row.n) : 0, record_jour: row ? row.day : '' };
+}
+
+// ---------------------------------------------------------------- 🎮 le jeu : niveau, streak, quêtes du jour, badges
+function jeu(today) {
+  const xp = game.totalXp();
+  const derniers = all('SELECT code, awarded_at FROM badges ORDER BY awarded_at DESC LIMIT 3')
+    .map((r) => ({ ...(game.BADGES.find((b) => b.code === r.code) || { code: r.code, name: r.code, emoji: '🏅' }), awarded_at: r.awarded_at }));
+  const gagnes = new Set(all('SELECT code FROM badges').map((r) => r.code));
+  return {
+    streak: game.computeStreak(),
+    level: game.levelForXp(xp),
+    xp_total: xp,
+    xp_jour: Number(get(`SELECT COALESCE(SUM(xp), 0) AS n FROM activities WHERE day = ?`, today).n),
+    boss: game.bossState(),
+    quetes: game.todayQuests().map((q) => ({ code: q.code, label: q.label, emoji: q.emoji, target: q.target, bonus: q.bonus, progress: q.progress, done: q.done })),
+    badges: { total: game.BADGES.length, gagnes: gagnes.size, derniers, tous: game.BADGES.map((b) => ({ code: b.code, name: b.name, emoji: b.emoji, desc: b.desc, won: gagnes.has(b.code) })) },
+  };
 }
 
 // ---------------------------------------------------------------- ☀️ la journée : les trois choses qui comptent
@@ -243,12 +282,6 @@ function agendaResume(p, now) {
 function etat({ now = new Date() } = {}) {
   const today = localDay(now);
   const p = journee.plan({ now });
-  const etatJeu = {
-    streak: game.computeStreak(),
-    level: game.levelForXp(game.totalXp()),
-    xp_total: game.totalXp(),
-    boss: game.bossState(),
-  };
   const camp = campaigns.currentCampaign();
   const auto = autopilot.state();
   return {
@@ -271,11 +304,13 @@ function etat({ now = new Date() } = {}) {
     agenda: agendaResume(p, now),
     activite: activite(today),
     fil: fil(),
-    jeu: etatJeu,
+    radar: radar(),
+    cadence: cadence(today),
+    jeu: jeu(today),
     campagne: camp ? { id: camp.id, name: camp.name, status: camp.status, stats: camp.stats, posted: !!camp.posted } : null,
     rafraichissement_s: Math.max(15, Number(getSetting('cockpit_rafraichissement')) || 60),
     stages: playbooks.STAGES,
   };
 }
 
-module.exports = { etat, argent, plan, caParMois, pipeline, conversion, relances, reponses, activite, fil, journeeResume };
+module.exports = { etat, argent, plan, caParMois, pipeline, conversion, relances, reponses, activite, fil, radar, cadence, jeu, journeeResume };
