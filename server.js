@@ -649,8 +649,13 @@ route('GET', '/api/pilotage', async () => {
   return { ...r, texte: pilotage.texteRevue(r) };
 });
 route('POST', '/api/pilotage/sync', async () => {
+  if (!dbApi.getSetting('pennylane_api_key')) throw httpError(400, 'Clé API Pennylane manquante : renseigne-la dans Réglages, puis relance la lecture.');
   try { return await pilotage.synchroniserPennylane(); }
-  catch (e) { throw httpError(502, `Pennylane n’a pas répondu : ${e.message} Vérifie la clé API dans Réglages, puis réessaie.`); }
+  catch (e) {
+    if (e.status === 401 || e.status === 403) throw httpError(502, `Pennylane refuse la clé API (${e.message}). Vérifie-la dans Réglages, puis réessaie.`);
+    if (e.status || /Réseau injoignable/.test(e.message)) throw httpError(502, `Pennylane n’a pas répondu : ${e.message} Réessaie dans quelques minutes.`);
+    throw httpError(500, `La lecture de Pennylane a échoué : ${e.message} Réessaie, et si ça recommence, envoie ce message à Claude.`);
+  }
 });
 route('POST', '/api/pilotage/pieces', async (req) => ({ piece: pilotage.creerPiece(await readBody(req)) }));
 route('PATCH', '/api/pilotage/pieces/:id', async (req, params) => ({ piece: pilotage.modifierPiece(params.id, await readBody(req)) }));

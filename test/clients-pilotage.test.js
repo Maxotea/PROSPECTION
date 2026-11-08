@@ -189,3 +189,96 @@ test('repasser une facture payée en à payer remet le reste dû', () => {
   assert.strictEqual(re.paye_le, '');
   assert.throws(() => pilotage.modifierPiece(p.id, { statut: 'accepte' }), /Statut inconnu/);
 });
+
+// ================================================================ régressions (revue de la PR #11)
+test('le rapport d’un mois ne contient aucun chiffre des mois suivants', () => {
+  vider();
+  const c = clients.creerClient({ nom: 'Club', debut: '2026-08', honoraires_mensuels: 1000, panier_moyen: 50, modele: 'vierge' });
+  const r = clients.ajouterIndicateur(c.id, { libelle: 'Réservations', role: 'reservations' });
+  for (const [m, v] of [['2026-08', 20], ['2026-09', 10], ['2026-10', 10]]) clients.saisirMois(c.id, m, [{ indicateur_id: r.id, reel: v }]);
+  clients.saisirMois(c.id, '2026-09', [{ indicateur_id: r.id, objectif: 25 }]);
+  const { texte } = clients.rapport(c.id, '2026-08');
+  assert.ok(!/Depuis le début/.test(texte), 'un seul mois suivi en août : pas de bloc cumulé');
+  assert.match(texte, /Objectifs de septembre 2026/);
+  const sept = clients.rapport(c.id, '2026-09').texte;
+  assert.match(sept, /Depuis le début \(2 mois\)/);
+  assert.match(sept, /30 réservations/);
+});
+
+test('les ratios cumulés ne comptent que le coût des mois qui ont le chiffre', () => {
+  vider();
+  const c = clients.creerClient({ nom: 'Club', debut: '2026-08', honoraires_mensuels: 1000, panier_moyen: 50, modele: 'vierge' });
+  const r = clients.ajouterIndicateur(c.id, { libelle: 'Réservations', role: 'reservations', baseline: 0 });
+  const ab = clients.ajouterIndicateur(c.id, { libelle: 'Abonnés', cumul: 'dernier' });
+  clients.saisirMois(c.id, '2026-08', [{ indicateur_id: r.id, reel: 20, objectif: 20 }, { indicateur_id: ab.id, reel: 100 }]);
+  clients.saisirMois(c.id, '2026-09', [{ indicateur_id: r.id, reel: 20, objectif: 20 }, { indicateur_id: ab.id, reel: 110 }]);
+  clients.saisirMois(c.id, '2026-10', [{ indicateur_id: r.id, objectif: 20 }, { indicateur_id: ab.id, reel: 120 }]);
+  const t = clients.tableau(c.id, { jusqu_a: '2026-10' });
+  assert.strictEqual(t.cumul.cout_total, 3000);           // l'investi reste complet
+  assert.strictEqual(t.cumul.cout_par_reservation, 50);   // 2000 / 40, pas 3000 / 40
+  assert.strictEqual(t.cumul.multiple, 1);
+  assert.strictEqual(t.cumul.roi, 0);
+  const ind = t.indicateurs.find((i) => i.id === r.id);
+  assert.strictEqual(ind.total_objectif, 40);             // octobre (sans réel) hors de l'objectif cumulé
+  assert.strictEqual(ind.atteinte, 1);
+  assert.strictEqual(t.cumul.reservations_en_plus, 40);   // point de départ 0 : une vraie valeur
+});
+
+test('au-delà de 36 mois, ce sont les plus récents qui restent', () => {
+  const m = clients.plageMois('2020-01', '2026-11');
+  assert.strictEqual(m.length, 36);
+  assert.strictEqual(m[m.length - 1], '2026-11');
+});
+
+test('un avoir Pennylane n’est ni à encaisser ni en retard', () => {
+  vider();
+  const a = pilotage.factureDepuisPennylane({ id: 70, invoice_number: 'AV-1', amount: '-720', date: '2026-10-01', deadline: '2026-10-15', paid: false, status: 'late' });
+  assert.strictEqual(a.statut, 'annulee');
+  assert.strictEqual(a.reste_du, 0);
+  pilotage.enregistrer(a);
+  const r = pilotage.revue({ today: '2026-11-08' });
+  assert.strictEqual(r.total.a_encaisser_ttc, 0);
+  assert.strictEqual(r.en_retard, 0);
+});
+
+test('une facture déjà payée à la première lecture n’est pas rangée dans un mois inventé', () => {
+  vider();
+  pilotage.enregistrer(pilotage.factureDepuisPennylane({ id: 80, amount: '1200', date: '2026-07-01', paid: true, status: 'paid' }));
+  const p = dbApi.get(`SELECT * FROM pieces WHERE source_id = '80'`);
+  assert.strictEqual(p.paye_le, '');
+  const r = pilotage.revue({ today: '2026-11-08' });
+  assert.ok(r.points.some((x) => /sans date d’encaissement/.test(x.texte)));
+});
+
+test('« Payée » cochée à la main tient face à la lecture suivante de Pennylane', () => {
+  vider();
+  const inv = { id: 90, amount: '2400', date: '2026-10-01', deadline: '2026-10-31', paid: false, status: 'late' };
+  pilotage.enregistrer(pilotage.factureDepuisPennylane(inv));
+  const p = dbApi.get(`SELECT * FROM pieces WHERE source_id = '90'`);
+  pilotage.modifierPiece(p.id, { statut: 'payee' });
+  pilotage.enregistrer(pilotage.factureDepuisPennylane(inv));
+  const apres = dbApi.get(`SELECT * FROM pieces WHERE source_id = '90'`);
+  assert.strictEqual(apres.statut, 'payee');
+  assert.strictEqual(apres.reste_du, 0);
+});
+
+test('le nom vient du contact CRM avant le libellé de la facture', () => {
+  vider();
+  dbApi.insertContact({ company: 'Raja', pennylane_customer_id: '9' });
+  pilotage.enregistrer(pilotage.factureDepuisPennylane({ id: 95, label: 'Facture F-0765', amount: '2400', date: '2026-10-01', customer: { id: 9 } }));
+  assert.strictEqual(dbApi.get(`SELECT client FROM pieces WHERE source_id = '95'`).client, 'Raja');
+  pilotage.enregistrer(pilotage.factureDepuisPennylane({ id: 96, label: 'Facture F-0999', amount: '100', date: '2026-10-01' }));
+  assert.strictEqual(dbApi.get(`SELECT client FROM pieces WHERE source_id = '96'`).client, 'Facture F-0999');
+});
+
+test('un devis du pipeline connu de Pennylane (même refusé) ou déjà facturé ne réapparaît pas', () => {
+  vider();
+  const c = dbApi.insertContact({ company: 'Pure Ocean' });
+  const now = dbApi.nowIso();
+  run(`INSERT INTO deals (contact_id, title, amount, status, pennylane_quote_id, created_at, updated_at) VALUES (?, 'Vidéo', 1500, 'devis_envoye', '28160', ?, ?)`, c.id, now, now);
+  run(`INSERT INTO deals (contact_id, title, amount, status, pennylane_invoice_id, created_at, updated_at) VALUES (?, 'Montage', 600, 'accepte', '777', ?, ?)`, c.id, now, now);
+  pilotage.enregistrer(pilotage.devisDepuisPennylane({ id: 28160, status: 'denied', amount: '1800' }));
+  const r = pilotage.revue({ today: localDay() });
+  assert.strictEqual(r.devis_en_attente.length, 0);
+  assert.strictEqual(r.acceptes_a_facturer.length, 0);
+});

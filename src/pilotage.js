@@ -32,14 +32,18 @@ function factureDepuisPennylane(inv, { nomClient = '' } = {}) {
   const reste = pick(inv, 'remaining_amount_with_tax', 'remaining_amount');
   const brut = String(pick(inv, 'status') || '').toLowerCase();
   const paye = inv.paid === true || brut === 'paid';
+  // Un avoir (montant négatif ou lié à une facture créditée) n'est ni à encaisser
+  // ni encaissé : on le range avec les annulées, sinon il passerait « en retard »
+  // et serait retiré une seconde fois du facturé quand sa facture est déjà annulée.
+  const avoir = ttc < 0 || !!pick(inv, 'credited_invoice', 'credited_invoice_id') || inv.is_credit_note === true;
   let statut = 'a_payer';
   if (inv.draft === true || brut === 'draft') statut = 'brouillon';
-  else if (['cancelled', 'canceled', 'archived'].includes(brut)) statut = 'annulee';
+  else if (avoir || ['cancelled', 'canceled', 'archived'].includes(brut)) statut = 'annulee';
   else if (paye) statut = 'payee';
   return {
     type: 'facture', source: 'pennylane', source_id: String(pick(inv, 'id')),
     numero: String(pick(inv, 'invoice_number', 'number') || ''),
-    client: nomClient || String(pick(inv, 'customer.name', 'thirdparty.name', 'label') || ''),
+    client: nomClient || String(pick(inv, 'customer.name', 'thirdparty.name') || ''),
     libelle: String(pick(inv, 'label', 'pdf_invoice_subject') || ''),
     date: jour(pick(inv, 'date', 'issue_date')),
     echeance: jour(pick(inv, 'deadline', 'due_date')),
@@ -58,7 +62,7 @@ function devisDepuisPennylane(q, { nomClient = '' } = {}) {
   return {
     type: 'devis', source: 'pennylane', source_id: String(pick(q, 'id')),
     numero: String(pick(q, 'quote_number', 'number') || ''),
-    client: nomClient || String(pick(q, 'customer.name', 'label') || ''),
+    client: nomClient || String(pick(q, 'customer.name', 'thirdparty.name') || ''),
     libelle: String(pick(q, 'label', 'pdf_invoice_subject') || ''),
     date: jour(pick(q, 'date')), echeance: jour(pick(q, 'deadline')),
     montant_ht: arr(num(pick(q, 'currency_amount_before_tax', 'amount_before_tax')) || ttc), montant_ttc: arr(ttc),
@@ -70,14 +74,21 @@ function devisDepuisPennylane(q, { nomClient = '' } = {}) {
 // Enregistre (ou met à jour) une pièce venue d'une source externe.
 // Une facture qui passe de « à payer » à « payée » sans date de paiement
 // connue prend la date du jour où on l'a vue payée : c'est l'encaissement.
+// Déjà payée à la première lecture et sans date : on n'en invente pas, elle
+// reste sans date d'encaissement (la revue le signale) plutôt que dans le mauvais mois.
 function enregistrer(p) {
   const contact = p.customer_id ? get('SELECT id, company, first_name, last_name FROM contacts WHERE pennylane_customer_id = ?', p.customer_id) : null;
-  const nom = p.client || (contact ? (contact.company || `${contact.first_name} ${contact.last_name}`.trim()) : '');
+  const nomContact = contact ? (contact.company || `${contact.first_name || ''} ${contact.last_name || ''}`.trim()) : '';
+  const nom = p.client || nomContact || p.libelle || '';
   const exist = get('SELECT * FROM pieces WHERE source = ? AND type = ? AND source_id = ?', p.source, p.type, p.source_id);
   let paye_le = p.paye_le;
-  if (p.statut === 'payee' && !paye_le) paye_le = (exist && exist.paye_le) || (exist && exist.statut !== 'payee' ? localDay() : (p.echeance && p.echeance < localDay() ? p.echeance : p.date));
+  if (p.statut === 'payee' && !paye_le) paye_le = exist ? (exist.paye_le || (exist.statut !== 'payee' ? localDay() : '')) : '';
   const now = nowIso();
   if (exist) {
+    // Ce que Maxime a coché à la main (« Payée », « Accepté ») ne recule pas
+    // parce que Pennylane n'a pas encore rapproché le paiement.
+    if (p.type === 'facture' && exist.statut === 'payee' && p.statut === 'a_payer') { p.statut = 'payee'; p.reste_du = 0; paye_le = exist.paye_le; }
+    if (p.type === 'devis' && ['accepte', 'facture'].includes(exist.statut) && p.statut === 'en_attente') p.statut = exist.statut;
     run(`UPDATE pieces SET numero = ?, client = ?, libelle = ?, date = ?, echeance = ?, montant_ht = ?, montant_ttc = ?, reste_du = ?, statut = ?, paye_le = ?, contact_id = COALESCE(?, contact_id), updated_at = ? WHERE id = ?`,
       p.numero, nom, p.libelle, p.date, p.echeance, p.montant_ht, p.montant_ttc, p.reste_du, p.statut, paye_le || '', contact ? contact.id : null, now, exist.id);
     return { id: exist.id, cree: false };
@@ -193,10 +204,12 @@ function revue({ today = localDay() } = {}) {
   // Les devis : Pennylane (ou saisis à la main) + ceux du pipeline local pas encore facturés.
   const devis = all(`SELECT * FROM pieces WHERE type = 'devis' AND statut IN ('en_attente', 'accepte') ORDER BY date`)
     .map((p) => ({ ...p, origine: 'piece', age: p.date ? ecart(p.date, today) : 0, expire_bientot: !!(p.echeance && p.echeance >= today && p.echeance <= dans7), expire: !!(p.echeance && p.echeance < today) }));
-  const plIds = new Set(devis.filter((d) => d.source === 'pennylane').map((d) => d.source_id));
+  // Un devis connu de Pennylane se lit toujours par sa pièce (son vrai statut),
+  // même facturé, refusé ou expiré : jamais une seconde fois par le pipeline.
+  const plIds = new Set(all(`SELECT source_id FROM pieces WHERE type = 'devis' AND source = 'pennylane'`).map((r) => String(r.source_id)));
   const deals = all(`SELECT d.*, c.company, c.first_name, c.last_name FROM deals d JOIN contacts c ON c.id = d.contact_id
     WHERE d.status IN ('devis_envoye', 'accepte') ORDER BY d.updated_at`)
-    .filter((d) => !d.pennylane_quote_id || !plIds.has(String(d.pennylane_quote_id)))
+    .filter((d) => !d.pennylane_invoice_id && (!d.pennylane_quote_id || !plIds.has(String(d.pennylane_quote_id))))
     .map((d) => ({
       id: d.id, origine: 'deal', contact_id: d.contact_id, client: d.company || `${d.first_name} ${d.last_name}`.trim(),
       libelle: d.title, montant_ht: d.amount, statut: d.status === 'accepte' ? 'accepte' : 'en_attente',
@@ -232,6 +245,8 @@ function revue({ today = localDay() } = {}) {
   if (vieux.length) points.push({ niveau: 'or', texte: `${vieux.length} devis sans réponse depuis plus de 10 jours : ${vieux.slice(0, 3).map((d) => d.client).filter(Boolean).join(', ')}. Une relance cette semaine.` });
   const expirent = devis.filter((d) => d.expire_bientot);
   if (expirent.length) points.push({ niveau: 'or', texte: `${expirent.length} devis expire${expirent.length > 1 ? 'nt' : ''} dans les 7 jours.` });
+  const sansDate = get(`SELECT COUNT(*) AS n, COALESCE(SUM(montant_ttc), 0) AS ttc FROM pieces WHERE type = 'facture' AND statut = 'payee' AND paye_le = ''`);
+  if (sansDate.n) points.push({ niveau: 'info', texte: `${sansDate.n} facture${sansDate.n > 1 ? 's' : ''} payée${sansDate.n > 1 ? 's' : ''} sans date d’encaissement connue (${fmt(sansDate.ttc)} TTC) : hors de l’encaissé du mois. Pose la date à la main si tu en as besoin.` });
   if (brouillons.length) points.push({ niveau: 'info', texte: `${brouillons.length} facture${brouillons.length > 1 ? 's' : ''} en brouillon dans Pennylane : à envoyer ou à supprimer.` });
   if (nbRelances) points.push({ niveau: 'info', texte: `${nbRelances} relance${nbRelances > 1 ? 's' : ''} prospect due${nbRelances > 1 ? 's' : ''}.` });
   for (const c of suivis) if (c.premier_manque) points.push({ niveau: 'info', texte: `${c.nom} : ${c.premier_manque}` });

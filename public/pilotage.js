@@ -322,7 +322,9 @@ async function vClientDetail(view, id) {
 function saisieMoisModal(t, moisChoisi) {
   const moisCourant = today().slice(0, 7);
   const choix = [...new Set([...t.mois, moisDecale(t.mois[t.mois.length - 1], 1), moisDecale(t.mois[t.mois.length - 1], 2)])];
-  const mois = moisChoisi || (choix.includes(moisDecale(moisCourant, -1)) ? moisDecale(moisCourant, -1) : choix[choix.length - 1]);
+  // Par défaut : le mois qui vient de finir, sinon le mois en cours, jamais un mois futur.
+  const precedent = moisDecale(moisCourant, -1);
+  const mois = moisChoisi || (choix.includes(precedent) ? precedent : choix.includes(moisCourant) ? moisCourant : t.mois[t.mois.length - 1]);
   const val = (i, cle) => { const l = i.mois.find((x) => x.mois === mois); return l && l[cle] !== null ? l[cle] : ''; };
   const m = modal(`
     <h2>✍️ Saisir un mois</h2>
@@ -397,6 +399,12 @@ function indicateurModal(clientId, ind) {
       <label class="field">Total sur la période<select id="im-cumul">${opt([['somme', 'Somme des mois'], ['dernier', 'Dernière valeur (abonnés)'], ['moyenne', 'Moyenne (taux)']], i.cumul)}</select></label>
     </div>
     <div class="row spread mt-3">${ind ? '<button class="ghost" id="im-suppr">🗑️ Supprimer</button>' : '<span></span>'}<button class="primary" id="im-go">Enregistrer</button></div>`);
+  // Nouvel indicateur : le total suit l'unité (un taux se moyenne) tant que Maxime ne le choisit pas lui-même.
+  if (!ind) {
+    let cumulTouche = false;
+    $('#im-cumul', m).onchange = () => { cumulTouche = true; };
+    $('#im-unite', m).onchange = () => { if (!cumulTouche) $('#im-cumul', m).value = $('#im-unite', m).value === 'pourcent' ? 'moyenne' : 'somme'; };
+  }
   $('#im-go', m).onclick = async () => {
     const body = { libelle: $('#im-lib', m).value, baseline: $('#im-base', m).value, unite: $('#im-unite', m).value, role: $('#im-role', m).value, sens: $('#im-sens', m).value, cumul: $('#im-cumul', m).value };
     try {

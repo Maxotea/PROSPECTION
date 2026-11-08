@@ -56,9 +56,11 @@ function moisSuivant(m, n = 1) {
   const d = new Date(y, mo - 1 + n, 1);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
+// Au plus 36 mois : les plus récents, pour que le mois en cours reste toujours visible.
 function plageMois(debut, fin) {
+  const plancher = moisSuivant(fin, -35);
   const out = [];
-  for (let m = debut; m <= fin && out.length < 36; m = moisSuivant(m)) out.push(m);
+  for (let m = debut > plancher ? debut : plancher; m <= fin; m = moisSuivant(m)) out.push(m);
   return out;
 }
 function libelleMois(m) { const [y, mo] = m.split('-').map(Number); return `${NOMS_MOIS[mo - 1]} ${y}`; }
@@ -214,7 +216,8 @@ function tableau(clientId, { jusqu_a } = {}) {
       };
     });
     const total_reel = cumuler(lignes.map((l) => l.reel), ind.cumul);
-    const total_objectif = cumuler(lignes.filter((l) => moisAvecReel.has(l.mois)).map((l) => l.objectif), ind.cumul);
+    // L'objectif cumulé ne compte que les mois où CET indicateur a un réel : on compare le même périmètre.
+    const total_objectif = cumuler(lignes.filter((l) => l.reel !== null).map((l) => l.objectif), ind.cumul);
     return { ...ind, mois: lignes, total_reel: arrondi(total_reel), total_objectif: arrondi(total_objectif), atteinte: arrondi(ratio(total_reel, total_objectif), 3) };
   });
 
@@ -243,16 +246,23 @@ function tableau(clientId, { jusqu_a } = {}) {
   const cout_total = somme('cout');
   const ca_total = actifs.some((s) => s.ca !== null) ? somme('ca') : null;
   const resa_total = actifs.some((s) => s.reservations !== null) ? somme('reservations') : null;
-  const baselineResa = indResa && indResa.baseline ? indResa.baseline : null;
+  // Un point de départ à 0 est une vraie valeur (aucune réservation en ligne avant OTEA).
+  const baselineResa = indResa && indResa.baseline !== null && indResa.baseline !== undefined ? indResa.baseline : null;
+  // Chaque ratio rapporte un chiffre au coût des MÊMES mois : un mois où seuls les
+  // abonnés sont saisis ne doit pas gonfler le coût par réservation ni baisser le ROI.
+  const coutSur = (f) => actifs.filter(f).reduce((a, s) => a + (s.cout || 0), 0);
+  const cout_resa = coutSur((s) => s.reservations !== null);
+  const cout_ca = coutSur((s) => s.ca !== null);
   const cumul = {
     mois_suivis: actifs.length,
     cout_total: arrondi(cout_total),
     ca_total: arrondi(ca_total),
     ca_estime: actifs.some((s) => s.ca_estime),
     reservations: resa_total,
-    cout_par_reservation: arrondi(ratio(cout_total, resa_total)),
-    multiple: arrondi(ratio(ca_total, cout_total)),
-    roi: cout_total && ca_total !== null ? arrondi((ca_total - cout_total) / cout_total, 3) : null,
+    cout_periode_ca: arrondi(cout_ca),
+    cout_par_reservation: arrondi(ratio(cout_resa, resa_total)),
+    multiple: arrondi(ratio(ca_total, cout_ca)),
+    roi: cout_ca && ca_total !== null ? arrondi((ca_total - cout_ca) / cout_ca, 3) : null,
     // Réservations en plus de ce que le client faisait avant nous, sur la période.
     reservations_en_plus: baselineResa !== null && resa_total !== null ? arrondi(resa_total - baselineResa * actifs.filter((s) => s.reservations !== null).length) : null,
   };
@@ -288,9 +298,10 @@ function fmtPct(r) { return r === null || r === undefined ? '' : `${Math.round(r
 // Le rapport mensuel, en texte prêt à coller dans un mail ou un doc.
 function rapport(clientId, mois) {
   const m = mois ? verifierMois(mois) : moisSuivant(moisCourant(), -1);
-  const t = tableau(clientId, {});
+  // Le rapport d'un mois s'arrête à ce mois : jamais de chiffres que le client ne pouvait pas encore avoir.
+  const t = tableau(clientId, { jusqu_a: m });
   const i = t.mois.indexOf(m);
-  if (i < 0) throw erreur(`${libelleMois(m)} est hors de la période suivie (depuis ${libelleMois(t.client.debut)}).`);
+  if (i < 0) throw erreur(`${libelleMois(m)} est hors de la période suivie (depuis ${libelleMois(t.mois[0])}).`);
   const s = t.synthese[i];
   const L = [];
   L.push(`Rapport mensuel · ${t.client.nom} · ${libelleMois(m)}`);
@@ -316,12 +327,13 @@ function rapport(clientId, mois) {
     L.push('');
     L.push(`Depuis le début (${c.mois_suivis} mois)`);
     if (c.reservations !== null) L.push(`· ${fmtNombre(c.reservations)} réservations${c.reservations_en_plus !== null ? `, dont ${fmtNombre(c.reservations_en_plus)} de plus qu’avant l’accompagnement` : ''}`);
-    if (c.ca_total !== null) L.push(`· ${fmtNombre(c.ca_total, 'euros')} de CA généré pour ${fmtNombre(c.cout_total, 'euros')} investis`);
+    if (c.ca_total !== null) L.push(`· ${fmtNombre(c.ca_total, 'euros')} de CA généré pour ${fmtNombre(c.cout_periode_ca, 'euros')} investis`);
     if (c.roi !== null) L.push(`· Retour sur investissement : ${c.roi >= 0 ? '+' : ''}${Math.round(c.roi * 100)} %`);
   }
   const suivant = moisSuivant(m);
-  const j = t.mois.indexOf(suivant);
-  const objectifs = j >= 0 ? t.indicateurs.filter((ind) => ind.mois[j].objectif !== null) : [];
+  const tSuiv = tableau(clientId, { jusqu_a: suivant });
+  const j = tSuiv.mois.indexOf(suivant);
+  const objectifs = j >= 0 ? tSuiv.indicateurs.filter((ind) => ind.mois[j].objectif !== null) : [];
   if (objectifs.length) {
     L.push('');
     L.push(`Objectifs de ${libelleMois(suivant)}`);

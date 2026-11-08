@@ -178,6 +178,8 @@ async function render() {
   document.documentElement.classList.remove('nav-ouverte');
   const view = $('#view');
   const changeDeVue = vuePrecedente !== name;
+  // Quitter Résultats clients referme la fiche ouverte : au retour, la liste.
+  if (changeDeVue && vuePrecedente === 'clients' && typeof clientOuvert !== 'undefined') clientOuvert = null;
   vuePrecedente = name;
   // Changement d'écran : fondu enchaîné quand le navigateur sait le faire, sinon rien.
   const poserSquelette = () => { view.innerHTML = squeletteVue(); view.classList.remove('vue-entree'); };
