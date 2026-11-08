@@ -92,6 +92,8 @@ const fusion = require('./src/fusion');
 const cap = require('./src/cap');
 const agenda = require('./src/integrations/agenda');
 const annulation = require('./src/annulation');
+const clientsSuivis = require('./src/clients');
+const pilotage = require('./src/pilotage');
 const { avecRetour, cible, ciblesContact } = annulation;
 
 playbooks.seedTemplates(dbApi);
@@ -653,6 +655,39 @@ route('DELETE', '/api/deals/:id', async (req, params) => avecRetour('Devis suppr
   run('DELETE FROM deals WHERE id = ?', params.id);
   return { ok: true };
 }));
+
+// ---- 🧭 Pilotage : la revue de la semaine (argent, devis, relances, échéances)
+route('GET', '/api/pilotage', async () => {
+  const r = pilotage.revue();
+  return { ...r, texte: pilotage.texteRevue(r) };
+});
+route('POST', '/api/pilotage/sync', async () => {
+  if (!dbApi.getSetting('pennylane_api_key')) throw httpError(400, 'Clé API Pennylane manquante : renseigne-la dans Réglages, puis relance la lecture.');
+  try { return await pilotage.synchroniserPennylane(); }
+  catch (e) {
+    if (e.status === 401 || e.status === 403) throw httpError(502, `Pennylane refuse la clé API (${e.message}). Vérifie-la dans Réglages, puis réessaie.`);
+    if (e.status || /Réseau injoignable/.test(e.message)) throw httpError(502, `Pennylane n’a pas répondu : ${e.message} Réessaie dans quelques minutes.`);
+    throw httpError(500, `La lecture de Pennylane a échoué : ${e.message} Réessaie, et si ça recommence, envoie ce message à Claude.`);
+  }
+});
+route('POST', '/api/pilotage/pieces', async (req) => ({ piece: pilotage.creerPiece(await readBody(req)) }));
+route('PATCH', '/api/pilotage/pieces/:id', async (req, params) => ({ piece: pilotage.modifierPiece(params.id, await readBody(req)) }));
+route('DELETE', '/api/pilotage/pieces/:id', async (req, params) => pilotage.supprimerPiece(params.id));
+
+// ---- 📈 Résultats clients : baseline, objectifs du mois, réel, ROI, rapport mensuel
+route('GET', '/api/clients', async () => ({ clients: clientsSuivis.liste(), modeles: Object.fromEntries(Object.entries(clientsSuivis.MODELES).map(([k, m]) => [k, m.titre])) }));
+route('POST', '/api/clients', async (req) => ({ client: clientsSuivis.creerClient(await readBody(req)) }));
+route('GET', '/api/clients/:id', async (req, params, query) => clientsSuivis.tableau(params.id, { jusqu_a: query.jusqu_a }));
+route('PATCH', '/api/clients/:id', async (req, params) => ({ client: clientsSuivis.modifierClient(params.id, await readBody(req)) }));
+route('DELETE', '/api/clients/:id', async (req, params) => clientsSuivis.supprimerClient(params.id));
+route('POST', '/api/clients/:id/indicateurs', async (req, params) => ({ indicateur: clientsSuivis.ajouterIndicateur(params.id, await readBody(req)) }));
+route('PATCH', '/api/indicateurs/:id', async (req, params) => ({ indicateur: clientsSuivis.modifierIndicateur(params.id, await readBody(req)) }));
+route('DELETE', '/api/indicateurs/:id', async (req, params) => clientsSuivis.supprimerIndicateur(params.id));
+route('PUT', '/api/clients/:id/mois/:mois', async (req, params) => {
+  const b = await readBody(req);
+  return clientsSuivis.saisirMois(params.id, params.mois, b.valeurs || []);
+});
+route('GET', '/api/clients/:id/rapport', async (req, params, query) => clientsSuivis.rapport(params.id, query.mois));
 
 // ---- inbox (demandes entrantes)
 route('GET', '/api/inbox', async () => ({

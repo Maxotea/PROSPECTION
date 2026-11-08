@@ -282,6 +282,25 @@ label.chip:focus-within { box-shadow: var(--focus); }
 .j-couleurs .sw { width: 14px; height: 14px; border-radius: var(--r-xxs); flex: none; }
 .j-couleurs select { flex: 1; min-height: 34px; padding: var(--e-1) var(--e-15); font-size: var(--t-sm); }
 
+/* ================================================================ Pilotage et Résultats clients */
+.points { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--e-2); }
+.points li { line-height: 1.45; }
+.legende { display: flex; gap: var(--e-4); flex-wrap: wrap; font-size: var(--t-sm); color: var(--encre-2); margin-bottom: var(--e-1); }
+.legende span { display: inline-flex; align-items: center; gap: var(--e-15); }
+.legende i { width: 10px; height: 10px; border-radius: var(--r-xxs); display: inline-block; }
+.serie-a { fill: var(--accent); background: var(--accent); }
+.serie-b { fill: var(--succes); background: var(--succes); }
+.serie-c { fill: var(--trait-fort); background: var(--trait-fort); }
+.chart-svg.graphe-borne { max-height: 15rem; }
+.cartes-clients { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.carte-client { display: block; text-align: left; width: 100%; height: auto; font: inherit; color: inherit; cursor: pointer; }
+.carte-client .kpi { box-shadow: none; padding: var(--e-25); }
+.carte-client .kpi .n { font-size: var(--t-lg); }
+table.tableau-client th.a-venir { color: var(--encre-3); font-style: italic; }
+table.tableau-client td { white-space: nowrap; }
+table.list.saisie input { width: 100%; min-width: 90px; }
+.rapport-texte { width: 100%; font-family: var(--f-texte); line-height: 1.5; }
+
 /* ================================================================ Quartier général */
 .boss-card { position: relative; overflow: hidden; background: linear-gradient(160deg, var(--or-doux), var(--surface) 55%); border-color: var(--or-trait); }
 .boss-title { font-size: var(--t-xs); letter-spacing: .12em; text-transform: uppercase; color: var(--or-texte); font-weight: 700; }

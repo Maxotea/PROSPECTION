@@ -128,3 +128,38 @@ test('le résumé parle français et donne les comptes', () => {
   assert.match(texte, /1 réglage repris/);
   assert.ok(!/[\u2014\u2013]/.test(texte), 'pas de tiret cadratin');
 });
+
+test('les pièces du Pilotage et les chiffres clients se fusionnent sans doublon ni écrasement', () => {
+  vider();
+  for (const t of ['pieces', 'clients_suivis']) dbApi.run(`DELETE FROM ${t}`);
+  const clients = require('../src/clients');
+  const pilotage = require('../src/pilotage');
+  // Ici : Off Golf, réservations de septembre saisies, et la facture Raja encore à payer.
+  const og = clients.creerClient({ nom: 'Off Golf', debut: '2026-09', modele: 'vierge' });
+  const resa = clients.ajouterIndicateur(og.id, { libelle: 'Réservations', role: 'reservations' });
+  clients.saisirMois(og.id, '2026-09', [{ indicateur_id: resa.id, reel: 352 }]);
+  pilotage.enregistrer(pilotage.factureDepuisPennylane({ id: 765, amount: '2400', date: '2026-10-01', paid: false }));
+  const chemin = autreBase((autre) => {
+    // Là-bas : un autre chiffre de septembre (ne doit pas écraser), octobre en plus,
+    // un point de départ, la même facture marquée payée plus tard, et une pièce à la main.
+    const idInd = autre.prepare(`SELECT id FROM clients_indicateurs WHERE libelle = 'Réservations'`).get().id;
+    autre.prepare(`UPDATE clients_indicateurs SET baseline = 300 WHERE id = ?`).run(idInd);
+    autre.prepare(`UPDATE clients_mesures SET reel = 999 WHERE indicateur_id = ? AND mois = '2026-09'`).run(idInd);
+    autre.prepare(`INSERT INTO clients_mesures (indicateur_id, mois, objectif, reel) VALUES (?, '2026-10', 360, 341)`).run(idInd);
+    autre.prepare(`UPDATE pieces SET statut = 'payee', reste_du = 0, paye_le = '2026-11-06', updated_at = '2099-01-01T00:00:00.000Z' WHERE source_id = '765'`).run();
+    autre.prepare(`INSERT INTO pieces (type, source, client, montant_ttc, date, statut, created_at, updated_at) VALUES ('facture', 'manuel', 'Culotée', 2004, '2026-11-03', 'a_payer', '2026-11-03', '2026-11-03')`).run();
+  });
+  fusion.fusionnerBase(chemin);
+  assert.strictEqual(combien('SELECT COUNT(*) AS n FROM clients_suivis'), 1);
+  assert.strictEqual(combien('SELECT COUNT(*) AS n FROM clients_indicateurs'), 1);
+  const ind = dbApi.get('SELECT * FROM clients_indicateurs');
+  assert.strictEqual(ind.baseline, 300);
+  assert.strictEqual(dbApi.get(`SELECT reel FROM clients_mesures WHERE mois = '2026-09'`).reel, 352);
+  assert.strictEqual(dbApi.get(`SELECT reel FROM clients_mesures WHERE mois = '2026-10'`).reel, 341);
+  assert.strictEqual(combien('SELECT COUNT(*) AS n FROM pieces'), 2);
+  assert.strictEqual(dbApi.get(`SELECT statut FROM pieces WHERE source_id = '765'`).statut, 'payee');
+  // Une seconde fusion du même fichier n'ajoute rien.
+  fusion.fusionnerBase(chemin);
+  assert.strictEqual(combien('SELECT COUNT(*) AS n FROM pieces'), 2);
+  assert.strictEqual(combien('SELECT COUNT(*) AS n FROM clients_mesures'), 2);
+});

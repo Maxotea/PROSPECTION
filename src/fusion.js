@@ -309,6 +309,57 @@ function fusionnerBase(cheminAutre, { simulation = false } = {}) {
         }
       }
 
+      // ---- 🧭 Pilotage : factures et devis. Une pièce Pennylane se reconnaît à son
+      // identifiant ; une pièce saisie à la main, à son client, son numéro, sa date et son montant.
+      if (a('pieces')) {
+        const c = T('pieces'); const cols = colonnesCommunes('pieces').filter((x) => x !== 'id');
+        for (const r of all('SELECT * FROM autre.pieces')) {
+          const ici = r.source_id
+            ? get('SELECT * FROM pieces WHERE source = ? AND type = ? AND source_id = ?', r.source, r.type, r.source_id)
+            : get(`SELECT * FROM pieces WHERE source_id = '' AND type = ? AND client = ? AND numero = ? AND date = ? AND montant_ttc = ?`, r.type, r.client, r.numero, r.date, r.montant_ttc);
+          if (!ici) { insererLigne('pieces', { ...r, contact_id: contactIci(r.contact_id) }, cols); c.ajoutes++; continue; }
+          // La version la plus récente gagne (un « Payée » coché d'un côté ne se perd pas).
+          if ((r.updated_at || '') > (ici.updated_at || '')) {
+            run('UPDATE pieces SET statut = ?, reste_du = ?, paye_le = ?, echeance = ?, updated_at = ? WHERE id = ?', r.statut, r.reste_du, r.paye_le, r.echeance, r.updated_at, ici.id);
+            c.fusionnes++;
+          } else c.ignores++;
+        }
+      }
+
+      // ---- 📈 Résultats clients : un client suivi se reconnaît à son nom, un
+      // indicateur à son libellé ; un chiffre déjà saisi ici n'est jamais écrasé.
+      if (a('clients_suivis')) {
+        const c = T('clients_suivis'); const ci = T('clients_indicateurs'); const cm = T('clients_mesures');
+        const colsC = colonnesCommunes('clients_suivis').filter((x) => x !== 'id');
+        const colsI = a('clients_indicateurs') ? colonnesCommunes('clients_indicateurs').filter((x) => x !== 'id' && x !== 'client_id') : [];
+        for (const r of all('SELECT * FROM autre.clients_suivis')) {
+          const ici = all('SELECT * FROM clients_suivis').find((x) => String(x.nom).trim().toLowerCase() === String(r.nom).trim().toLowerCase());
+          let idIci;
+          if (ici) { idIci = ici.id; c.fusionnes++; } else { idIci = insererLigne('clients_suivis', { ...r, contact_id: contactIci(r.contact_id) }, colsC); c.ajoutes++; }
+          if (!a('clients_indicateurs')) continue;
+          for (const ind of all('SELECT * FROM autre.clients_indicateurs WHERE client_id = ?', r.id)) {
+            const indIci = get('SELECT * FROM clients_indicateurs WHERE client_id = ? AND libelle = ?', idIci, ind.libelle);
+            let iid;
+            if (indIci) {
+              iid = indIci.id; ci.fusionnes++;
+              if (indIci.baseline === null && ind.baseline !== null) run('UPDATE clients_indicateurs SET baseline = ? WHERE id = ?', ind.baseline, iid);
+            } else {
+              // Le rôle (réservations, CA, pub) ne se prend que s'il est libre ici : jamais deux CA.
+              const role = ind.role && get('SELECT id FROM clients_indicateurs WHERE client_id = ? AND role = ?', idIci, ind.role) ? '' : ind.role;
+              iid = insererLigne('clients_indicateurs', { ...ind, client_id: idIci, role }, ['client_id', ...colsI]); ci.ajoutes++;
+            }
+            if (!a('clients_mesures')) continue;
+            for (const m of all('SELECT * FROM autre.clients_mesures WHERE indicateur_id = ?', ind.id)) {
+              const mIci = get('SELECT * FROM clients_mesures WHERE indicateur_id = ? AND mois = ?', iid, m.mois);
+              if (!mIci) { run('INSERT INTO clients_mesures (indicateur_id, mois, objectif, reel) VALUES (?, ?, ?, ?)', iid, m.mois, m.objectif, m.reel); cm.ajoutes++; continue; }
+              const objectif = mIci.objectif ?? m.objectif, reel = mIci.reel ?? m.reel;
+              if (objectif !== mIci.objectif || reel !== mIci.reel) { run('UPDATE clients_mesures SET objectif = ?, reel = ? WHERE indicateur_id = ? AND mois = ?', objectif, reel, iid, m.mois); cm.fusionnes++; }
+              else cm.ignores++;
+            }
+          }
+        }
+      }
+
       if (simulation) db.exec('ROLLBACK'); else db.exec('COMMIT');
     } catch (e) {
       try { db.exec('ROLLBACK'); } catch { /* déjà annulé */ }

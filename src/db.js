@@ -302,6 +302,68 @@ CREATE TABLE IF NOT EXISTS journee_briefs (
 );
 `);
 
+db.exec(`
+-- 📈 Résultats clients : un client suivi (Off Golf...), ses indicateurs, et
+-- pour chaque mois l'objectif et le réel. Le ROI se calcule à partir de là.
+CREATE TABLE IF NOT EXISTS clients_suivis (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nom TEXT NOT NULL,
+  secteur TEXT DEFAULT '',
+  contact_id INTEGER,
+  debut TEXT DEFAULT '',               -- premier mois de mission (YYYY-MM)
+  honoraires_mensuels REAL DEFAULT 0,  -- ce que le client paie à OTEA chaque mois, HT
+  budget_pub_mensuel REAL DEFAULT 0,   -- budget pub prévu par mois, HT
+  panier_moyen REAL DEFAULT 0,         -- valeur moyenne d'une réservation, HT
+  notes TEXT DEFAULT '',
+  archive INTEGER DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS clients_indicateurs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_id INTEGER NOT NULL REFERENCES clients_suivis(id) ON DELETE CASCADE,
+  libelle TEXT NOT NULL,
+  unite TEXT DEFAULT 'nombre',         -- nombre | euros | pourcent
+  sens TEXT DEFAULT 'hausse',          -- hausse | baisse | neutre
+  cumul TEXT DEFAULT 'somme',          -- somme | dernier | moyenne
+  role TEXT DEFAULT '',                -- '' | reservations | ca | pub
+  baseline REAL,                       -- le point de départ, avant OTEA (NULL = pas encore connu)
+  ordre INTEGER DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_clients_indicateurs ON clients_indicateurs(client_id, ordre);
+CREATE TABLE IF NOT EXISTS clients_mesures (
+  indicateur_id INTEGER NOT NULL REFERENCES clients_indicateurs(id) ON DELETE CASCADE,
+  mois TEXT NOT NULL,                  -- YYYY-MM
+  objectif REAL,                       -- NULL = pas d'objectif fixé
+  reel REAL,                           -- NULL = pas encore saisi
+  PRIMARY KEY (indicateur_id, mois)
+);
+
+-- 🧭 Pilotage : factures et devis, lus dans Pennylane ou saisis à la main.
+-- Facturé (la date de la facture) et encaissé (la date du paiement) restent séparés.
+CREATE TABLE IF NOT EXISTS pieces (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  type TEXT NOT NULL DEFAULT 'facture',  -- facture | devis
+  source TEXT NOT NULL DEFAULT 'manuel', -- manuel | pennylane
+  source_id TEXT DEFAULT '',
+  numero TEXT DEFAULT '',
+  client TEXT DEFAULT '',
+  libelle TEXT DEFAULT '',
+  date TEXT DEFAULT '',                  -- YYYY-MM-DD
+  echeance TEXT DEFAULT '',              -- YYYY-MM-DD
+  montant_ht REAL DEFAULT 0,
+  montant_ttc REAL DEFAULT 0,
+  reste_du REAL DEFAULT 0,               -- TTC restant à encaisser
+  statut TEXT DEFAULT 'a_payer',         -- facture : brouillon | a_payer | payee | annulee ; devis : en_attente | accepte | refuse | expire | facture
+  paye_le TEXT DEFAULT '',               -- YYYY-MM-DD
+  contact_id INTEGER,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_pieces_source ON pieces(source, type, source_id) WHERE source_id != '';
+CREATE INDEX IF NOT EXISTS idx_pieces_statut ON pieces(type, statut);
+`);
+
 // Migrations douces : colonnes ajoutées après coup sur des bases existantes.
 function ensureColumn(table, col, ddl) {
   const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((r) => r.name);

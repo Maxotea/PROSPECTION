@@ -1,6 +1,7 @@
 'use strict';
 /* ⚙️ OTEA Moteur : SPA vanilla (aucune dépendance, aucun build).
-   Vues : QG, Prospection, Pipeline, Contacts, Réponses, Imports, Réglages. */
+   Vues : Ma journée, Cockpit, Pilotage et Résultats clients (public/pilotage.js), Le Cap,
+   QG, Prospection, Pipeline, Contacts, Réponses, Imports, Réglages. */
 
 // ---------------------------------------------------------------- helpers
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -152,7 +153,7 @@ async function celebrate(res) {
 }
 
 // ---------------------------------------------------------------- routeur
-const VIEWS = { journee: vJournee, cockpit: vCockpit, cap: vCap, qg: vQG, chasse: vChasse, autopilot: vAutopilot, campagnes: vCampagnes, pipeline: vPipeline, contacts: vContacts, inbox: vInbox, import: vImport, reglages: vReglages };
+const VIEWS = { journee: vJournee, cockpit: vCockpit, pilotage: vPilotage, clients: vClients, cap: vCap, qg: vQG, chasse: vChasse, autopilot: vAutopilot, campagnes: vCampagnes, pipeline: vPipeline, contacts: vContacts, inbox: vInbox, import: vImport, reglages: vReglages };
 
 // Pendant qu'une vue charge : sa silhouette, plutôt qu'un écran vide.
 function squeletteVue() {
@@ -177,6 +178,8 @@ async function render() {
   document.documentElement.classList.remove('nav-ouverte');
   const view = $('#view');
   const changeDeVue = vuePrecedente !== name;
+  // Quitter Résultats clients referme la fiche ouverte : au retour, la liste.
+  if (changeDeVue && vuePrecedente === 'clients' && typeof clientOuvert !== 'undefined') clientOuvert = null;
   vuePrecedente = name;
   // Changement d'écran : fondu enchaîné quand le navigateur sait le faire, sinon rien.
   const poserSquelette = () => { view.innerHTML = squeletteVue(); view.classList.remove('vue-entree'); };
