@@ -463,7 +463,7 @@ function callsState() {
 module.exports = {
   ACTIONS, BADGES, LEVELS, TOUCH_TYPES, EFFORT_TYPES,
   logAction, insertActivity, checkBadges, awardQuests,
-  totalXp, levelForXp, computeStreak, todayQuests, bossState, weeklyXp, kpis, fullState, huntQueue, contactScore,
+  totalXp, levelForXp, computeStreak, todayQuests, bossState, weeklyXp, kpis, pipelineCounts, fullState, huntQueue, contactScore,
   historiqueParContact,
   callQueue, callsState,
 };

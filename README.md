@@ -1,8 +1,8 @@
 # ⚙️ OTEA Moteur · ta journée, ta prospection, ton autopilote (OTEA Production)
 
-Un outil de travail **local, zéro dépendance**, sur une seule adresse : le matin, **☀️ Ma journée** dit quoi faire ; le reste du temps, **⚔️ La Chasse** (le Mode Chasse, les campagnes, l'Autopilote, le CRM) fait rentrer les factures. Objectif : **déclencher 5 factures**.
+Un outil de travail **local, zéro dépendance**, sur une seule adresse : le matin, **☀️ Ma journée** dit quoi faire ; le reste du temps, **⚔️ la Prospection** (les prospects un par un, les campagnes, l'Autopilote, le CRM) fait rentrer les factures. Objectif : **déclencher 5 factures**.
 
-*L'app s'appelait « La Chasse ». Elle a grandi : La Chasse est devenue son moteur de prospection, OTEA Moteur est l'ensemble.*
+*L'app s'appelait « La Chasse ». Elle a grandi : la chasse est devenue l'écran Prospection et le jeu, OTEA Moteur est l'ensemble. Le service en ligne garde son nom technique `la-chasse` (changer le nom d'un service Render recréerait un service sans son disque), mais tout ce que tu vois s'appelle OTEA Moteur.*
 
 **Identité visuelle « Affût »** : papier chaud le jour, ardoise le soir (thème clair, sombre ou automatique), un seul signal fort, l'orange de chasse, réservé à l'action principale et à ce qui est vital. Le matin, Ma journée s'ouvre sur les trois choses à faire en premier. `Ctrl K` (ou `⌘K`) ouvre la palette : un écran, un contact, une action ; `?` affiche tous les raccourcis. Détail des couleurs, des polices et des règles d'usage : [`docs/design.md`](docs/design.md).
 
@@ -11,7 +11,9 @@ Quatre moteurs :
 0. **☀️ Ma journée** : la to-do du matin, faite par la machine au lieu de la tête. Elle lit **Gmail** (les mails sans réponse), **WhatsApp** et **les appels** du Mac (les conversations où le dernier mot n'est pas de toi, les appels manqués jamais rappelés), et le **CRM** (relances dues, devis à relancer ou à faire, factures à émettre), classe chaque chose par **importance** et par **durée**, et la place dans la journée : les courtes ce matin, la grosse pierre, les moyennes cet après-midi. Le brief part par mail chaque matin.
 1. **📅 Les Campagnes hebdo** : la stratégie : une semaine = un secteur (grande distribution, aéronautique, agriculture, hôtellerie, agences de voyage…) et un persona cible. Chaque campagne se crée en 2 clics avec sa **recette Sales Navigator** prête à copier, sa **séquence email** citant tes vraies références (le Galec, La Poste, Pullman…), son **post LinkedIn** et son **script DM** : pour qu'on voie OTEA partout, partout, partout.
 2. **🤖 L'Autopilote** : la machine qui prospecte à ta place : elle enrôle tes contacts (anciens clients Pennylane, HubSpot, ta boîte Gmail) dans des **séquences email**, envoie depuis **ton Gmail** (chaque relance reste dans le même fil), respecte un cap quotidien et des horaires ouvrés, **détecte les réponses dans ta boîte** et stoppe la séquence dès qu'on te répond : il ne te reste qu'à transformer la réponse en call.
-3. **🎮 Le CRM gamifié** : import Pennylane / LinkedIn / HubSpot, enrichissement FullEnrich, typologies de clients, Mode Chasse, devis Pennylane en 2 clics, XP, quêtes, streak, badges, boss final « 5 factures ».
+3. **🎮 Le CRM gamifié** : import Pennylane / LinkedIn / HubSpot, enrichissement FullEnrich, typologies de clients, Prospection, devis Pennylane en 2 clics, XP, quêtes, streak, badges, boss final « 5 factures ».
+
+Et, au-dessus des quatre, **🧭 le Cockpit** : tout ce qui se passe en un seul écran, l'argent d'abord (à facturer, devis en attente, devis à faire, facturé ce mois), le plan et ses paliers, le facturé par mois, la journée, le radar du pipeline, les relances, et le tableau de chasse (XP, quêtes, badges, célébrations) qui fait du Cockpit un jeu. Il se rafraîchit tout seul et possède un **mode écran** pour rester affiché sur l'iMac toute la journée. Détail plus bas.
 
 ---
 
@@ -40,6 +42,82 @@ npm start          # ou : node server.js
 Pour essayer avec des données fictives : `npm run demo` (et `npm run reset` pour tout remettre à zéro).
 
 Toutes tes données (contacts, clés API, historique) restent **sur ta machine**, dans `data/prospection.db` (gitignoré). Le serveur n'écoute que sur `127.0.0.1`.
+
+### 🧭 Le Cockpit : l'écran qui reste allumé
+
+Le Cockpit (`#/cockpit`, ou `G` puis `K`) rassemble en un écran ce que le QG, Ma journée,
+le Pipeline et l'Autopilote savent chacun de leur côté, dans l'ordre qui compte pour la
+trésorerie :
+
+1. **L'argent, en quatre tuiles** : à facturer (devis acceptés pas encore facturés, le plus
+   ancien depuis combien de jours), devis en attente (et combien sont à relancer), devis à
+   faire (RDV pris sans devis), facturé ce mois.
+2. **Le plan** : le facturé entre deux dates face à trois paliers Moyen / Bien / Wow, avec ce
+   qu'il manque pour le prochain et le temps qu'il reste. Les dates et les paliers se règlent
+   dans Réglages → Cockpit ; sans réglage, c'est le trimestre en cours.
+3. **Le facturé par mois** (six mois), **la journée** (les trois choses qui comptent, cliquables),
+   **le radar** (chaque contact du pipeline est un point, du premier contact au centre : plus il
+   est proche, plus il est près de la facture ; les chauds brillent, le balayage tourne),
+   **relances et réponses**, **l'activité** des 14 derniers jours avec les segments du boss, et
+   l'agenda du jour s'il est branché.
+4. **Le tableau de chasse**, le jeu de la Chasse posé dans le Cockpit : niveau et barre d'XP,
+   XP du jour, série de jours (la flamme), cadence du jour face au record (une jauge à aiguille),
+   les trois quêtes du jour avec leur avancement et leur récompense, et la vitrine des badges
+   (les gagnés en couleur, les autres en silhouette). La tuile « à facturer » dit ce que rapporte
+   la facture (+100 XP et un segment du boss), les paliers du plan portent des trophées.
+
+Chaque chiffre vient de la base : un devis, un contact, une activité. Rien n'est estimé.
+
+Et quand quelque chose se passe, le Cockpit le fête : à chaque rafraîchissement il compare
+l'état d'avant et l'état d'après. De l'XP gagnée flotte au-dessus du tableau de chasse, une
+quête finie, un badge débloqué ou un devis accepté font un toast avec le bon son, une facture
+émise, un niveau gagné, le boss battu, un palier du plan atteint ou la série qui passe un cap
+(7, 14, 30 jours) déclenchent une grande célébration plein écran, confettis compris. Les cartes
+s'inclinent légèrement sous la souris, la lunette de visée tourne dans la tuile « à facturer ».
+
+L'écran est vivant : la lunette de visée dérive derrière les cartes et suit la souris, l'horloge
+bat la seconde et son anneau se remplit jusqu'au prochain rafraîchissement, les chiffres comptent
+quand ils changent, le fil des dernières actions défile en bas. Si ton appareil demande « moins
+d'animations », tout se pose d'un coup et plus rien ne bouge.
+
+**Le mode écran** (bouton en haut à droite, ou `⌘K` → « Mode écran ») enlève le menu, agrandit
+tout d'un cran et demi, affiche l'heure en grand, se rafraîchit toutes les 60 secondes (réglable)
+et empêche l'écran de s'endormir tant que la page est visible. `Échap` ou « Quitter le mode
+écran » pour revenir à l'app. L'adresse directe : **`http://localhost:1337/?ecran=1#/cockpit`**.
+
+**Sur l'iMac** : double-clique **`ecran-imac.command`**. Il lance OTEA Moteur si besoin et ouvre
+le Cockpit en plein écran (Chrome en mode application s'il est installé, sinon Safari : `⌃⌘F`).
+Pour que l'iMac ne coupe jamais l'écran : Réglages Système → Écran de verrouillage → « Éteindre
+l'écran sur secteur » : jamais. Avec `demarrer-toujours.command` installé, l'app est déjà là au
+réveil : il ne reste qu'à rouvrir la fenêtre du Cockpit.
+
+**Sur le MacBook, l'iPad et l'iPhone** : la même adresse que le reste de l'app (mode réseau sur
+le même Wi-Fi, Tailscale en déplacement, ou la version en ligne) suivie de `#/cockpit`. La grille
+se replie seule : deux tuiles par ligne sur l'iPad, une colonne sur l'iPhone. Safari → Partager →
+**Sur l'écran d'accueil** sur l'adresse `…/?ecran=1#/cockpit` donne une icône qui ouvre directement
+le tableau de bord, plein écran, sans menu.
+
+### 🧭 Le Cap : la projection business dans l'outil
+
+Le Cap (`#/cap`, ou `G` puis `B`) remplace le plan d'action qu'on gardait dans un document :
+
+1. **Six chiffres le lundi**, calculés depuis le CRM pour la semaine en cours : devis sous 48 h
+   après un rendez-vous (avec la liste des rendez-vous qui attendent encore leur devis), devis
+   envoyés depuis lundi, taux de signature sur huit semaines, couverture du pipeline face à ce
+   qui manque au trimestre, recommandations reçues, facturé du mois. Chaque chiffre dit s'il est
+   dans les clous. Ce que le CRM ne sait pas (solde bancaire, plancher) est marqué « à vérifier
+   à la main », jamais estimé.
+2. **Trois horizons de jalons à cocher** : court terme (les prochaines 24 heures, 48 heures, les
+   prochains jours), moyen terme (les sept semaines de fin d'année, classées par euro encaissé),
+   long terme (2027 : les outils à construire dans l'ordre, les abonnements, la capacité, la
+   décision SaaS). Le plan de départ est semé une fois depuis `src/cap_plan.json` ; tu coches,
+   tu ajoutes, tu retires, tout vit dans la base. Un jalon coché fait le son et les confettis de la
+   quête.
+3. **La trajectoire 2027** : le facturé par trimestre face à la cible du scénario choisi
+   (prudent 91 800, cible 122 500, ambitieux 150 200 € HT), avec le même trimestre de 2026 en
+   rappel. Le scénario se change en haut de l'écran.
+4. **Les garde-fous** de la clôture mensuelle : deux sont calculés (part du premier client sur
+   douze mois, devis en retard après un rendez-vous), les autres sont rappelés pour la revue.
 
 ### ☁️ Mettre OTEA Moteur en ligne (comme Make)
 
@@ -145,6 +223,24 @@ Si le relancement ne suffit pas, **double-clique sur `diagnostic.command`**. Il 
 répare rien et ne touche à aucune donnée : il vérifie Node, les fichiers, ta base, le
 port, essaie de démarrer l'app, et écrit un rapport lisible (une copie est déposée sur
 ton Bureau) à envoyer tel quel.
+
+### 🧩 Fusionner deux OTEA Moteur en un seul
+
+Le cas classique : l'app a tourné sur le Mac **et** en ligne pendant des semaines, chacune avec
+ses contacts, son XP, ses réglages. « Remettre une sauvegarde » écraserait l'une des deux.
+**Fusionner** les additionne :
+
+1. Sur la version que tu veux abandonner : Réglages → **Télécharger ma sauvegarde**.
+2. Sur la version que tu gardes (en ligne, en général) : Réglages → **Fusionner avec une autre
+   base**, choisis le fichier. L'app lit d'abord l'autre base et t'annonce ce qui va se passer
+   (« 112 contacts ajoutés, 38 rapprochés, 540 actions d'historique… »). Tu confirmes.
+3. Ce qui se passe : un contact connu des deux côtés (même email, même LinkedIn, même client
+   Pennylane, ou même nom dans la même société) devient une seule fiche, l'étape la plus
+   avancée l'emporte, les champs vides d'ici prennent la valeur de là-bas, les notes se
+   cumulent. L'historique, les devis, l'XP, les badges et les quêtes s'additionnent sans
+   doublon. Les réglages déjà remplis ici restent, les vides sont repris. Les emails encore en
+   attente là-bas arrivent « à relire », jamais prêts à partir.
+4. Rien n'est effacé de ce côté-ci, et la base d'ici est mise de côté avant (`.avant-fusion`).
 
 ### 🔄 Mettre à jour sans perdre tes données
 
@@ -307,7 +403,7 @@ Premier projet livré : **Sponsoring HYROX · Pierre & Antoine** (jusqu'au 13 ju
 
 - Une réponse (même détectée à la main) **stoppe la séquence** : personne ne reçoit une relance après avoir répondu ;
 - Un bounce (adresse refusée) marque l'email invalide et stoppe la séquence ;
-- Un contact = **une seule séquence à la fois** ; jamais d'enrôlement sans email ; les contacts en séquence sortent de la file du Mode Chasse ;
+- Un contact = **une seule séquence à la fois** ; jamais d'enrôlement sans email ; les contacts en séquence sortent de la file de la Prospection ;
 - Cap quotidien + fenêtre horaire + jours ouvrés + espacement aléatoire : le rythme d'un humain, pas d'un robot ;
 - **Délivrabilité** : tu envoies depuis ton vrai Gmail (SPF/DKIM déjà en place), à faible volume, en texte simple : la meilleure config possible. Monte le cap progressivement.
 - **Cadre légal (France/RGPD)** : la réactivation de clients existants est du B2B légitime ; pour la prospection B2B à froid, reste sur des adresses professionnelles, propose toujours une porte de sortie et honore immédiatement tout « stop » (la séquence s'arrête à la moindre réponse, quelle qu'elle soit).
@@ -392,12 +488,12 @@ Pour Off Golf et les suivants : du chiffre, mois par mois.
 
 ## 🎮 La boucle de jeu
 
-1. **🏰 Score de chasse** (ex-Quartier général) : le boss (« 5 factures ») en barre de progression, tes 3 quêtes du jour, ta streak 🔥, tes KPI et ton XP de la semaine.
-2. **🎯 Mode Chasse** : le cœur de l'outil : l'app te sert les prospects **un par un, triés par priorité** (anciens clients d'abord, relances dues, grands comptes…), avec **le bon message déjà rédigé** selon la typologie et l'étape. Toi tu n'as qu'à : copier → envoyer → cliquer « Message envoyé ». XP, combo, suite.
+1. **🏰 Quartier général** : le boss (« 5 factures ») en barre de progression, tes 3 quêtes du jour, ta streak 🔥, tes KPI et ton XP de la semaine.
+2. **🎯 Prospection** : le cœur de l'outil : l'app te sert les prospects **un par un, triés par priorité** (anciens clients d'abord, relances dues, grands comptes…), avec **le bon message déjà rédigé** selon la typologie et l'étape. Toi tu n'as qu'à : copier → envoyer → cliquer « Message envoyé ». XP, combo, suite.
 3. Chaque action rapporte de l'XP : message +10, réponse reçue +25, RDV +50, devis +75, **facture +250**. Les quêtes et badges tombent tout seuls.
 4. Un deal marqué **« Facturée ! »** remplit un segment du boss. À 5 → 🏆.
 
-Raccourcis clavier en Mode Chasse : `1` message envoyé · `2` connexion LinkedIn · `3` appelé · `4` a répondu · `5` RDV pris · `6` pas maintenant · `7` disqualifier.
+Raccourcis clavier dans la Prospection : `1` message envoyé · `2` connexion LinkedIn · `3` appelé · `4` a répondu · `5` RDV pris · `6` pas maintenant · `7` disqualifier.
 
 ### Pourquoi la liste ne te ressert pas toujours les mêmes têtes
 

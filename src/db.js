@@ -450,6 +450,13 @@ const SETTINGS_DEFAULTS = {
   agenda_heures_debut: '09:00',
   agenda_heures_fin: '18:30',
   agenda_horizon_jours: '7',      // jusqu'où regarder devant pour les alertes de prod
+  // 🧭 Cockpit : le facturé du plan en cours face à trois paliers, et l'écran qui se rafraîchit seul
+  cockpit_plan_debut: '',         // vide : le trimestre en cours
+  cockpit_plan_fin: '',
+  cockpit_palier_moyen: '20000',  // € HT facturés sur la période du plan
+  cockpit_palier_bien: '25000',
+  cockpit_palier_wow: '35000',
+  cockpit_rafraichissement: '60', // secondes entre deux rafraîchissements de l'écran
 };
 
 // Variables d'environnement prioritaires sur la base (pratique pour .env).

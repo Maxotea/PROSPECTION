@@ -19,10 +19,12 @@
   // ------------------------------------------------------------ écrans
   const ECRANS = [
     { vue: 'journee', titre: 'Ma journée', ico: 'journee', lettre: 'j', aide: 'Les 3 choses du jour, le vide-cerveau, l’agenda' },
+    { vue: 'cockpit', titre: 'Cockpit', ico: 'cockpit', lettre: 'k', aide: 'Tout ce qui se passe en un écran : argent, devis, relances, journée' },
     { vue: 'pilotage', titre: 'Pilotage', ico: 'pilotage', lettre: 'l', aide: 'Revue de la semaine : facturé, encaissé, devis, relances, échéances' },
     { vue: 'clients', titre: 'Résultats clients', ico: 'resultats', lettre: 'e', aide: 'Off Golf et les autres : réservations, CA généré, ROI, rapport mensuel' },
-    { vue: 'qg', titre: 'Score de chasse', ico: 'qg', lettre: 'q', aide: 'Objectif factures, chiffres de prospection, quêtes, badges' },
-    { vue: 'chasse', titre: 'La Chasse', ico: 'chasse', lettre: 'c', aide: 'Les prospects un par un, message prêt' },
+    { vue: 'cap', titre: 'Le Cap', ico: 'cap', lettre: 'b', aide: 'Court, moyen, long terme : jalons, six chiffres du lundi, trajectoire 2027' },
+    { vue: 'qg', titre: 'Quartier général', ico: 'qg', lettre: 'q', aide: 'Objectif factures, chiffres, quêtes, badges' },
+    { vue: 'chasse', titre: 'Prospection', ico: 'chasse', lettre: 'c', aide: 'Les prospects un par un, message prêt' },
     { vue: 'autopilot', titre: 'Autopilote', ico: 'autopilot', lettre: 'a', aide: 'Séquences email, emails à valider' },
     { vue: 'campagnes', titre: 'Campagnes', ico: 'campagnes', lettre: 'm', aide: 'Une semaine, un secteur' },
     { vue: 'pipeline', titre: 'Pipeline', ico: 'pipeline', lettre: 'p', aide: 'Les prospects par étape' },
@@ -204,10 +206,11 @@
     return [
       { titre: 'Ajouter une chose à faire', sous: 'Dans le vide-cerveau de Ma journée', ico: 'plus', cles: 'tache todo vide cerveau', faire: () => allerPuis('journee', '#j-texte', (el) => el.focus()) },
       { titre: 'Nouveau contact', sous: 'Fiche vierge dans Contacts', ico: 'contacts', cles: 'creer ajouter prospect', faire: () => allerPuis('contacts', '#c-new') },
-      { titre: 'Lancer une session de prospection', sous: 'La Chasse, les prospects un par un', ico: 'chasse', cles: 'chasse session prospection', faire: () => allerPuis('chasse', '#hunt-start') },
+      { titre: 'Lancer une session de prospection', sous: 'La Prospection, les prospects un par un', ico: 'chasse', cles: 'chasse session prospection', faire: () => allerPuis('chasse', '#hunt-start') },
       { titre: 'Lancer la session d’appels', sous: 'Les personnes à joindre aujourd’hui', ico: 'chasse', cles: 'appels telephone call', faire: () => allerPuis('chasse', '#hunt-start-calls') },
       { titre: 'Relire mes boîtes', sous: 'Gmail, WhatsApp, appels, agenda', ico: 'inbox', cles: 'scan mails relire', faire: () => allerPuis('journee', '#j-scan') },
       { titre: 'Créer une séquence email', sous: 'Autopilote', ico: 'autopilot', cles: 'sequence autopilote', faire: () => allerPuis('autopilot', '#seq-new') },
+      { titre: 'Mode écran du Cockpit', sous: 'Plein écran, sans menu, pour l’iMac (Échap pour sortir)', ico: 'ecran', cles: 'ecran plein imac cockpit tableau de bord kiosque', faire: () => { try { localStorage.setItem('otea-ecran', '1'); } catch { /* navigation privée */ } aller('cockpit'); } },
       { titre: 'Changer de thème', sous: 'Clair, sombre ou auto', ico: 'lune', cles: 'theme sombre clair nuit jour', faire: themeSuivant },
       { titre: 'Raccourcis clavier', sous: 'Tout ce qui se fait sans souris', ico: 'clavier', cles: 'aide clavier', faire: aideRaccourcis },
     ];
@@ -289,11 +292,11 @@
   const RACCOURCIS = [
     [[touche, 'K'], 'Palette : aller à un écran, chercher un contact, lancer une action'],
     [['/'], 'Ouvrir la palette aussi'],
-    [['G', 'J'], 'Ma journée'], [['G', 'L'], 'Pilotage'], [['G', 'E'], 'Résultats clients'], [['G', 'Q'], 'Score de chasse'], [['G', 'C'], 'La Chasse'], [['G', 'A'], 'Autopilote'],
+    [['G', 'J'], 'Ma journée'], [['G', 'L'], 'Pilotage'], [['G', 'E'], 'Résultats clients'], [['G', 'Q'], 'Quartier général'], [['G', 'C'], 'Prospection'], [['G', 'A'], 'Autopilote'],
     [['G', 'M'], 'Campagnes'], [['G', 'P'], 'Pipeline'], [['G', 'O'], 'Contacts'], [['G', 'R'], 'Réponses'],
     [['G', 'I'], 'Imports'], [['G', 'S'], 'Réglages'],
     [['N'], 'Nouveau contact'], [['T'], 'Ajouter une chose à faire'],
-    [['1', '…', '5'], 'La Chasse : les actions sur la cible affichée'],
+    [['1', '…', '5'], 'Prospection : les actions sur la cible affichée'],
     [['['], 'Replier ou déplier le menu'],
     [[touche, 'Z'], 'Annuler la dernière action (suppression, fait, report, changement d’étape)'],
     [['←', '→'], 'Pipeline : déplacer la carte sélectionnée d’une étape'],
@@ -390,6 +393,8 @@
   // Une seule fois par appareil : ce qui a changé et où sont les choses.
   function bienvenue() {
     if (lire('otea_bienvenue', '') === '2') return;
+    // L'écran de l'iMac ne lit pas de mode d'emploi : rien ne se pose par-dessus le Cockpit.
+    if (document.documentElement.dataset.ecran === '1' || new URLSearchParams(location.search).get('ecran') === '1') return;
     ecrire('otea_bienvenue', '2');
     const m = modal(`
       <div class="bienvenue">
