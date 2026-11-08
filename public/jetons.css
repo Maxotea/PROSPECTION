@@ -212,3 +212,12 @@
     --t-2xl: 26px; --t-3xl: 36px; --t-affiche: 48px;
   }
 }
+
+/* Mode écran : le Cockpit sur l'iMac, lu à trois mètres. La même échelle,
+   un cran et demi plus grande ; tout le reste (couleurs, rythme) ne bouge pas. */
+@media (min-width: 1101px) {
+  :root[data-ecran="1"] {
+    --t-xs: 14px; --t-sm: 16px; --t-ui: 17px; --t-base: 18px; --t-md: 21px; --t-lg: 25px;
+    --t-xl: 32px; --t-2xl: 40px; --t-3xl: 60px; --t-affiche: 80px;
+  }
+}

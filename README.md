@@ -13,6 +13,8 @@ Quatre moteurs :
 2. **🤖 L'Autopilote** : la machine qui prospecte à ta place : elle enrôle tes contacts (anciens clients Pennylane, HubSpot, ta boîte Gmail) dans des **séquences email**, envoie depuis **ton Gmail** (chaque relance reste dans le même fil), respecte un cap quotidien et des horaires ouvrés, **détecte les réponses dans ta boîte** et stoppe la séquence dès qu'on te répond : il ne te reste qu'à transformer la réponse en call.
 3. **🎮 Le CRM gamifié** : import Pennylane / LinkedIn / HubSpot, enrichissement FullEnrich, typologies de clients, Mode Chasse, devis Pennylane en 2 clics, XP, quêtes, streak, badges, boss final « 5 factures ».
 
+Et, au-dessus des quatre, **🧭 le Cockpit** : tout ce qui se passe en un seul écran, l'argent d'abord (à facturer, devis en attente, devis à faire, facturé ce mois), le plan et ses paliers, le facturé par mois, le pipeline, la journée, les relances. Il se rafraîchit tout seul et possède un **mode écran** pour rester affiché sur l'iMac toute la journée. Détail plus bas.
+
 ---
 
 ## 🚀 Démarrage (2 minutes)
@@ -40,6 +42,42 @@ npm start          # ou : node server.js
 Pour essayer avec des données fictives : `npm run demo` (et `npm run reset` pour tout remettre à zéro).
 
 Toutes tes données (contacts, clés API, historique) restent **sur ta machine**, dans `data/prospection.db` (gitignoré). Le serveur n'écoute que sur `127.0.0.1`.
+
+### 🧭 Le Cockpit : l'écran qui reste allumé
+
+Le Cockpit (`#/cockpit`, ou `G` puis `K`) rassemble en un écran ce que le QG, Ma journée,
+le Pipeline et l'Autopilote savent chacun de leur côté, dans l'ordre qui compte pour la
+trésorerie :
+
+1. **L'argent, en quatre tuiles** : à facturer (devis acceptés pas encore facturés, le plus
+   ancien depuis combien de jours), devis en attente (et combien sont à relancer), devis à
+   faire (RDV pris sans devis), facturé ce mois.
+2. **Le plan** : le facturé entre deux dates face à trois paliers Moyen / Bien / Wow, avec ce
+   qu'il manque pour le prochain et le temps qu'il reste. Les dates et les paliers se règlent
+   dans Réglages → Cockpit ; sans réglage, c'est le trimestre en cours.
+3. **Le facturé par mois** (six mois), **le pipeline** par étape avec les euros en face et le
+   taux de signature sur 90 jours, **la journée** (les trois choses qui comptent, cliquables),
+   **relances et réponses**, **l'activité** des 14 derniers jours, et l'agenda du jour s'il
+   est branché.
+
+Chaque chiffre vient de la base : un devis, un contact, une activité. Rien n'est estimé.
+
+**Le mode écran** (bouton en haut à droite, ou `⌘K` → « Mode écran ») enlève le menu, agrandit
+tout d'un cran et demi, affiche l'heure en grand, se rafraîchit toutes les 60 secondes (réglable)
+et empêche l'écran de s'endormir tant que la page est visible. `Échap` ou « Quitter le mode
+écran » pour revenir à l'app. L'adresse directe : **`http://localhost:1337/?ecran=1#/cockpit`**.
+
+**Sur l'iMac** : double-clique **`ecran-imac.command`**. Il lance OTEA Moteur si besoin et ouvre
+le Cockpit en plein écran (Chrome en mode application s'il est installé, sinon Safari : `⌃⌘F`).
+Pour que l'iMac ne coupe jamais l'écran : Réglages Système → Écran de verrouillage → « Éteindre
+l'écran sur secteur » : jamais. Avec `demarrer-toujours.command` installé, l'app est déjà là au
+réveil : il ne reste qu'à rouvrir la fenêtre du Cockpit.
+
+**Sur le MacBook, l'iPad et l'iPhone** : la même adresse que le reste de l'app (mode réseau sur
+le même Wi-Fi, Tailscale en déplacement, ou la version en ligne) suivie de `#/cockpit`. La grille
+se replie seule : deux tuiles par ligne sur l'iPad, une colonne sur l'iPhone. Safari → Partager →
+**Sur l'écran d'accueil** sur l'adresse `…/?ecran=1#/cockpit` donne une icône qui ouvre directement
+le tableau de bord, plein écran, sans menu.
 
 ### ☁️ Mettre OTEA Moteur en ligne (comme Make)
 

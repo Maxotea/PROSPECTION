@@ -152,7 +152,7 @@ async function celebrate(res) {
 }
 
 // ---------------------------------------------------------------- routeur
-const VIEWS = { journee: vJournee, qg: vQG, chasse: vChasse, autopilot: vAutopilot, campagnes: vCampagnes, pipeline: vPipeline, contacts: vContacts, inbox: vInbox, import: vImport, reglages: vReglages };
+const VIEWS = { journee: vJournee, cockpit: vCockpit, qg: vQG, chasse: vChasse, autopilot: vAutopilot, campagnes: vCampagnes, pipeline: vPipeline, contacts: vContacts, inbox: vInbox, import: vImport, reglages: vReglages };
 
 // Pendant qu'une vue charge : sa silhouette, plutôt qu'un écran vide.
 function squeletteVue() {
@@ -2493,6 +2493,18 @@ async function vReglages(view) {
           <p class="muted small">Le boss tombe quand tu marques « facturé » ce nombre de deals. « Mon profil » alimente les suggestions d'icebreakers 💎. Les sons se coupent avec 🔊 en bas de la barre latérale.</p>
         </div>
         <div class="card">
+          <h2>🧭 Cockpit</h2>
+          <div class="form-grid">
+            <label class="field">Début du plan<input id="s-ck-debut" type="date" value="${esc(s.cockpit_plan_debut)}"></label>
+            <label class="field">Fin du plan<input id="s-ck-fin" type="date" value="${esc(s.cockpit_plan_fin)}"></label>
+            <label class="field">Palier Moyen (€ HT facturés)<input id="s-ck-moyen" type="number" min="0" step="100" value="${esc(s.cockpit_palier_moyen)}"></label>
+            <label class="field">Palier Bien<input id="s-ck-bien" type="number" min="0" step="100" value="${esc(s.cockpit_palier_bien)}"></label>
+            <label class="field">Palier Wow<input id="s-ck-wow" type="number" min="0" step="100" value="${esc(s.cockpit_palier_wow)}"></label>
+            <label class="field">Rafraîchissement de l'écran (secondes)<input id="s-ck-rafraich" type="number" min="15" max="600" value="${esc(s.cockpit_rafraichissement)}"></label>
+          </div>
+          <p class="muted small">La jauge du Cockpit compare ce que tu as facturé entre ces deux dates aux trois paliers. Sans dates, elle prend le trimestre en cours. Le mode écran (pour l'iMac) s'ouvre depuis le Cockpit, ou directement à l'adresse <span class="mono">/?ecran=1#/cockpit</span>.</p>
+        </div>
+        <div class="card">
           <h2>🎮 Démo & données</h2>
           <div class="row">
             <button id="s-demo">🎮 Recharger la démo</button>
@@ -2662,6 +2674,9 @@ async function vReglages(view) {
       user_name: $('#s-user').value, company_name: $('#s-company').value, user_signature: $('#s-sig').value,
       objectif_factures: $('#s-goal').value, seuil_grand_compte: $('#s-seuil').value,
       objectif_appels_jour: $('#s-calls').value, mon_profil: $('#s-profil').value,
+      cockpit_plan_debut: $('#s-ck-debut').value, cockpit_plan_fin: $('#s-ck-fin').value,
+      cockpit_palier_moyen: $('#s-ck-moyen').value, cockpit_palier_bien: $('#s-ck-bien').value, cockpit_palier_wow: $('#s-ck-wow').value,
+      cockpit_rafraichissement: $('#s-ck-rafraich').value,
       pennylane_api_key: $('#s-pl').value, fullenrich_api_key: $('#s-fe').value,
       hubspot_token: $('#s-hs').value, anthropic_api_key: $('#s-ai').value, ai_model: $('#s-model').value,
       gmail_user: $('#s-gmail').value, gmail_app_password: $('#s-gmailpw').value,

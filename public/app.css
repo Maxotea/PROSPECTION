@@ -815,3 +815,153 @@ tr.ligne-part { opacity: .3; pointer-events: none; }
   .palette-pied { display: none; }
   .sq-titre { width: 70%; }
 }
+
+/* ================================================================ 🧭 Cockpit
+   Tout ce qui se passe, en un écran : l'argent d'abord (quatre tuiles), le
+   plan et ses paliers, puis le facturé par mois, le pipeline, la journée, les
+   relances et l'activité. Une grille de douze colonnes qui se replie seule
+   sur l'iPad et le téléphone. Les graphiques parlent en encre : l'orange ne
+   marque que ce qui est vital, le vert ce qui est acquis. */
+.ck-tete { align-items: flex-start; }
+.ck-tete .ck-outils { align-items: center; gap: var(--e-3); flex-wrap: wrap; justify-content: flex-end; }
+.ck-tete .ck-heure { font-family: var(--f-titre); font-size: var(--t-2xl); font-weight: 700; letter-spacing: -.03em; line-height: 1; font-variant-numeric: tabular-nums; color: var(--encre); }
+.ck-sous-titre { margin-bottom: var(--e-3); }
+
+.ck-grille { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--e-4); align-items: stretch; }
+.ck-grille > * { min-width: 0; margin: 0; }
+.ck-12 { grid-column: span 12; } .ck-8 { grid-column: span 8; } .ck-7 { grid-column: span 7; } .ck-6 { grid-column: span 6; }
+.ck-5 { grid-column: span 5; } .ck-4 { grid-column: span 4; } .ck-3 { grid-column: span 3; }
+.ck-graph { display: flex; flex-direction: column; }
+.ck-graph .ck-chart { display: block; flex: 1; min-height: 0; width: 100%; height: auto; }
+
+/* Les quatre tuiles de l'argent */
+.ck-tuile {
+  grid-column: span 3; display: flex; flex-direction: column; gap: var(--e-1); min-height: 132px;
+  background: var(--surface); border: 1px solid var(--trait); border-radius: var(--r-lg); padding: var(--e-5);
+  box-shadow: var(--ombre-1); text-decoration: none; color: inherit;
+  transition: border-color var(--d-1), box-shadow var(--d-2) var(--anim);
+}
+.ck-tuile:hover { border-color: var(--trait-fort); box-shadow: var(--ombre-2); }
+.ck-tuile:focus-visible { outline: none; box-shadow: var(--focus); }
+.ck-l { font-size: var(--t-xs); font-weight: 650; letter-spacing: .08em; text-transform: uppercase; color: var(--encre-3); }
+.ck-tuile .ck-n, .ck-plan .ck-n { font-family: var(--f-titre); font-size: var(--t-3xl); font-weight: 750; letter-spacing: -.03em; line-height: 1; font-variant-numeric: tabular-nums; margin-top: var(--e-1); overflow-wrap: anywhere; }
+.ck-plan .ck-n small { font-size: var(--t-md); color: var(--encre-2); font-weight: 550; letter-spacing: 0; }
+.ck-tuile .ck-s { font-size: var(--t-sm); color: var(--encre-2); line-height: 1.4; margin-top: auto; padding-top: var(--e-2); }
+.ck-tuile.vital { border-color: var(--accent-trait); box-shadow: var(--ombre-accent); }
+.ck-tuile.vital .ck-n { color: var(--accent-texte); }
+.ck-tuile.attention .ck-s b { color: var(--accent-texte); }
+.ck-tuile.calme .ck-n { color: var(--encre-3); }
+.ck-tuile.succes { border-color: var(--succes-trait); }
+.ck-tuile.succes .ck-n { color: var(--succes); }
+
+/* Le plan : une jauge, trois paliers */
+.ck-plan .spread { align-items: flex-start; gap: var(--e-4); }
+.ck-plan-phrase { font-size: var(--t-base); color: var(--encre-2); margin-top: var(--e-1); max-width: 40ch; }
+.ck-plan-phrase b { color: var(--encre); }
+.ck-jauge { position: relative; height: 18px; border-radius: var(--r-plein); background: var(--creux); box-shadow: var(--filet); margin: var(--e-6) var(--e-2) var(--e-8); }
+.ck-jauge > i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: var(--r-plein); background: var(--encre); transition: width .6s var(--anim); min-width: 0; }
+.ck-jauge.ok > i { background: var(--succes); }
+.ck-palier { position: absolute; top: calc(-1 * var(--e-15)); bottom: calc(-1 * var(--e-15)); width: 2px; background: var(--trait-fort); transform: translateX(-1px); }
+.ck-palier span { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); margin-top: var(--e-2); font-size: var(--t-xs); font-weight: 650; color: var(--encre-2); white-space: nowrap; }
+.ck-palier:last-child span { left: auto; right: 0; transform: none; }
+.ck-palier.atteint { background: var(--succes); }
+.ck-palier.atteint span { color: var(--succes); }
+
+/* Graphiques en SVG : une teinte, des libellés directs, une table pour le lecteur d'écran */
+.ck-chart text { font: 600 var(--t-xs) var(--f-texte); fill: var(--encre-3); }
+.ck-chart .ck-base { stroke: var(--trait-fort); }
+.ck-chart .ck-barre { fill: var(--encre-3); transition: fill var(--d-1); }
+.ck-chart .ck-barre.courant { fill: var(--encre); }
+.ck-chart .ck-barre:hover { fill: var(--accent); }
+.ck-chart .ck-val { fill: var(--encre); font-weight: 700; }
+.ck-chart .ck-val.vide { fill: var(--encre-3); font-weight: 500; }
+.ck-chart .ck-mois.courant { fill: var(--encre); font-weight: 700; }
+.ck-spark { display: block; margin: var(--e-2) 0 var(--e-3); }
+.ck-spark .ck-barre { fill: var(--encre-3); }
+.ck-spark .ck-barre.courant { fill: var(--accent); }
+
+/* Pipeline : le funnel du QG, avec les euros en face */
+.ck-pipe .funnel-row .f-eur { width: 64px; text-align: right; font-size: var(--t-xs); color: var(--encre-2); font-variant-numeric: tabular-nums; flex: none; }
+.ck-pipe .funnel-row .f-eur.vide::before { content: '·'; color: var(--encre-3); }
+
+/* La journée : trois lignes, chacune ouvre quelque chose */
+.ck-ess { display: flex; gap: var(--e-3); align-items: flex-start; padding: var(--e-25) 0; border-top: 1px solid var(--trait); text-decoration: none; color: inherit; border-radius: var(--r-xs); }
+.ck-ess:hover .ck-ess-titre { text-decoration: underline; text-underline-offset: 3px; }
+.ck-ess:focus-visible { outline: none; box-shadow: var(--focus); }
+.ck-ess-corps { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--e-05); }
+.ck-imp { width: 10px; height: 10px; border-radius: var(--r-plein); flex: none; margin-top: var(--e-15); background: var(--encre-3); }
+.ck-imp.imp-2 { background: var(--accent); }
+.ck-imp.imp-3 { background: var(--alerte); }
+.ck-ess-titre { font-weight: 650; line-height: 1.35; overflow-wrap: anywhere; }
+.ck-ess-why { font-size: var(--t-sm); color: var(--encre-2); line-height: 1.4; }
+
+/* Relances et réponses : deux chiffres, deux lignes */
+.ck-duo { display: grid; grid-template-columns: 1fr 1fr; gap: var(--e-3); margin-bottom: var(--e-3); }
+.ck-chiffre { display: block; text-decoration: none; color: inherit; border-radius: var(--r-sm); }
+.ck-chiffre .ck-n { font-family: var(--f-titre); font-size: var(--t-xl); font-weight: 750; letter-spacing: -.02em; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.ck-chiffre .ck-l { text-transform: none; letter-spacing: 0; font-size: var(--t-sm); color: var(--encre-2); font-weight: 500; margin-top: var(--e-05); line-height: 1.35; }
+.ck-chiffre.alerte .ck-n { color: var(--alerte); }
+a.ck-chiffre:hover .ck-l { text-decoration: underline; text-underline-offset: 3px; }
+.ck-ligne-info { font-size: var(--t-sm); color: var(--encre-2); padding-top: var(--e-2); border-top: 1px solid var(--trait); display: flex; gap: var(--e-2); flex-wrap: wrap; align-items: center; }
+.ck-ligne-info .lien-texte { color: inherit; text-decoration: none; }
+.ck-ligne-info .lien-texte:hover b { text-decoration: underline; text-underline-offset: 3px; }
+
+/* Le jeu, en une ligne */
+.ck-jeu { display: flex; flex-wrap: wrap; gap: var(--e-2) var(--e-4); font-size: var(--t-sm); color: var(--encre-2); padding-top: var(--e-2); border-top: 1px solid var(--trait); }
+.ck-jeu b { color: var(--encre); font-variant-numeric: tabular-nums; }
+
+/* L'agenda du jour */
+.ck-agenda-lignes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--e-2) var(--e-5); }
+.ck-agenda-ligne { display: flex; gap: var(--e-3); align-items: baseline; padding: var(--e-15) 0; border-left: 3px solid var(--trait-fort); padding-left: var(--e-3); }
+.ck-agenda-ligne.niveau-tres_urgent { border-left-color: var(--alerte); }
+.ck-agenda-ligne.niveau-urgent { border-left-color: var(--accent); }
+.ck-agenda-ligne.niveau-moyen { border-left-color: var(--or); }
+.ck-agenda-ligne.niveau-pas_urgent { border-left-color: var(--succes); }
+.ck-agenda-heure { flex: none; width: 56px; color: var(--encre-2); font-size: var(--t-sm); font-weight: 600; }
+.ck-agenda-titre { overflow-wrap: anywhere; }
+
+/* iPad et petit portable : deux tuiles par ligne, les cartes à pleine largeur */
+@media (max-width: 1100px) {
+  .ck-tuile { grid-column: span 6; }
+  .ck-8, .ck-7, .ck-5, .ck-4, .ck-3 { grid-column: span 12; }
+}
+/* Téléphone : tout en une colonne, l'heure se range sous le titre */
+@media (max-width: 700px) {
+  .ck-grille > * { grid-column: span 12; }
+  .ck-tuile { min-height: 0; }
+  .ck-tete { flex-direction: column; align-items: stretch; }
+  .ck-tete.spread > :first-child:not(:only-child) { flex: 0 0 auto; }
+  .ck-tete .ck-outils { justify-content: space-between; }
+  .ck-duo { grid-template-columns: 1fr 1fr; }
+  .ck-palier span { display: none; }
+  .ck-palier:first-of-type span, .ck-palier:last-child span { display: block; }
+}
+
+/* ================================================================ mode écran
+   Le Cockpit seul, plein écran, pour l'iMac : plus de menu, plus de barre du
+   bas, le texte monte d'un cran et demi (jetons.css), l'heure en grand.
+   Échap ou « Quitter le mode écran » pour revenir à l'app. */
+:root[data-ecran="1"] #sidebar, :root[data-ecran="1"] #tabbar, :root[data-ecran="1"] #nav-voile, :root[data-ecran="1"] .lien-evitement { display: none; }
+:root[data-ecran="1"] #view.vue-entree > * { animation: none; }
+:root[data-ecran="1"] .ck-tete .ck-heure { font-size: var(--t-affiche); }
+:root[data-ecran="1"] .ck-tete #ck-rafraichir, :root[data-ecran="1"] .ck-detail { display: none; }
+:root[data-ecran="1"] .ck-tete { margin-bottom: var(--e-4); }
+/* Sur un grand écran posé, tout tient dans la hauteur, sans défiler : les deux
+   rangées du bas se partagent la place qui reste, les graphiques se plient. */
+@media (min-width: 1101px) {
+  :root[data-ecran="1"] #app, :root[data-ecran="1"] #view { height: 100vh; height: 100dvh; }
+  :root[data-ecran="1"] #view { max-width: none; padding: var(--e-5) var(--e-7) var(--e-6); display: flex; flex-direction: column; overflow: hidden; }
+  :root[data-ecran="1"] .ck-grille { flex: 1; min-height: 0; grid-template-rows: auto auto minmax(0, 1.7fr) minmax(0, 1fr) auto; }
+  :root[data-ecran="1"] .ck-grille > .card { min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+  :root[data-ecran="1"] .ck-tuile { min-height: 0; }
+  :root[data-ecran="1"] .ck-jauge { margin-top: var(--e-5); margin-bottom: var(--e-7); }
+  :root[data-ecran="1"] .ck-haut > :last-child, :root[data-ecran="1"] .ck-pipe { min-height: 0; overflow: hidden; }
+  :root[data-ecran="1"] .ck-pipe .funnel-row { padding: 0; }
+  :root[data-ecran="1"] .ck-spark { flex: 1; min-height: 0; height: auto; }
+  :root[data-ecran="1"] .ck-agenda .ck-agenda-lignes { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+/* Téléphone ou iPad en mode écran : la page défile, le texte garde sa taille d'appareil */
+@media (max-width: 1100px) {
+  :root[data-ecran="1"] #view { max-width: none; }
+  :root[data-ecran="1"] .ck-tete .ck-heure { font-size: var(--t-2xl); }
+}

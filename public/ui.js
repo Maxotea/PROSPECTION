@@ -19,6 +19,7 @@
   // ------------------------------------------------------------ écrans
   const ECRANS = [
     { vue: 'journee', titre: 'Ma journée', ico: 'journee', lettre: 'j', aide: 'Les 3 choses du jour, le vide-cerveau, l’agenda' },
+    { vue: 'cockpit', titre: 'Cockpit', ico: 'cockpit', lettre: 'k', aide: 'Tout ce qui se passe en un écran : argent, devis, relances, journée' },
     { vue: 'qg', titre: 'Quartier général', ico: 'qg', lettre: 'q', aide: 'Objectif factures, chiffres, quêtes, badges' },
     { vue: 'chasse', titre: 'La Chasse', ico: 'chasse', lettre: 'c', aide: 'Les prospects un par un, message prêt' },
     { vue: 'autopilot', titre: 'Autopilote', ico: 'autopilot', lettre: 'a', aide: 'Séquences email, emails à valider' },
@@ -206,6 +207,7 @@
       { titre: 'Lancer la session d’appels', sous: 'Les personnes à joindre aujourd’hui', ico: 'chasse', cles: 'appels telephone call', faire: () => allerPuis('chasse', '#hunt-start-calls') },
       { titre: 'Relire mes boîtes', sous: 'Gmail, WhatsApp, appels, agenda', ico: 'inbox', cles: 'scan mails relire', faire: () => allerPuis('journee', '#j-scan') },
       { titre: 'Créer une séquence email', sous: 'Autopilote', ico: 'autopilot', cles: 'sequence autopilote', faire: () => allerPuis('autopilot', '#seq-new') },
+      { titre: 'Mode écran du Cockpit', sous: 'Plein écran, sans menu, pour l’iMac (Échap pour sortir)', ico: 'ecran', cles: 'ecran plein imac cockpit tableau de bord kiosque', faire: () => { try { localStorage.setItem('otea-ecran', '1'); } catch { /* navigation privée */ } aller('cockpit'); } },
       { titre: 'Changer de thème', sous: 'Clair, sombre ou auto', ico: 'lune', cles: 'theme sombre clair nuit jour', faire: themeSuivant },
       { titre: 'Raccourcis clavier', sous: 'Tout ce qui se fait sans souris', ico: 'clavier', cles: 'aide clavier', faire: aideRaccourcis },
     ];
@@ -388,6 +390,8 @@
   // Une seule fois par appareil : ce qui a changé et où sont les choses.
   function bienvenue() {
     if (lire('otea_bienvenue', '') === '2') return;
+    // L'écran de l'iMac ne lit pas de mode d'emploi : rien ne se pose par-dessus le Cockpit.
+    if (document.documentElement.dataset.ecran === '1' || new URLSearchParams(location.search).get('ecran') === '1') return;
     ecrire('otea_bienvenue', '2');
     const m = modal(`
       <div class="bienvenue">

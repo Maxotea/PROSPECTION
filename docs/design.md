@@ -27,6 +27,15 @@ qu'on ouvre tous les matins. Il doit se lire en un coup d'œil, rester dense san
 
 ## Les parcours
 
+- **Cockpit** (`public/cockpit.js`, données dans `src/cockpit.js`) : une grille de douze
+  colonnes, l'argent d'abord en quatre tuiles à grand chiffre (Bricolage, `--t-3xl`), puis
+  le plan en jauge à trois paliers, les graphiques en SVG sans dépendance. Les graphiques
+  parlent en encre (`--encre-3` pour le passé, `--encre` pour le présent) : l'orange ne
+  marque que ce qui est vital (une facture à émettre), le vert ce qui est acquis (palier
+  atteint, facturé du mois). Chaque graphique a sa table `sr-only`. Le **mode écran**
+  (`:root[data-ecran="1"]`) cache la navigation et monte toute l'échelle typographique d'un
+  cran et demi, dans `jetons.css` comme le reste : rien n'est écrit en dur dans les composants.
+
 - **Ma journée** s'ouvre sur « L'essentiel du jour » : les trois choses à faire en premier, chacune avec Ouvrir, Demain et Fait. Le reste suit, sans répéter ces trois-là.
 - **Palette** (`Ctrl K`, `⌘K` ou `/`) : aller à un écran, chercher un contact, lancer une action. Raccourcis : `G` puis une lettre pour changer d'écran, `N` nouveau contact, `T` nouvelle tâche, `?` pour la liste complète.
 - **Fiches contact** en panneau latéral : posées à côté de la liste sur grand écran, en feuille sur iPad et iPhone.
