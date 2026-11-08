@@ -89,6 +89,7 @@ const migrationTirets = require('./src/migrations/tirets');
 const journee = require('./src/journee');
 const cockpit = require('./src/cockpit');
 const fusion = require('./src/fusion');
+const cap = require('./src/cap');
 const agenda = require('./src/integrations/agenda');
 const annulation = require('./src/annulation');
 const { avecRetour, cible, ciblesContact } = annulation;
@@ -344,6 +345,13 @@ route('GET', '/api/state', async () => {
 
 // ---- 🧭 Cockpit : tout ce qui se passe, en un appel, pour l'écran qui reste affiché
 route('GET', '/api/cockpit', async () => cockpit.etat());
+
+// ---- 🧭 Le Cap : la projection business (jalons, six chiffres du lundi, trajectoire 2027, garde-fous)
+route('GET', '/api/cap', async () => cap.etat());
+route('POST', '/api/cap/jalons', async (req) => ({ jalon: cap.ajouterJalon(await readBody(req)) }));
+route('POST', '/api/cap/jalons/:id/basculer', async (req, params) => ({ jalon: cap.basculerJalon(Number(params.id)) }));
+route('DELETE', '/api/cap/jalons/:id', async (req, params) => cap.supprimerJalon(Number(params.id)));
+route('POST', '/api/cap/scenario', async (req) => ({ scenario: cap.choisirScenario(String((await readBody(req)).scenario || '')) }));
 
 // ---- ☀️ Ma journée : la to-do du matin, lue dans Gmail, WhatsApp, les appels et le CRM
 route('GET', '/api/journee', async () => journee.plan());

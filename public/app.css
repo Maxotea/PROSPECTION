@@ -1211,3 +1211,61 @@ a.ck-chiffre:hover .ck-l { text-decoration: underline; text-underline-offset: 3p
   :root[data-ecran="1"] #view { max-width: none; }
   :root[data-ecran="1"] .ck-heure { font-size: var(--t-2xl); }
 }
+
+/* ================================================================ 🧭 Le Cap
+   La projection business : six chiffres, trois horizons de jalons à cocher,
+   la trajectoire 2027 en barres, les garde-fous. Même grammaire que le reste. */
+.cap-section { margin-top: var(--e-4); }
+.cap-scenario { min-width: 16rem; }
+.cap-chiffres { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--e-3); margin-top: var(--e-3); }
+@media (max-width: 1100px) { .cap-chiffres { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .cap-chiffres { grid-template-columns: 1fr; } }
+.cap-chiffre { display: flex; flex-direction: column; gap: var(--e-1); padding: var(--e-4); border: 1px solid var(--trait); border-radius: var(--r-lg); background: var(--surface-2); min-width: 0; }
+.cap-chiffre.ok { border-color: var(--succes-trait); }
+.cap-chiffre.alerte { border-color: var(--alerte-trait); }
+.cap-valeur { font-family: var(--f-titre); font-size: var(--t-2xl); font-weight: 750; letter-spacing: -.02em; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.cap-detail { color: var(--encre-2); }
+.cap-retard { margin: var(--e-1) 0 0; padding-left: var(--e-4); color: var(--encre-2); }
+.cap-horizons { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: var(--e-4); margin-top: var(--e-4); align-items: start; }
+.cap-horizons .cap-section { margin-top: 0; }
+.cap-horizon { margin-top: var(--e-4); }
+.cap-horizon-tete h3 { margin: 0; font-size: var(--t-md); }
+.cap-progres { height: 6px; border-radius: var(--r-xxs); background: var(--creux); overflow: hidden; margin: var(--e-2) 0 var(--e-3); }
+.cap-progres > span { display: block; height: 100%; background: var(--or); border-radius: inherit; transition: width var(--d-3) var(--anim); }
+.cap-jalons { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--e-1); }
+.cap-jalon { display: flex; align-items: flex-start; gap: var(--e-1); border-radius: var(--r-md); padding: var(--e-1) var(--e-2); }
+.cap-jalon:hover { background: var(--survol); }
+.cap-jalon-ligne { display: flex; align-items: flex-start; gap: var(--e-3); flex: 1; min-width: 0; cursor: pointer; }
+.cap-jalon-ligne input { margin-top: var(--e-1); width: var(--ico); height: var(--ico); accent-color: var(--or); flex: 0 0 auto; }
+.cap-jalon-corps { display: flex; flex-direction: column; gap: var(--e-05); min-width: 0; flex: 1; }
+.cap-jalon-titre { font-weight: 550; overflow-wrap: anywhere; }
+.cap-jalon.fait .cap-jalon-titre { text-decoration: line-through; color: var(--encre-3); font-weight: 450; }
+.cap-jalon.fait .cap-jalon-detail { display: none; }
+.cap-jalon-date { flex: 0 0 auto; align-self: flex-start; }
+.cap-jalon-suppr { flex: 0 0 auto; min-width: var(--ctrl-sm); height: var(--ctrl-sm); padding: 0; color: var(--encre-3); opacity: 0; }
+.cap-jalon:hover .cap-jalon-suppr, .cap-jalon-suppr:focus-visible { opacity: 1; }
+.cap-ajout { margin-top: var(--e-3); }
+.cap-ajout input[name=titre] { flex: 1; min-width: 10rem; }
+.cap-traj { margin: var(--e-4) 0; padding: var(--e-4); border: 1px solid var(--trait); border-radius: var(--r-lg); background: var(--surface-2); }
+.cap-traj-ligne { display: grid; grid-template-columns: 5rem 1fr auto; gap: var(--e-3); align-items: center; margin-top: var(--e-3); }
+.cap-traj-ligne.passe { opacity: .7; }
+.cap-traj-nom { font-weight: 650; font-variant-numeric: tabular-nums; }
+.cap-traj-barre { position: relative; height: 14px; border-radius: var(--r-xxs); background: var(--creux); overflow: visible; }
+.cap-traj-2026 { position: absolute; left: 0; top: 4px; height: 6px; background: var(--encre-3); opacity: .35; border-radius: inherit; }
+.cap-traj-fait { position: absolute; left: 0; top: 0; height: 100%; background: var(--or); border-radius: inherit; transition: width var(--d-3) var(--anim); }
+.cap-traj-cible { position: absolute; top: -4px; width: 2px; height: 22px; background: var(--encre); transform: translateX(-1px); }
+.cap-traj-val { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cap-legende { display: flex; flex-wrap: wrap; gap: var(--e-2) var(--e-3); align-items: center; margin-top: var(--e-3); }
+.cap-leg { display: inline-block; width: 14px; height: 8px; border-radius: var(--r-xxs); vertical-align: middle; }
+.cap-leg-fait { background: var(--or); }
+.cap-leg-2026 { background: var(--encre-3); opacity: .35; }
+.cap-leg-cible { width: 2px; height: 14px; background: var(--encre); }
+.cap-gardes { list-style: none; margin: var(--e-3) 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: var(--e-3); }
+.cap-garde { padding: var(--e-3) var(--e-4); border: 1px solid var(--trait); border-radius: var(--r-md); background: var(--surface-2); display: flex; flex-direction: column; gap: var(--e-1); }
+.cap-garde.alerte { border-color: var(--alerte-trait); }
+.cap-garde.ok { border-color: var(--succes-trait); }
+@media (max-width: 700px) {
+  .cap-traj-ligne { grid-template-columns: 3rem 1fr; }
+  .cap-traj-val { grid-column: 2; }
+  .cap-jalon-suppr { opacity: 1; }
+}

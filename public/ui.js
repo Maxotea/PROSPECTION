@@ -20,6 +20,7 @@
   const ECRANS = [
     { vue: 'journee', titre: 'Ma journée', ico: 'journee', lettre: 'j', aide: 'Les 3 choses du jour, le vide-cerveau, l’agenda' },
     { vue: 'cockpit', titre: 'Cockpit', ico: 'cockpit', lettre: 'k', aide: 'Tout ce qui se passe en un écran : argent, devis, relances, journée' },
+    { vue: 'cap', titre: 'Le Cap', ico: 'cap', lettre: 'b', aide: 'Court, moyen, long terme : jalons, six chiffres du lundi, trajectoire 2027' },
     { vue: 'qg', titre: 'Quartier général', ico: 'qg', lettre: 'q', aide: 'Objectif factures, chiffres, quêtes, badges' },
     { vue: 'chasse', titre: 'Prospection', ico: 'chasse', lettre: 'c', aide: 'Les prospects un par un, message prêt' },
     { vue: 'autopilot', titre: 'Autopilote', ico: 'autopilot', lettre: 'a', aide: 'Séquences email, emails à valider' },
