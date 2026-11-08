@@ -97,6 +97,28 @@ se replie seule : deux tuiles par ligne sur l'iPad, une colonne sur l'iPhone. Sa
 **Sur l'écran d'accueil** sur l'adresse `…/?ecran=1#/cockpit` donne une icône qui ouvre directement
 le tableau de bord, plein écran, sans menu.
 
+### 🧭 Le Cap : la projection business dans l'outil
+
+Le Cap (`#/cap`, ou `G` puis `B`) remplace le plan d'action qu'on gardait dans un document :
+
+1. **Six chiffres le lundi**, calculés depuis le CRM pour la semaine en cours : devis sous 48 h
+   après un rendez-vous (avec la liste des rendez-vous qui attendent encore leur devis), devis
+   envoyés depuis lundi, taux de signature sur huit semaines, couverture du pipeline face à ce
+   qui manque au trimestre, recommandations reçues, facturé du mois. Chaque chiffre dit s'il est
+   dans les clous. Ce que le CRM ne sait pas (solde bancaire, plancher) est marqué « à vérifier
+   à la main », jamais estimé.
+2. **Trois horizons de jalons à cocher** : court terme (les prochaines 24 heures, 48 heures, les
+   prochains jours), moyen terme (les sept semaines de fin d'année, classées par euro encaissé),
+   long terme (2027 : les outils à construire dans l'ordre, les abonnements, la capacité, la
+   décision SaaS). Le plan de départ est semé une fois depuis `src/cap_plan.json` ; tu coches,
+   tu ajoutes, tu retires, tout vit dans la base. Un jalon coché fait le son et les confettis de la
+   quête.
+3. **La trajectoire 2027** : le facturé par trimestre face à la cible du scénario choisi
+   (prudent 91 800, cible 122 500, ambitieux 150 200 € HT), avec le même trimestre de 2026 en
+   rappel. Le scénario se change en haut de l'écran.
+4. **Les garde-fous** de la clôture mensuelle : deux sont calculés (part du premier client sur
+   douze mois, devis en retard après un rendez-vous), les autres sont rappelés pour la revue.
+
 ### ☁️ Mettre OTEA Moteur en ligne (comme Make)
 
 Une adresse à ouvrir de n'importe où, sur n'importe quel appareil, sans rien lancer :
