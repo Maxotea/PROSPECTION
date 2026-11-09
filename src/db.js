@@ -369,6 +369,7 @@ function ensureColumn(table, col, ddl) {
   const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((r) => r.name);
   if (!cols.includes(col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
 }
+ensureColumn('replies', 'automatique', 'automatique INTEGER DEFAULT 0'); // 1 = absence / accusé de réception, pas une vraie réponse
 ensureColumn('contacts', 'campaign_id', 'campaign_id INTEGER DEFAULT 0');
 ensureColumn('templates', 'campaign_id', 'campaign_id INTEGER DEFAULT 0');
 ensureColumn('campaigns', 'ends_on', `ends_on TEXT DEFAULT ''`);      // vide = campagne d'une semaine ; sinon un projet long, en cours jusqu'à cette date
