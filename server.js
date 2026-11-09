@@ -694,6 +694,7 @@ route('PUT', '/api/clients/:id/mois/:mois', async (req, params) => {
   return clientsSuivis.saisirMois(params.id, params.mois, b.valeurs || []);
 });
 route('GET', '/api/clients/:id/rapport', async (req, params, query) => clientsSuivis.rapport(params.id, query.mois));
+route('GET', '/api/clients/:id/rapport-imprimable', async (req, params, query) => clientsSuivis.rapportImprimable(params.id, query.mois));
 
 // ---- inbox (demandes entrantes)
 route('GET', '/api/inbox', async () => ({

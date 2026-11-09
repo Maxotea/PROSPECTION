@@ -324,6 +324,7 @@ async function vClientDetail(view, id) {
       <div class="row">
         <button class="primary" id="cl-saisir">✍️ Saisir un mois</button>
         <button id="cl-rapport">📨 Rapport du mois</button>
+        <button id="cl-imprimable">🖨️ Version à envoyer</button>
         <button class="ghost" id="cl-reglages">⚙️ Réglages</button>
       </div>
     </div>
@@ -374,6 +375,11 @@ async function vClientDetail(view, id) {
   const g = $('#cl-graph'); if (g) g.onchange = () => { indicateurGraphique = Number(g.value); render(); };
   $('#cl-saisir').onclick = () => saisieMoisModal(t);
   $('#cl-rapport').onclick = () => rapportModal(t);
+  $('#cl-imprimable').onclick = () => {
+    const actifs = t.synthese.filter((s) => s.actif).map((s) => s.mois);
+    if (!actifs.length) return fx.error('Aucun mois saisi : saisis d’abord les chiffres d’un mois, la version à envoyer se remplira toute seule.');
+    ouvrirRapportClient(c.id, actifs[actifs.length - 1]);
+  };
   $('#cl-reglages').onclick = () => reglagesClientModal(c);
   $('#cl-ind-ajout').onclick = () => indicateurModal(c.id, null);
   $$('[data-ind]', view).forEach((b) => { b.onclick = () => indicateurModal(c.id, t.indicateurs.find((i) => i.id === Number(b.dataset.ind))); });
@@ -419,6 +425,139 @@ async function rapportModal(t, moisChoisi) {
     <div class="row fin mt-3"><button class="primary" id="rp-copier">📋 Copier</button></div>`);
   $('#rp-mois', m).onchange = (e) => { m.remove(); rapportModal(t, e.target.value); };
   $('#rp-copier', m).onclick = async () => { await copyText(texte); fx.toast('Rapport copié : colle-le dans le mail du client.', '', 2600); };
+}
+
+// ================================================================ VERSION À ENVOYER
+// 🖨️ Le rapport client imprimable : une page propre, sans menu ni bouton une fois
+// imprimée, que Maxime enregistre en PDF et envoie (Off Golf veut du chiffre).
+// La demande (client, mois) est posée avant de naviguer ; elle survit au rechargement.
+let rapportClientDemande = null;
+const CLE_RAPPORT = 'otea-rapport-client';
+
+function ouvrirRapportClient(clientId, mois) {
+  rapportClientDemande = { id: Number(clientId), mois: mois || '' };
+  try { sessionStorage.setItem(CLE_RAPPORT, JSON.stringify(rapportClientDemande)); } catch { /* navigation privée : la variable suffit */ }
+  location.hash = '#/rapport-client';
+}
+
+// L'impression se fait toujours en thème clair (une page sombre gâche l'encre et se lit mal),
+// et le titre de la page devient le nom du PDF proposé : « Rapport Off Golf, octobre 2026 ».
+let themeAvantImpression = null, titreAvantImpression = null, titreRapport = '';
+function themeClairPourImprimer() {
+  if (themeAvantImpression !== null) return;
+  themeAvantImpression = document.documentElement.getAttribute('data-theme') || '';
+  document.documentElement.setAttribute('data-theme', 'clair');
+  if (titreRapport) { titreAvantImpression = document.title; document.title = titreRapport; }
+}
+function themeApresImpression() {
+  if (themeAvantImpression === null) return;
+  if (themeAvantImpression) document.documentElement.setAttribute('data-theme', themeAvantImpression);
+  else document.documentElement.removeAttribute('data-theme');
+  themeAvantImpression = null;
+  if (titreAvantImpression !== null) { document.title = titreAvantImpression; titreAvantImpression = null; }
+}
+addEventListener('beforeprint', () => { if (document.querySelector('.rapport-imprimable')) themeClairPourImprimer(); });
+addEventListener('afterprint', themeApresImpression);
+
+// « d’octobre », « d’avril », « d’août », mais « de mai » : l'élision devant une voyelle.
+function deMois(libelle) { return /^[aeiouéèêâîôû]/i.test(libelle) ? `d’${libelle}` : `de ${libelle}`; }
+
+function kpiRapport(valeur, libelle, detail) {
+  return `<div class="kpi"><div class="n">${valeur}</div><div class="l">${libelle}</div>${detail ? `<div class="muted small">${detail}</div>` : ''}</div>`;
+}
+
+async function vRapportClient(view) {
+  if (!rapportClientDemande) {
+    try { rapportClientDemande = JSON.parse(sessionStorage.getItem(CLE_RAPPORT) || 'null'); } catch { rapportClientDemande = null; }
+  }
+  const sansClient = (raison) => {
+    view.innerHTML = `<div class="card bord-or"><h2>🖨️ Quel client ?</h2>
+      <p class="muted">${esc(raison)} Ouvre un client dans Résultats clients, puis « Version à envoyer ».</p>
+      <div class="row mt-3"><a class="btn primary" href="#/clients">📈 Résultats clients</a></div></div>`;
+  };
+  if (!rapportClientDemande || !rapportClientDemande.id) return sansClient('Aucun client choisi pour l’instant.');
+  const { id } = rapportClientDemande;
+  const q = rapportClientDemande.mois ? `?mois=${encodeURIComponent(rapportClientDemande.mois)}` : '';
+  let r;
+  try { r = await api(`/clients/${id}/rapport-imprimable${q}`); } catch (e) {
+    // Client supprimé depuis : on oublie la demande plutôt que de buter dessus à chaque visite.
+    if (/n’existe plus/.test(e.message)) {
+      rapportClientDemande = null;
+      try { sessionStorage.removeItem(CLE_RAPPORT); } catch { /* rien à ranger */ }
+      return sansClient('Ce client n’est plus suivi.');
+    }
+    throw e;
+  }
+  rapportClientDemande.mois = r.mois;
+  const c = r.client, k = r.cumul, s = r.du_mois;
+  titreRapport = `Rapport ${c.nom}, ${r.libelle_mois}`;
+  const signe = (n) => (n > 0 ? '+' : '');
+  const depuis = k.mois_suivis > 1 ? `depuis ${esc(moisLong(c.debut))} (${k.mois_suivis} mois)` : `sur ${esc(moisLong(r.mois))}`;
+  const choixMois = r.mois_saisis.includes(r.mois) ? r.mois_saisis : [...r.mois_saisis, r.mois].sort();
+
+  view.innerHTML = `
+    <div class="rapport-barre no-print">
+      <button type="button" class="lien-texte small" id="rc-retour">← Retour à ${esc(c.nom)}</button>
+      <div class="row">
+        <label class="field rapport-mois">Mois<select id="rc-mois">${choixMois.map((m) => `<option value="${m}" ${m === r.mois ? 'selected' : ''}>${esc(moisLong(m))}</option>`).join('')}</select></label>
+        <button class="primary" id="rc-imprimer">🖨️ Imprimer ou enregistrer en PDF</button>
+      </div>
+      <p class="muted small">Dans la fenêtre d’impression, choisis « Enregistrer au format PDF ». Le menu et les boutons disparaissent de la page imprimée.</p>
+    </div>
+    <article class="rapport-imprimable">
+      <header class="rapport-entete">
+        <div class="surtitre">Rapport mensuel</div>
+        <h1>${esc(c.nom)}</h1>
+        <div class="rapport-mois-titre">${esc(r.libelle_mois.charAt(0).toUpperCase() + r.libelle_mois.slice(1))}</div>
+      </header>
+
+      <section class="rapport-section">
+        <h2>Ce que les réseaux ont rapporté, ${depuis}</h2>
+        <div class="kpis">
+          ${kpiRapport(k.ca_total !== null ? eur(k.ca_total) : 'non saisi', `💰 CA généré${k.ca_estime ? ' (en partie estimé)' : ''}`, s.ca !== null ? `dont ${eur(s.ca)} en ${esc(moisLong(r.mois))}` : '')}
+          ${kpiRapport(eur(k.cout_total), '🧾 investi (accompagnement + pub, HT)', s.cout !== null ? `dont ${eur(s.cout)} ce mois` : '')}
+          ${kpiRapport(k.roi !== null ? fmtPct(k.roi, true) : 'à calculer', '📈 retour sur investissement', s.roi !== null ? `${fmtPct(s.roi, true)} ce mois` : '')}
+          ${kpiRapport(k.multiple !== null ? `${k.multiple.toLocaleString('fr-FR')} €` : 'à calculer', '💶 rapportés par euro investi', s.multiple !== null ? `${s.multiple.toLocaleString('fr-FR')} € ce mois` : '')}
+          ${kpiRapport(k.reservations !== null ? fmtVal(k.reservations) : 'non saisi', '🎟️ réservations', k.reservations_en_plus !== null ? `${signe(k.reservations_en_plus)}${fmtVal(k.reservations_en_plus)} par rapport au point de départ` : (s.reservations !== null ? `${fmtVal(s.reservations)} ce mois` : ''))}
+          ${kpiRapport(k.cout_par_reservation !== null ? eurFin(k.cout_par_reservation) : 'à calculer', '🎯 coût par réservation', s.cout_par_reservation !== null ? `${eurFin(s.cout_par_reservation)} ce mois` : '')}
+        </div>
+        ${k.ca_estime ? `<p class="muted small">CA estimé : réservations × panier moyen de ${eur(c.panier_moyen)}.</p>` : ''}
+      </section>
+
+      <section class="rapport-section">
+        <h2>Les chiffres ${esc(deMois(moisLong(r.mois)))}</h2>
+        ${r.lignes.length ? `<table class="list rapport-table"><thead><tr><th>Indicateur</th><th>Objectif</th><th>Réel</th><th>Atteinte</th><th>vs point de départ</th></tr></thead><tbody>
+          ${r.lignes.map((l) => `<tr>
+            <th scope="row">${esc(l.libelle)}</th>
+            <td>${l.objectif !== null ? fmtVal(l.objectif, l.unite) : ''}</td>
+            <td><b>${l.reel !== null ? fmtVal(l.reel, l.unite) : 'non saisi'}</b></td>
+            <td>${chipAtteinte(l.atteinte, l.sens) || (l.atteinte !== null ? fmtPct(l.atteinte) : '')}</td>
+            <td>${l.vs_baseline !== null && l.role !== 'pub' ? fmtPct(l.vs_baseline, true) : ''}</td>
+          </tr>`).join('')}
+        </tbody></table>` : '<p class="muted">Aucun chiffre saisi pour ce mois.</p>'}
+      </section>
+
+      ${r.graphique && r.graphique.mois.some((l) => l.reel !== null || l.objectif !== null) ? `<section class="rapport-section rapport-graphe">
+        <h2>${esc(r.graphique.libelle)} : objectif et réel</h2>
+        ${barresGroupees(r.graphique.mois.map((l) => ({ libelle: moisCourt(l.mois), objectif: l.objectif, reel: l.reel })),
+          [{ cle: 'objectif', libelle: 'Objectif', classe: 'serie-c' }, { cle: 'reel', libelle: 'Réel', classe: 'serie-a' }],
+          { unite: r.graphique.unite, label: `${r.graphique.libelle} : objectif et réel par mois` })}
+        ${r.graphique.baseline !== null ? `<p class="muted small">Point de départ avant l’accompagnement : <b>${fmtVal(r.graphique.baseline, r.graphique.unite)}</b> par mois.</p>` : ''}
+      </section>` : ''}
+
+      <section class="rapport-section">
+        <h2>Objectifs ${esc(deMois(r.libelle_mois_suivant))}</h2>
+        ${r.objectifs_suivants.length
+          ? `<ul class="points">${r.objectifs_suivants.map((o) => `<li>${esc(o.libelle)} : <b>${fmtVal(o.objectif, o.unite)}</b></li>`).join('')}</ul>`
+          : '<p class="muted">Les objectifs du mois prochain seront fixés ensemble.</p>'}
+      </section>
+
+      <footer class="rapport-pied">Préparé par OTEA Production</footer>
+    </article>`;
+
+  $('#rc-retour').onclick = () => { clientOuvert = id; location.hash = '#/clients'; };
+  $('#rc-mois').onchange = (e) => { ouvrirRapportClient(id, e.target.value); render(); };
+  $('#rc-imprimer').onclick = () => { themeClairPourImprimer(); window.print(); };
 }
 
 function reglagesClientModal(c) {

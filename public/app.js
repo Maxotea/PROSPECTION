@@ -153,7 +153,7 @@ async function celebrate(res) {
 }
 
 // ---------------------------------------------------------------- routeur
-const VIEWS = { journee: vJournee, cockpit: vCockpit, pilotage: vPilotage, clients: vClients, cap: vCap, qg: vQG, chasse: vChasse, autopilot: vAutopilot, campagnes: vCampagnes, pipeline: vPipeline, contacts: vContacts, inbox: vInbox, import: vImport, reglages: vReglages };
+const VIEWS = { journee: vJournee, cockpit: vCockpit, pilotage: vPilotage, clients: vClients, 'rapport-client': vRapportClient, cap: vCap, qg: vQG, chasse: vChasse, autopilot: vAutopilot, campagnes: vCampagnes, pipeline: vPipeline, contacts: vContacts, inbox: vInbox, import: vImport, reglages: vReglages };
 
 // Pendant qu'une vue charge : sa silhouette, plutôt qu'un écran vide.
 function squeletteVue() {

@@ -1288,3 +1288,50 @@ a.ck-chiffre:hover .ck-l { text-decoration: underline; text-underline-offset: 3p
   .cap-traj-val { grid-column: 2; }
   .cap-jalon-suppr { opacity: 1; }
 }
+
+/* ================================================================ 🖨️ rapport client imprimable
+   La version à envoyer : à l'écran une feuille posée sur le fond, à l'impression
+   une page A4 nette (sans menu, sans bouton), que le client lit comme un document. */
+.rapport-barre { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--e-3); margin-bottom: var(--e-5); }
+.rapport-barre > p { flex-basis: 100%; margin: 0; }
+.rapport-mois { min-width: 12rem; }
+.rapport-imprimable {
+  max-width: 54rem; margin: 0 auto; background: var(--surface); color: var(--encre);
+  border: 1px solid var(--trait); border-radius: var(--r-lg); box-shadow: var(--ombre-2);
+  padding: var(--e-7) var(--e-7) var(--e-6);
+}
+.rapport-entete { border-bottom: 2px solid var(--accent); padding-bottom: var(--e-4); margin-bottom: var(--e-5); }
+.rapport-entete .surtitre { font-size: var(--t-2xs); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent-texte); }
+.rapport-entete h1 { font-size: var(--t-2xl); margin: var(--e-1) 0; }
+.rapport-mois-titre { font-family: var(--f-titre); font-size: var(--t-lg); color: var(--encre-2); }
+.rapport-section + .rapport-section { margin-top: var(--e-6); }
+.rapport-section h2 { font-size: var(--t-md); margin-bottom: var(--e-3); }
+.rapport-imprimable .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.rapport-imprimable .kpi { box-shadow: none; padding: var(--e-3) var(--e-35); }
+.rapport-imprimable .kpi .n { font-size: var(--t-xl); }
+.rapport-imprimable .kpi .muted.small { margin-top: var(--e-1); }
+.rapport-table { width: 100%; }
+table.list.rapport-table tbody th[scope="row"] { font-size: var(--t-ui); font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--encre); white-space: normal; padding: var(--e-25); }
+.rapport-table td { font-variant-numeric: tabular-nums; }
+.rapport-pied { margin-top: var(--e-7); padding-top: var(--e-3); border-top: 1px solid var(--trait); font-size: var(--t-sm); color: var(--encre-2); text-align: right; }
+@media (max-width: 700px) {
+  .rapport-imprimable { padding: var(--e-5) var(--e-4); }
+  .rapport-imprimable .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media print {
+  @page { size: A4; margin: 14mm 12mm; }
+  html, body { background: var(--surface); }
+  #sidebar, #tabbar, #nav-voile, #drawer, #drawer-backdrop, #modal-root, #palette-root, #toasts, #confetti,
+  .lien-evitement, .no-print, button, .btn { display: none !important; }
+  #app { display: block; min-height: 0; }
+  #view { max-width: none; margin: 0; padding: 0; }
+  #view.vue-entree > * { animation: none; }
+  .rapport-imprimable { max-width: none; border: 0; border-radius: 0; box-shadow: none; padding: 0; }
+  .rapport-imprimable .kpi { break-inside: avoid; }
+  .rapport-section { break-inside: avoid; }
+  .rapport-section + .rapport-section { margin-top: var(--e-5); }
+  .rapport-imprimable .chart-svg.graphe-borne { max-height: 13rem; }
+  .rapport-pied { margin-top: var(--e-5); }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
