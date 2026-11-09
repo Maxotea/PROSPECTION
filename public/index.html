@@ -25,6 +25,8 @@
       <symbol id="i-cockpit" viewBox="0 0 24 24"><path d="M3.5 16.5a8.5 8.5 0 1 1 17 0"/><path d="M12 16.5l4.2-6"/><circle cx="12" cy="16.5" r="1.4"/><path d="M4 20.5h16"/></symbol>
       <symbol id="i-ecran" viewBox="0 0 24 24"><rect x="2.5" y="4" width="19" height="13" rx="2.2"/><path d="M8.5 21h7M12 17v4"/></symbol>
       <symbol id="i-qg" viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="9" rx="1.6"/><rect x="13.5" y="3" width="7.5" height="5" rx="1.6"/><rect x="13.5" y="11" width="7.5" height="10" rx="1.6"/><rect x="3" y="15" width="7.5" height="6" rx="1.6"/></symbol>
+      <symbol id="i-pilotage" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/></symbol>
+      <symbol id="i-resultats" viewBox="0 0 24 24"><path d="M3 20h18"/><path d="M5 16l4.5-5 3.5 3 6-7"/><path d="M15 7h4v4"/></symbol>
       <symbol id="i-chasse" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.6"/><path d="M12 1.5v4.5M12 18v4.5M1.5 12H6M18 12h4.5"/></symbol>
       <symbol id="i-autopilot" viewBox="0 0 24 24"><path d="M21.5 2.5 10.8 13.2"/><path d="M21.5 2.5 15 21l-4.2-7.8L3 9z"/></symbol>
       <symbol id="i-campagnes" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="16.5" rx="2.2"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4M7.5 14h3M13.5 14h3M7.5 17.5h3"/></symbol>
@@ -69,6 +71,8 @@
       </button>
       <a href="#/journee" data-view="journee" data-court="Journée"><svg class="ico" aria-hidden="true"><use href="#i-journee"/></svg><span>Ma journée</span></a>
       <a href="#/cockpit" data-view="cockpit" data-court="Cockpit"><svg class="ico" aria-hidden="true"><use href="#i-cockpit"/></svg><span>Cockpit</span></a>
+      <a href="#/pilotage" data-view="pilotage" data-court="Pilotage"><svg class="ico" aria-hidden="true"><use href="#i-pilotage"/></svg><span>Pilotage</span></a>
+      <a href="#/clients" data-view="clients" data-court="Clients"><svg class="ico" aria-hidden="true"><use href="#i-resultats"/></svg><span>Résultats clients</span></a>
       <a href="#/cap" data-view="cap" data-court="Cap"><svg class="ico" aria-hidden="true"><use href="#i-cap"/></svg><span>Le Cap</span></a>
       <a href="#/qg" data-view="qg" data-court="QG"><svg class="ico" aria-hidden="true"><use href="#i-qg"/></svg><span>Quartier général</span></a>
       <div class="nav-groupe" aria-hidden="true">Prospection</div>
@@ -97,9 +101,9 @@
   <!-- Téléphone : les moteurs du quotidien sous le pouce, le reste derrière « Plus ». -->
   <nav id="tabbar" aria-label="Navigation rapide">
     <a href="#/journee" data-view="journee"><svg class="ico" aria-hidden="true"><use href="#i-journee"/></svg><span>Journée</span></a>
-    <a href="#/chasse" data-view="chasse"><svg class="ico" aria-hidden="true"><use href="#i-chasse"/></svg><span>Chasse</span></a>
-    <a href="#/contacts" data-view="contacts"><svg class="ico" aria-hidden="true"><use href="#i-contacts"/></svg><span>Contacts</span></a>
-    <a href="#/autopilot" data-view="autopilot"><svg class="ico" aria-hidden="true"><use href="#i-autopilot"/></svg><span>Pilote</span></a>
+    <a href="#/pilotage" data-view="pilotage"><svg class="ico" aria-hidden="true"><use href="#i-pilotage"/></svg><span>Pilotage</span></a>
+    <a href="#/clients" data-view="clients"><svg class="ico" aria-hidden="true"><use href="#i-resultats"/></svg><span>Clients</span></a>
+    <a href="#/chasse" data-view="chasse"><svg class="ico" aria-hidden="true"><use href="#i-chasse"/></svg><span>Prospects</span></a>
     <button type="button" id="tab-plus" aria-haspopup="true" aria-expanded="false" aria-controls="sidebar"><svg class="ico" aria-hidden="true"><use href="#i-menu"/></svg><span>Plus</span></button>
   </nav>
   <div id="nav-voile" class="hidden"></div>
@@ -115,6 +119,7 @@
   <script src="/journee.js"></script>
   <script src="/cockpit.js"></script>
   <script src="/cap.js"></script>
+  <script src="/pilotage.js"></script>
   <script src="/app.js"></script>
   <script src="/ui.js"></script>
 </body>

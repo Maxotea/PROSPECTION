@@ -275,3 +275,67 @@ test('etat : le rafraîchissement suit le réglage, jamais sous 15 secondes', ()
   assert.strictEqual(cockpit.etat().rafraichissement_s, 120);
   setSetting('cockpit_rafraichissement', '');
 });
+
+// ================================================================ l'argent réel (Pilotage) et les clients suivis
+const pilotage = require('../src/pilotage');
+const clients = require('../src/clients');
+function viderPilotage() { for (const t of ['pieces', 'clients_suivis']) run(`DELETE FROM ${t}`); }
+
+test('argent réel : sans aucune facture, le Cockpit ne change rien', () => {
+  nettoyer(); viderPilotage();
+  const galec = contact({ prenom: 'Margot', nom: 'Bousquet', societe: 'Galec', stage: 'gagne' });
+  deal({ contactId: galec, titre: 'Reels', montant: 1000, statut: 'facture', jour: today, facture: `${today}T12:00:00.000Z` });
+  const E = cockpit.etat();
+  assert.strictEqual(E.argent_reel, null, 'pas de pièce : pas de bloc argent réel');
+  assert.deepStrictEqual(E.argent.facture_mois, { n: 1, total: 1000 }, 'le facturé du pipeline reste le même');
+  assert.deepStrictEqual(E.clients, []);
+  // Un devis seul, ou une facture annulée, ne suffit pas à parler d'argent réel.
+  pilotage.creerPiece({ type: 'devis', client: 'Raja', montant_ht: 2000 });
+  pilotage.creerPiece({ client: 'Amundi', montant_ttc: 600, statut: 'annulee' });
+  assert.strictEqual(cockpit.etat().argent_reel, null);
+});
+
+test('argent réel : encaissé ce mois, reste à encaisser, en retard, lus dans Pilotage', () => {
+  nettoyer(); viderPilotage();
+  const moisDernier = moisPrecedent(1);
+  pilotage.creerPiece({ client: 'Galec', montant_ttc: 2400, statut: 'payee', date: addDays(today, -20), paye_le: today });
+  pilotage.creerPiece({ client: 'Nina Ramen', montant_ttc: 900, statut: 'payee', date: moisDernier, paye_le: moisDernier });
+  pilotage.creerPiece({ client: 'RAJA', montant_ttc: 1200, statut: 'a_payer', date: addDays(today, -40), echeance: addDays(today, -10) });
+  pilotage.creerPiece({ client: 'EBRA', montant_ttc: 600, statut: 'a_payer', date: today, echeance: addDays(today, 20) });
+  const R = cockpit.etat().argent_reel;
+  assert.ok(R, 'des factures existent : le bloc argent réel est là');
+  assert.strictEqual(R.mois, moisCourant);
+  assert.strictEqual(R.encaisse_mois_ttc, 2400, 'seul le paiement de ce mois compte');
+  assert.strictEqual(R.encaissements, 1);
+  assert.strictEqual(R.reste_ttc, 1800);
+  assert.strictEqual(R.a_payer, 2);
+  assert.strictEqual(R.en_retard_ttc, 1200);
+  assert.strictEqual(R.en_retard, 1);
+  // Les mêmes chiffres que la revue de Pilotage : une seule source.
+  const rv = pilotage.revue({ today });
+  assert.strictEqual(R.reste_ttc, rv.total.a_encaisser_ttc);
+  assert.strictEqual(R.en_retard_ttc, rv.total.en_retard_ttc);
+  assert.strictEqual(R.encaisse_mois_ttc, rv.argent.ce_mois.encaisse_ttc);
+  viderPilotage();
+});
+
+test('clients suivis : une ligne par client, ROI cumulé et mois fini à saisir', () => {
+  nettoyer(); viderPilotage();
+  const m2 = clients.moisSuivant(moisCourant, -2);
+  const c = clients.creerClient({ nom: 'Off Golf', debut: m2, honoraires_mensuels: 1000, budget_pub_mensuel: 0, modele: 'vierge' });
+  const ca = clients.ajouterIndicateur(c.id, { libelle: 'CA généré', unite: 'euros', role: 'ca', baseline: 0 });
+  const resa = clients.ajouterIndicateur(c.id, { libelle: 'Réservations', role: 'reservations', baseline: 0 });
+  clients.saisirMois(c.id, m2, [{ indicateur_id: ca.id, reel: 3000 }, { indicateur_id: resa.id, reel: 60 }]);
+  const E = cockpit.etat();
+  assert.strictEqual(E.clients.length, 1);
+  const l = E.clients[0];
+  assert.strictEqual(l.nom, 'Off Golf');
+  assert.strictEqual(l.roi, 2, '3 000 € rapportés pour 1 000 € payés');
+  assert.strictEqual(l.mois_manquant, clients.moisSuivant(moisCourant, -1), 'le mois dernier n’est pas saisi');
+  assert.ok(l.mois_manquant_libelle);
+  clients.saisirMois(c.id, l.mois_manquant, [{ indicateur_id: ca.id, reel: 1000 }]);
+  const apres = cockpit.etat().clients[0];
+  assert.strictEqual(apres.mois_manquant, '', 'saisi : plus rien ne manque');
+  assert.ok(!JSON.stringify(cockpit.etat()).includes(TIRET));
+  viderPilotage();
+});

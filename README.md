@@ -417,7 +417,7 @@ Premier projet livré : **Sponsoring HYROX · Pierre & Antoine** (jusqu'au 13 ju
 ### Garde-fous intégrés
 
 - Une réponse (même détectée à la main) **stoppe la séquence** : personne ne reçoit une relance après avoir répondu ;
-- **Une réponse automatique n'est pas une réponse** : absence du bureau, accusé de réception, répondeur de plateforme (reconnus à l'objet, aux premières lignes et aux en-têtes du mail). Elle n'arrête pas la séquence, ne crée aucune tâche « répondre » et ne compte pas comme réponse reçue. Une absence du bureau met la séquence **en pause sept jours** : on ne relance pas une boîte vide. La fiche garde une note « absence du bureau reçu (pas une réponse) » ;
+- **Une réponse automatique n'est pas une réponse** : absence du bureau, congés, accusé de réception, changement d'adresse, répondeur de plateforme (reconnus aux en-têtes du mail, à l'objet et aux premières lignes). Elle n'arrête pas la séquence, ne crée aucune tâche « répondre » et ne compte pas comme réponse reçue. La fiche garde une note qui dit pourquoi, et si rien n'était prévu, une relance est posée à J+7. Les fausses « réponses » enregistrées avant cette règle ont été reprises une fois au démarrage ;
 - Un bounce (adresse refusée) marque l'email invalide et stoppe la séquence ;
 - Un contact = **une seule séquence à la fois** ; jamais d'enrôlement sans email ; les contacts en séquence sortent de la file de la Prospection ;
 - Cap quotidien + fenêtre horaire + jours ouvrés + espacement aléatoire : le rythme d'un humain, pas d'un robot ;
@@ -479,6 +479,28 @@ s'estompe sur la droite tant qu'il reste des onglets à faire défiler.
 Au clavier : `Échap` ferme la fiche contact ou la fenêtre ouverte, et `Tab` montre
 toujours où l'on est. Le réglage système « réduire les animations » coupe les confettis
 et les glissements.
+
+## 🧭 Pilotage : la revue de la semaine
+
+L'argent d'OTEA en un écran, à ouvrir le vendredi (CEO Day).
+
+- **🔄 Lire Pennylane** : récupère les factures et les devis. Une facture vue « payée » au passage suivant est encaissée ce jour-là.
+- **Facturé et encaissé restent séparés** : facturé ce mois (HT et TTC, et l'écart avec le mois d'avant), encaissé ce mois, reste à encaisser, retards en jours.
+- **Devis et propales** : ceux de Pennylane et ceux du pipeline, leur âge, ceux qui expirent, les acceptés pas encore facturés.
+- **Points d'attention** : des phrases dans l'ordre où s'en occuper (« Relance d'abord Raja, 7 jours de retard »).
+- Les échéances de la semaine, les relances prospects dues, l'état des clients suivis.
+- **📋 Copier la revue** : la même chose en texte, à coller où tu veux.
+- **➕ Pièce à la main** : une facture ou un devis qui n'est pas dans Pennylane.
+
+## 📈 Résultats clients : le tableau de bord promis aux clients
+
+Pour Off Golf et les suivants : du chiffre, mois par mois.
+
+1. **➕ Nouveau client suivi** : nom, modèle (lieu de loisirs, commerce, vierge), accompagnement mensuel, budget pub, panier moyen d'une réservation.
+2. **Le point de départ** : clique sur chaque indicateur et saisis sa valeur d'avant OTEA (réservations par mois, demandes séminaire, CA...).
+3. **✍️ Saisir un mois** : l'objectif et le réel de chaque indicateur. Les objectifs des mois suivants peuvent se poser d'avance.
+4. L'écran calcule tout seul : CA généré, investi (accompagnement + pub), **ROI**, ce que rapporte chaque euro, **coût par réservation**, réservations en plus par rapport à avant. Sans CA saisi, il l'estime (réservations × panier moyen) et le dit.
+5. **📨 Rapport du mois** : le texte prêt à coller dans le mail au client.
 
 ## 🎮 La boucle de jeu
 
@@ -567,7 +589,7 @@ Les clés sont stockées en local (ou via un fichier `.env` : `PENNYLANE_API_KEY
 - `server.js` : serveur HTTP + API REST (`/api/*`) + boucle Autopilote (10 min) + radar de la journée (5 min) + relève des enrichissements FullEnrich (2 min) · `src/journee.js` : Ma journée (signaux Gmail / WhatsApp / appels / agenda / CRM, classement, placement, brief) · `src/integrations/agenda.js` + `agenda.gs` : Google Agenda via un script Apps Script sur le compte de Maxime (lecture, créneaux libres, pose des tâches, couleurs d'urgence) · `src/autopilot.js` : séquences, enrôlements, file d'envoi, détection des réponses · `src/db.js` : schéma + upsert/dédoublonnage · `src/gamification.js` : XP, niveaux, quêtes, streak, badges, boss · `src/playbooks.js` : segments, cadences, templates, séquences · `src/integrations/` : Pennylane, FullEnrich, HubSpot, Claude · `src/importers/` : répertoire chaud (appels macOS, WhatsApp, scoring des relations) · `public/` : l'app.
 - API Pennylane **v2** (`/api/external/v2` : `customers`, `customer_invoices`, `quotes`, `create_from_quote`) ; FullEnrich **v2** (`/api/v2/contact/enrich/bulk`, fallback v1 automatique) ; HubSpot **v3** ; Gmail en **SMTP/IMAP standard** (mot de passe d'application, aucun projet Google Cloud à créer).
 - Les réponses d'API inattendues remontent **verbatim** dans l'interface pour diagnostiquer vite.
-- **Tests** : `npm test` : 155 tests. Ma journée (analyse du vide-cerveau, placement, signaux CRM / Gmail / WhatsApp / appels contre un IMAP factice, décisions, brief), moteur Autopilote contre des serveurs SMTP/IMAP factices (envoi, threading, réponses, bounces, cap, scan), campagnes hebdo, et répertoire chaud contre de fausses bases d'appels/WhatsApp et de vrais formats d'export.
+- **Tests** : `npm test` : 165 tests. Pilotage (facturé et encaissé séparés, lecture des factures Pennylane, points d'attention) et Résultats clients (ROI, coût par réservation, CA estimé, rapport mensuel), Ma journée (analyse du vide-cerveau, placement, signaux CRM / Gmail / WhatsApp / appels contre un IMAP factice, décisions, brief), moteur Autopilote contre des serveurs SMTP/IMAP factices (envoi, threading, réponses, bounces, cap, scan), campagnes hebdo, et répertoire chaud contre de fausses bases d'appels/WhatsApp et de vrais formats d'export.
 
 ## 🗺️ Pistes pour la suite
 

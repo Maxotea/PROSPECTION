@@ -20,6 +20,8 @@
   const ECRANS = [
     { vue: 'journee', titre: 'Ma journée', ico: 'journee', lettre: 'j', aide: 'Les 3 choses du jour, le vide-cerveau, l’agenda' },
     { vue: 'cockpit', titre: 'Cockpit', ico: 'cockpit', lettre: 'k', aide: 'Tout ce qui se passe en un écran : argent, devis, relances, journée' },
+    { vue: 'pilotage', titre: 'Pilotage', ico: 'pilotage', lettre: 'l', aide: 'Revue de la semaine : facturé, encaissé, devis, relances, échéances' },
+    { vue: 'clients', titre: 'Résultats clients', ico: 'resultats', lettre: 'e', aide: 'Off Golf et les autres : réservations, CA généré, ROI, rapport mensuel' },
     { vue: 'cap', titre: 'Le Cap', ico: 'cap', lettre: 'b', aide: 'Court, moyen, long terme : jalons, six chiffres du lundi, trajectoire 2027' },
     { vue: 'qg', titre: 'Quartier général', ico: 'qg', lettre: 'q', aide: 'Objectif factures, chiffres, quêtes, badges' },
     { vue: 'chasse', titre: 'Prospection', ico: 'chasse', lettre: 'c', aide: 'Les prospects un par un, message prêt' },
@@ -290,7 +292,7 @@
   const RACCOURCIS = [
     [[touche, 'K'], 'Palette : aller à un écran, chercher un contact, lancer une action'],
     [['/'], 'Ouvrir la palette aussi'],
-    [['G', 'J'], 'Ma journée'], [['G', 'Q'], 'Quartier général'], [['G', 'C'], 'Prospection'], [['G', 'A'], 'Autopilote'],
+    [['G', 'J'], 'Ma journée'], [['G', 'L'], 'Pilotage'], [['G', 'E'], 'Résultats clients'], [['G', 'Q'], 'Quartier général'], [['G', 'C'], 'Prospection'], [['G', 'A'], 'Autopilote'],
     [['G', 'M'], 'Campagnes'], [['G', 'P'], 'Pipeline'], [['G', 'O'], 'Contacts'], [['G', 'R'], 'Réponses'],
     [['G', 'I'], 'Imports'], [['G', 'S'], 'Réglages'],
     [['N'], 'Nouveau contact'], [['T'], 'Ajouter une chose à faire'],

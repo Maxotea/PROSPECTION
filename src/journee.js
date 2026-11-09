@@ -33,6 +33,7 @@ const appels = require('./importers/appels');
 const repertoire = require('./importers/repertoire');
 const imap = require('./mail/imap');
 const smtp = require('./mail/smtp');
+const { estReponseAutomatique } = require('./mail/reponse-auto');
 const autopilot = require('./autopilot');
 const game = require('./gamification');
 const campaigns = require('./campaigns');
@@ -79,7 +80,7 @@ const MOTS_VITAL = ['urgent', 'asap', "aujourd'hui", 'aujourd’hui', 'ce matin'
 
 // Expéditeurs qui ne sont pas des humains qui attendent une réponse.
 // Les réponses automatiques (absence, accusé de réception) ne demandent rien.
-const reponseAuto = require('./mail/reponse_auto');
+const REPONSE_AUTO = /r[ée]ponse automatique|automatic reply|auto-?reply|autoreply|out of office|absence du bureau|absent(e)? du bureau|accus[ée] de r[ée]ception/i;
 const BRUIT_MAIL = /no-?reply|ne-?pas-?repondre|notification|mailer-daemon|newsletter|donotreply|do-not-reply|@(facebook|instagram|linkedin|google|apple|amazon|paypal|stripe|qonto|pennylane|notion|slack|canva|adobe|metricool|zapier|github|calendly|doctolib)\./i;
 
 const JOURS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
@@ -410,7 +411,7 @@ function signauxGmail(radar, index, now) {
     const from = m.from && m.from.email;
     if (!from || from === moi) continue;
     if (BRUIT_MAIL.test(from) || sig.ressembleAuBruit({ nom: m.from.name, texte: m.subject })) continue;
-    if (reponseAuto.estReponseAutomatique(m)) continue;
+    if (REPONSE_AUTO.test(m.subject || '') || estReponseAutomatique({ subject: m.subject, headers: m.auto }).auto) continue;
     if (m.repondu || (m.message_id && repondus.has(m.message_id))) continue;
     const recu = Date.parse(m.date) || 0;
     if ((ecritsA[from] || 0) > recu) continue; // on lui a écrit depuis : la balle est chez lui
@@ -679,7 +680,7 @@ function signauxCrm(today, radar = {}) {
     return !!email && (ecritsA.get(email) || 0) > (Date.parse(r.created_at) || 0);
   };
   const demandes = all(`SELECT i.*, c.first_name, c.last_name, c.company, c.stage, c.email FROM inbox i LEFT JOIN contacts c ON c.id = i.contact_id WHERE i.status = 'nouveau' ORDER BY i.id`)
-    .filter((r) => !reponseAuto.estReponseAutomatique({ texte: r.content }))
+    .filter((r) => !REPONSE_AUTO.test(String(r.content || '').slice(0, 300)) && !estReponseAutomatique({ extrait: r.content }).auto)
     .filter((r) => !dejaRepondu(r));
   const contactsAvecDemande = new Set(demandes.map((r) => r.contact_id).filter(Boolean));
 

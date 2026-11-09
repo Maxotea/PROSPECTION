@@ -198,4 +198,4 @@ async function invoiceFromQuote(deal) {
   throw lastErr;
 }
 
-module.exports = { test, importCustomers, ensureCustomer, createQuote, invoiceFromQuote };
+module.exports = { test, listAll, importCustomers, ensureCustomer, createQuote, invoiceFromQuote };

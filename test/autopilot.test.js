@@ -234,6 +234,33 @@ test('Autopilote : la relance part dans le même fil (In-Reply-To)', async () =>
   mock.server.close();
 });
 
+test('Autopilote : une réponse automatique ne stoppe pas la séquence et ne dit pas « il a répondu »', async () => {
+  const scenario = {
+    uidnext: 42,
+    inbox: [{
+      uid: 41,
+      headers: 'From: Test Client <client1@testco.fr>\nTo: maxime@otea.fr\nSubject: Réponse automatique : Absent du bureau\nAuto-Submitted: auto-replied\nDate: Wed, 26 Aug 2026 09:00:00 +0000\nMessage-ID: <auto1@testco.fr>',
+    }],
+    sent: [],
+  };
+  const mock = await startMockImap(scenario);
+  setSetting('imap_host', '127.0.0.1');
+  setSetting('imap_port', String(mock.port));
+  setSetting('imap_secure', '0');
+  setSetting('autopilot_last_uid', '40');
+
+  const res = await autopilot.pollReplies();
+  assert.strictEqual(res.replies, 0);
+  assert.strictEqual(res.auto_replies, 1);
+  const e = get(`SELECT * FROM enrollments ORDER BY id LIMIT 1`);
+  assert.notStrictEqual(e.status, 'replied');
+  assert.strictEqual(get('SELECT COUNT(*) AS n FROM inbox WHERE contact_id = ?', e.contact_id).n, 0);
+  assert.strictEqual(get('SELECT automatique FROM replies WHERE imap_uid = 41').automatique, 1);
+  const note = get(`SELECT note FROM activities WHERE contact_id = ? AND type = 'note' ORDER BY id DESC LIMIT 1`, e.contact_id);
+  assert.match(note.note, /Réponse automatique, pas une vraie réponse/);
+  mock.server.close();
+});
+
 test('Autopilote : une réponse détectée stoppe la séquence et crée la tâche', async () => {
   const scenario = {
     uidnext: 43,
@@ -263,41 +290,6 @@ test('Autopilote : une réponse détectée stoppe la séquence et crée la tâch
   // même uid re-poussé → dédupliqué (lastUid a avancé)
   const res2 = await autopilot.pollReplies();
   assert.strictEqual(res2.replies, 0);
-  mock.server.close();
-});
-
-test('Autopilote : une absence du bureau n’est pas une réponse, la séquence continue après une pause', async () => {
-  const c = freshContact({ email: 'absent@testco.fr', last_name: 'Absent' });
-  autopilot.enroll(seqReactivation().id, [c.id]);
-  const avant = get('SELECT * FROM enrollments WHERE contact_id = ?', c.id);
-  const scenario = {
-    uidnext: 51,
-    inbox: [
-      { uid: 49, headers: 'From: Absent <absent@testco.fr>\nTo: maxime@otea.fr\nSubject: Réponse automatique : Absence du bureau\nDate: Wed, 26 Aug 2026 10:00:00 +0000\nMessage-ID: <abs1@testco.fr>' },
-      { uid: 50, headers: 'From: Absent <absent@testco.fr>\nTo: maxime@otea.fr\nSubject: Re: On remet ça ?\nDate: Wed, 26 Aug 2026 10:05:00 +0000\nMessage-ID: <abs2@testco.fr>\nAuto-Submitted: auto-replied' },
-    ],
-    sent: [],
-  };
-  const mock = await startMockImap(scenario);
-  setSetting('imap_host', '127.0.0.1');
-  setSetting('imap_port', String(mock.port));
-  setSetting('imap_secure', '0');
-  setSetting('autopilot_last_uid', '48');
-
-  const res = await autopilot.pollReplies();
-  assert.strictEqual(res.replies, 0, 'aucune vraie réponse');
-  assert.strictEqual(res.automatiques, 2, 'deux répondeurs écartés : l’objet, puis l’en-tête');
-
-  const e = get('SELECT * FROM enrollments WHERE contact_id = ?', c.id);
-  assert.strictEqual(e.status, 'active', 'la séquence continue');
-  assert.strictEqual(e.next_send_at, addDays(localDay(), 7), 'en pause sept jours : on ne relance pas une boîte vide');
-  assert.ok(e.next_send_at >= avant.next_send_at);
-  const contact = get('SELECT * FROM contacts WHERE id = ?', c.id);
-  assert.strictEqual(contact.stage, 'a_contacter', 'pas de passage en discussion');
-  assert.strictEqual(get('SELECT COUNT(*) AS n FROM inbox WHERE contact_id = ?', c.id).n, 0, 'aucune tâche « répondre »');
-  assert.strictEqual(get(`SELECT COUNT(*) AS n FROM activities WHERE contact_id = ? AND type = 'reponse_recue'`, c.id).n, 0);
-  assert.strictEqual(get(`SELECT automatique FROM replies WHERE imap_uid = 49`).automatique, 'absence');
-  assert.match(get(`SELECT note FROM activities WHERE contact_id = ? AND type = 'note' ORDER BY id LIMIT 1`, c.id).note, /absence du bureau reçu \(pas une réponse\)/);
   mock.server.close();
 });
 
