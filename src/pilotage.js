@@ -184,6 +184,81 @@ function argentDuMois(mois) {
   return { mois, facture_ht: arr(f.ht), facture_ttc: arr(f.ttc), factures: f.n, encaisse_ttc: arr(e.ttc), encaisse_ht: arr(e.ht), encaissements: e.n };
 }
 
+// Les devis ouverts : Pennylane (ou saisis à la main) + ceux du pipeline local pas encore facturés.
+function devisOuverts(today) {
+  const dans7 = addDays(today, 7);
+  const devis = all(`SELECT * FROM pieces WHERE type = 'devis' AND statut IN ('en_attente', 'accepte') ORDER BY date`)
+    .map((p) => ({ ...p, origine: 'piece', age: p.date ? ecart(p.date, today) : 0, expire_bientot: !!(p.echeance && p.echeance >= today && p.echeance <= dans7), expire: !!(p.echeance && p.echeance < today) }));
+  // Un devis connu de Pennylane se lit toujours par sa pièce (son vrai statut),
+  // même facturé, refusé ou expiré : jamais une seconde fois par le pipeline.
+  const plIds = new Set(all(`SELECT source_id FROM pieces WHERE type = 'devis' AND source = 'pennylane'`).map((r) => String(r.source_id)));
+  const deals = all(`SELECT d.*, c.company, c.first_name, c.last_name FROM deals d JOIN contacts c ON c.id = d.contact_id
+    WHERE d.status IN ('devis_envoye', 'accepte') ORDER BY d.updated_at`)
+    .filter((d) => !d.pennylane_invoice_id && (!d.pennylane_quote_id || !plIds.has(String(d.pennylane_quote_id))))
+    .map((d) => ({
+      id: d.id, origine: 'deal', contact_id: d.contact_id, client: d.company || `${d.first_name} ${d.last_name}`.trim(),
+      libelle: d.title, montant_ht: d.amount, statut: d.status === 'accepte' ? 'accepte' : 'en_attente',
+      date: jour(d.updated_at), age: ecart(jour(d.updated_at), today), expire_bientot: false, expire: false,
+    }));
+  return { devis, deals, tousDevis: [...devis, ...deals] };
+}
+
+// ---------------------------------------------------------------- la prévision
+// Ce qui doit rentrer sur les 8 prochaines semaines (lundi au dimanche), en TTC.
+// · À encaisser : les factures « à payer », rangées à leur échéance (sans
+//   échéance : date de facture + 30 jours). Ce qui est déjà échu va dans une
+//   première colonne « en retard ».
+// · Acceptés à facturer : un potentiel, pas une créance. Un devis accepté pas
+//   encore facturé est supposé payé 30 jours après sa date, jamais avant
+//   aujourd'hui. Les montants HT sans TTC connu prennent 20 % de TVA (estimé).
+const NB_SEMAINES = 8;
+const DELAI_PAIEMENT = 30;
+const TVA = 0.2;
+
+function prevision({ today = localDay() } = {}) {
+  const debut = lundi(today);
+  const semaines = [];
+  for (let i = 0; i < NB_SEMAINES; i++) {
+    const d = addDays(debut, i * 7);
+    semaines.push({ debut: d, fin: addDays(d, 6), a_encaisser_ttc: 0, acceptes_ttc: 0, factures: 0, devis: 0 });
+  }
+  const fin = semaines[NB_SEMAINES - 1].fin;
+  const retard = { a_encaisser_ttc: 0, factures: 0 };
+  const plusTard = { a_encaisser_ttc: 0, acceptes_ttc: 0 };
+  const semaineDe = (d) => semaines[Math.floor(ecart(debut, d) / 7)];
+
+  for (const p of all(`SELECT * FROM pieces WHERE type = 'facture' AND statut = 'a_payer'`)) {
+    const du = Number(p.reste_du) || 0;
+    if (du <= 0) continue;
+    const attendu = p.echeance || (p.date ? addDays(p.date, DELAI_PAIEMENT) : today);
+    if (attendu < today) { retard.a_encaisser_ttc += du; retard.factures++; }
+    else if (attendu > fin) plusTard.a_encaisser_ttc += du;
+    else { const s = semaineDe(attendu); s.a_encaisser_ttc += du; s.factures++; }
+  }
+
+  for (const d of devisOuverts(today).tousDevis.filter((x) => x.statut === 'accepte')) {
+    const ttc = Number(d.montant_ttc) > 0 ? Number(d.montant_ttc) : (Number(d.montant_ht) || 0) * (1 + TVA);
+    if (ttc <= 0) continue;
+    let attendu = d.date ? addDays(d.date, DELAI_PAIEMENT) : today;
+    if (attendu < today) attendu = today;
+    if (attendu > fin) plusTard.acceptes_ttc += ttc;
+    else { const s = semaineDe(attendu); s.acceptes_ttc += ttc; s.devis++; }
+  }
+
+  for (const s of semaines) { s.a_encaisser_ttc = arr(s.a_encaisser_ttc); s.acceptes_ttc = arr(s.acceptes_ttc); }
+  retard.a_encaisser_ttc = arr(retard.a_encaisser_ttc);
+  plusTard.a_encaisser_ttc = arr(plusTard.a_encaisser_ttc); plusTard.acceptes_ttc = arr(plusTard.acceptes_ttc);
+  const total = {
+    a_encaisser_ttc: arr(retard.a_encaisser_ttc + semaines.reduce((a, s) => a + s.a_encaisser_ttc, 0)),
+    acceptes_ttc: arr(semaines.reduce((a, s) => a + s.acceptes_ttc, 0)),
+  };
+  total.cumul_ttc = arr(total.a_encaisser_ttc + total.acceptes_ttc);
+  // Le cumul semaine après semaine : ce qui sera rentré à la fin de chaque semaine si tout est payé à l'heure.
+  let c = retard.a_encaisser_ttc;
+  for (const s of semaines) { c += s.a_encaisser_ttc + s.acceptes_ttc; s.cumul_ttc = arr(c); }
+  return { today, debut, fin, retard, semaines, plus_tard: plusTard, total };
+}
+
 function revue({ today = localDay() } = {}) {
   const mois = today.slice(0, 7);
   const debutSemaine = lundi(today);
@@ -201,21 +276,7 @@ function revue({ today = localDay() } = {}) {
   const enRetard = aEncaisser.filter((p) => p.retard > 0);
   const brouillons = all(`SELECT * FROM pieces WHERE type = 'facture' AND statut = 'brouillon' ORDER BY date DESC`);
 
-  // Les devis : Pennylane (ou saisis à la main) + ceux du pipeline local pas encore facturés.
-  const devis = all(`SELECT * FROM pieces WHERE type = 'devis' AND statut IN ('en_attente', 'accepte') ORDER BY date`)
-    .map((p) => ({ ...p, origine: 'piece', age: p.date ? ecart(p.date, today) : 0, expire_bientot: !!(p.echeance && p.echeance >= today && p.echeance <= dans7), expire: !!(p.echeance && p.echeance < today) }));
-  // Un devis connu de Pennylane se lit toujours par sa pièce (son vrai statut),
-  // même facturé, refusé ou expiré : jamais une seconde fois par le pipeline.
-  const plIds = new Set(all(`SELECT source_id FROM pieces WHERE type = 'devis' AND source = 'pennylane'`).map((r) => String(r.source_id)));
-  const deals = all(`SELECT d.*, c.company, c.first_name, c.last_name FROM deals d JOIN contacts c ON c.id = d.contact_id
-    WHERE d.status IN ('devis_envoye', 'accepte') ORDER BY d.updated_at`)
-    .filter((d) => !d.pennylane_invoice_id && (!d.pennylane_quote_id || !plIds.has(String(d.pennylane_quote_id))))
-    .map((d) => ({
-      id: d.id, origine: 'deal', contact_id: d.contact_id, client: d.company || `${d.first_name} ${d.last_name}`.trim(),
-      libelle: d.title, montant_ht: d.amount, statut: d.status === 'accepte' ? 'accepte' : 'en_attente',
-      date: jour(d.updated_at), age: ecart(jour(d.updated_at), today), expire_bientot: false, expire: false,
-    }));
-  const tousDevis = [...devis, ...deals];
+  const { devis, tousDevis } = devisOuverts(today);
   const devisEnAttente = tousDevis.filter((d) => d.statut === 'en_attente');
   const acceptesAFacturer = tousDevis.filter((d) => d.statut === 'accepte');
 
@@ -259,6 +320,7 @@ function revue({ today = localDay() } = {}) {
     total, a_encaisser: aEncaisser, en_retard: enRetard.length, brouillons,
     devis_en_attente: devisEnAttente, acceptes_a_facturer: acceptesAFacturer,
     relances, nb_relances: nbRelances, echeances, clients: suivis, points,
+    prevision: prevision({ today }),
   };
 }
 
@@ -276,6 +338,17 @@ function texteRevue(r = revue()) {
   L.push(`Devis en attente : ${r.devis_en_attente.length} pour ${fmt(r.total.devis_en_attente_ht)} HT`);
   for (const x of r.devis_en_attente.slice(0, 8)) L.push(`   ${x.client || '?'} : ${fmt(x.montant_ht)} HT, envoyé il y a ${x.age} j`);
   if (r.acceptes_a_facturer.length) L.push(`Acceptés à facturer : ${r.acceptes_a_facturer.map((x) => `${x.client} (${fmt(x.montant_ht)} HT)`).join(', ')}`);
+  if (r.prevision) {
+    const pv = r.prevision;
+    L.push('');
+    L.push(`Ce qui doit rentrer, 8 semaines (jusqu’au ${d(pv.fin)}) : ${fmt(pv.total.cumul_ttc)} TTC`);
+    L.push(`· À encaisser : ${fmt(pv.total.a_encaisser_ttc)} TTC${pv.retard.a_encaisser_ttc ? `, dont ${fmt(pv.retard.a_encaisser_ttc)} déjà en retard` : ''}`);
+    L.push(`· Acceptés à facturer : ${fmt(pv.total.acceptes_ttc)} TTC (potentiel, rien n’est encore facturé)`);
+    for (const s of pv.semaines.filter((x) => x.a_encaisser_ttc || x.acceptes_ttc)) {
+      L.push(`   Semaine du ${d(s.debut)} : ${fmt(s.a_encaisser_ttc)} à encaisser${s.acceptes_ttc ? ` + ${fmt(s.acceptes_ttc)} à facturer` : ''}`);
+    }
+    if (pv.plus_tard.a_encaisser_ttc || pv.plus_tard.acceptes_ttc) L.push(`   Au-delà : ${fmt(pv.plus_tard.a_encaisser_ttc + pv.plus_tard.acceptes_ttc)} TTC`);
+  }
   L.push('');
   L.push('Points d’attention');
   for (const p of r.points) L.push(`· ${p.texte}`);
@@ -299,5 +372,5 @@ module.exports = {
   STATUTS_FACTURE, STATUTS_DEVIS,
   factureDepuisPennylane, devisDepuisPennylane, enregistrer, synchroniserPennylane,
   creerPiece, modifierPiece, supprimerPiece,
-  argentDuMois, revue, texteRevue,
+  argentDuMois, prevision, revue, texteRevue,
 };

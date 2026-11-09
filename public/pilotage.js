@@ -45,6 +45,26 @@ function barresGroupees(lignes, series, { unite = 'euros', label = 'Graphique' }
   return `${legende}<svg class="chart-svg graphe-borne" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${esc(label)}">${grille}${barres}</svg>${table}`;
 }
 
+// 💶 Ce qui doit rentrer : 8 semaines de trésorerie, l'échu en première colonne.
+function cartePrevision(pv) {
+  const jj = (d) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
+  const lignes = [
+    ...(pv.retard.a_encaisser_ttc ? [{ libelle: 'retard', a_encaisser: pv.retard.a_encaisser_ttc, acceptes: null }] : []),
+    ...pv.semaines.map((s) => ({ libelle: jj(s.debut), a_encaisser: s.a_encaisser_ttc, acceptes: s.acceptes_ttc })),
+  ];
+  const plusTard = pv.plus_tard.a_encaisser_ttc + pv.plus_tard.acceptes_ttc;
+  const vide = !pv.total.cumul_ttc;
+  return `<div class="card">
+    <h2>💶 Ce qui doit rentrer, 8 semaines</h2>
+    ${vide ? '<p class="muted small">Rien d’attendu d’ici le ' + fmtDay(pv.fin) + '. Lis Pennylane ou ajoute une pièce à la main.</p>' : `
+    <div class="spread small mb-2"><span>Cumul jusqu’au ${fmtDay(pv.fin)}</span><b>${eur(pv.total.cumul_ttc)} TTC</b></div>
+    ${barresGroupees(lignes,
+      [{ cle: 'a_encaisser', libelle: 'À encaisser', classe: 'serie-a' }, { cle: 'acceptes', libelle: 'Acceptés à facturer', classe: 'serie-c' }],
+      { label: 'Ce qui doit rentrer par semaine sur 8 semaines' })}
+    <p class="muted small mt-2">À encaisser : <b>${eur(pv.total.a_encaisser_ttc)}</b>${pv.retard.a_encaisser_ttc ? `, dont ${eur(pv.retard.a_encaisser_ttc)} déjà en retard` : ''}. Acceptés à facturer : <b>${eur(pv.total.acceptes_ttc)}</b> (potentiel, rangé à 30 jours).${plusTard ? ` Au-delà : ${eur(plusTard)}.` : ''} Semaines du lundi, montants TTC.</p>`}
+  </div>`;
+}
+
 // ================================================================ PILOTAGE
 async function vPilotage(view) {
   const r = await api('/pilotage');
@@ -108,6 +128,7 @@ async function vPilotage(view) {
             [{ cle: 'facture', libelle: 'Facturé TTC', classe: 'serie-a' }, { cle: 'encaisse', libelle: 'Encaissé TTC', classe: 'serie-b' }],
             { label: 'Facturé et encaissé sur 6 mois' })}
         </div>
+        ${r.prevision ? cartePrevision(r.prevision) : ''}
         <div class="card">
           <h2>📈 Clients suivis</h2>
           ${r.clients.length ? r.clients.map((c) => `<div class="spread small py-1 ligne-pointillee">
