@@ -230,7 +230,7 @@ function prevision({ today = localDay() } = {}) {
   for (const p of all(`SELECT * FROM pieces WHERE type = 'facture' AND statut = 'a_payer'`)) {
     const du = Number(p.reste_du) || 0;
     if (du <= 0) continue;
-    const attendu = p.echeance || (p.date ? addDays(p.date, DELAI_PAIEMENT) : today);
+    const attendu = echeanceAttendue(p) || today;
     if (attendu < today) { retard.a_encaisser_ttc += du; retard.factures++; }
     else if (attendu > fin) plusTard.a_encaisser_ttc += du;
     else { const s = semaineDe(attendu); s.a_encaisser_ttc += du; s.factures++; }
@@ -259,10 +259,21 @@ function prevision({ today = localDay() } = {}) {
   return { today, debut, fin, retard, semaines, plus_tard: plusTard, total };
 }
 
+// L'échéance d'une facture : la sienne, sinon sa date + 30 jours. La même règle
+// partout (revue, Cockpit, prévision, relance) : sinon le Cockpit dirait « rien en
+// retard » pendant que la relance compte 39 jours de retard sur la même facture.
+function echeanceAttendue(p) {
+  return p.echeance || (p.date ? addDays(p.date, DELAI_PAIEMENT) : '');
+}
+
 // Les factures à payer, et celles dont l'échéance est passée. Lu par la revue et par le Cockpit.
 function creances(today) {
-  const aEncaisser = all(`SELECT * FROM pieces WHERE type = 'facture' AND statut = 'a_payer' ORDER BY CASE WHEN echeance = '' THEN date ELSE echeance END`)
-    .map((p) => ({ ...p, retard: p.echeance && p.echeance < today ? ecart(p.echeance, today) : 0 }));
+  const aEncaisser = all(`SELECT * FROM pieces WHERE type = 'facture' AND statut = 'a_payer' ORDER BY id`)
+    .map((p) => {
+      const attendue = echeanceAttendue(p);
+      return { ...p, echeance_attendue: attendue, retard: attendue && attendue < today ? ecart(attendue, today) : 0 };
+    })
+    .sort((a, b) => (a.echeance_attendue || a.date || '').localeCompare(b.echeance_attendue || b.date || ''));
   return { aEncaisser, enRetard: aEncaisser.filter((p) => p.retard > 0) };
 }
 
@@ -422,7 +433,7 @@ function texteRelance(piece, { today = localDay(), contact = null, tutoiement } 
   if (!piece) throw erreur('Cette facture n’existe plus. Recharge la page.', 404);
   const fmtEur = (n) => `${(Number(n) || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace(/\u202f|\u00a0/g, ' ')} €`;
   const fr = (d) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}` : '');
-  const echeance = piece.echeance || (piece.date ? addDays(piece.date, DELAI_PAIEMENT) : '');
+  const echeance = echeanceAttendue(piece);
   const retard = echeance && echeance < today ? ecart(echeance, today) : 0;
   const niveau = niveauRelance(retard);
   const tu = tutoiement === undefined ? contactTutoie(contact) : !!tutoiement;

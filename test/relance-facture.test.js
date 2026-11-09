@@ -117,3 +117,20 @@ test('ajouter à Ma journée crée la tâche du jour, une seule fois', () => {
   assert.strictEqual(b.tache.id, a.tache.id);
   assert.strictEqual(get('SELECT COUNT(*) AS n FROM journee_taches').n, 1);
 });
+
+test('revue : une facture sans échéance compte en retard 30 jours après sa date, comme la relance et la prévision', () => {
+  vider();
+  const p = facture({ client: 'Sans échéance', numero: 'F-9', montant_ttc: 600, date: '2026-09-01', echeance: '' });
+  const reel = pilotage.argentReel({ today: TODAY });
+  assert.strictEqual(reel.en_retard, 1);
+  assert.strictEqual(reel.en_retard_ttc, 600);
+  const r = pilotage.revue({ today: TODAY });
+  assert.strictEqual(r.en_retard, 1);
+  assert.strictEqual(r.total.en_retard_ttc, 600);
+  assert.strictEqual(r.a_encaisser[0].retard, pilotage.relancePiece(p.id, { today: TODAY }).retard);
+  assert.strictEqual(pilotage.prevision({ today: TODAY }).retard.a_encaisser_ttc, 600);
+  // Encore dans les 30 jours : pas de retard.
+  vider();
+  facture({ numero: 'F-10', date: '2026-10-20', echeance: '' });
+  assert.strictEqual(pilotage.argentReel({ today: TODAY }).en_retard, 0);
+});
