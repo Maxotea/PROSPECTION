@@ -1910,6 +1910,7 @@ async function vAutopilot(view) {
       const r = await api('/autopilot/tick', { method: 'POST', body: { ignore_window: true } });
       const bits = [];
       if (r.replies && r.replies.replies) bits.push(`💬 ${r.replies.replies} réponse(s) détectée(s)`);
+      if (r.replies && r.replies.automatiques) bits.push(`🤖 ${r.replies.automatiques} réponse(s) automatique(s) écartée(s)`);
       if (r.due && r.due.queued) bits.push(`📝 ${r.due.queued} email(s) préparé(s)`);
       if (r.flush && r.flush.sent) bits.push(`📤 ${r.flush.sent} envoyé(s)`);
       if (r.due && r.due.reason) bits.push(r.due.reason);

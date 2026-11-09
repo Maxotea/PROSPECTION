@@ -124,6 +124,12 @@ function parseHeaders(block) {
     subject: decodeWords(out.subject || ''),
     date: out.date || '',
     message_id: (out['message-id'] || '').trim(),
+    // En-têtes des répondeurs automatiques (absence, accusé de réception)
+    auto_submitted: out['auto-submitted'] || '',
+    precedence: out.precedence || '',
+    x_autoreply: out['x-autoreply'] || out['x-autoreply-from'] || '',
+    x_autorespond: out['x-autorespond'] || '',
+    x_auto_response_suppress: out['x-auto-response-suppress'] || '',
   };
 }
 
@@ -170,7 +176,7 @@ async function fetchNewInbox(cfg, lastUid) {
     uids = uids.filter((u) => u > lastUid); // Gmail renvoie parfois le dernier connu sur N:*
     if (!uids.length) return { messages: [], lastUid: uidnext - 1 };
 
-    const fetch = await imap.command(`UID FETCH ${uids.join(',')} (BODY.PEEK[HEADER.FIELDS (FROM TO SUBJECT DATE MESSAGE-ID)])`);
+    const fetch = await imap.command(`UID FETCH ${uids.join(',')} (BODY.PEEK[HEADER.FIELDS (FROM TO SUBJECT DATE MESSAGE-ID AUTO-SUBMITTED PRECEDENCE X-AUTOREPLY X-AUTORESPOND X-AUTO-RESPONSE-SUPPRESS)])`);
     const messages = [];
     for (const e of fetch) {
       if (e.type !== 'literal') continue;
@@ -288,7 +294,7 @@ async function lireBoiteRecente(cfg, { days = 10, maxMessages = 400, joursEnvoye
     const recus = [];
     const CHUNK = 200;
     for (let i = 0; i < uids.length; i += CHUNK) {
-      const fetch = await imap.command(`UID FETCH ${uids.slice(i, i + CHUNK).join(',')} (FLAGS BODY.PEEK[HEADER.FIELDS (FROM TO SUBJECT DATE MESSAGE-ID IN-REPLY-TO)])`);
+      const fetch = await imap.command(`UID FETCH ${uids.slice(i, i + CHUNK).join(',')} (FLAGS BODY.PEEK[HEADER.FIELDS (FROM TO SUBJECT DATE MESSAGE-ID IN-REPLY-TO AUTO-SUBMITTED PRECEDENCE X-AUTOREPLY X-AUTORESPOND X-AUTO-RESPONSE-SUPPRESS)])`);
       for (const e of fetch) {
         if (e.type !== 'literal') continue;
         const um = e.line.match(/UID (\d+)/);

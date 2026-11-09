@@ -11,6 +11,7 @@ const game = require('./gamification');
 const playbooks = require('./playbooks');
 const smtp = require('./mail/smtp');
 const imap = require('./mail/imap');
+const reponseAuto = require('./mail/reponse_auto');
 
 // ---------------------------------------------------------------- config
 function isConfigured() {
@@ -99,15 +100,29 @@ async function pollReplies() {
   if (res.initialized) return { initialized: true, replies: 0 };
 
   let repliesFound = 0;
+  let automatiques = 0;
   for (const msg of res.messages) {
-    const ins = run('INSERT OR IGNORE INTO replies (imap_uid, from_email, subject, received_at, created_at) VALUES (?, ?, ?, ?, ?)',
-      msg.uid, msg.from.email, msg.subject, msg.date, nowIso());
+    const auto = reponseAuto.analyser(msg);
+    const ins = run('INSERT OR IGNORE INTO replies (imap_uid, from_email, subject, received_at, automatique, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      msg.uid, msg.from.email, msg.subject, msg.date, auto.type, nowIso());
     if (!ins.changes) continue; // déjà traité
     if (!msg.from.email) continue;
     const contact = get(`SELECT * FROM contacts WHERE email = ? AND email != ''`, msg.from.email);
     if (!contact) continue;
 
     run('UPDATE replies SET contact_id = ? WHERE imap_uid = ?', contact.id, msg.uid);
+    // Un répondeur n'est pas une réponse : la séquence continue, personne n'a à
+    // « répondre ». Une absence du bureau met juste la séquence en pause le temps
+    // que la personne revienne, pour ne pas relancer une boîte vide.
+    if (auto.auto) {
+      automatiques++;
+      if (auto.pause > 0) {
+        const reprise = addDays(localDay(), auto.pause);
+        run(`UPDATE enrollments SET next_send_at = ?, updated_at = ? WHERE contact_id = ? AND status = 'active' AND next_send_at != '' AND next_send_at < ?`, reprise, nowIso(), contact.id, reprise);
+      }
+      game.insertActivity({ contact_id: contact.id, type: 'note', xp: 0, note: `🤖 ${reponseAuto.libelle(auto.type)} reçu (pas une réponse)${auto.pause ? ` : séquence en pause ${auto.pause} j` : ''}`, meta: { auto: true, imap_uid: msg.uid, reponse_automatique: auto.type } });
+      continue;
+    }
     const hadSequence = stopForContact(contact.id, 'a répondu 🎉', 'replied');
     // Ne compter une "réponse reçue" que pour un contact réellement en prospection.
     const inProspection = hadSequence || !['gagne', 'perdu', 'a_contacter'].includes(contact.stage);
@@ -121,7 +136,7 @@ async function pollReplies() {
       repliesFound++;
     }
   }
-  return { replies: repliesFound, scanned: res.messages.length };
+  return { replies: repliesFound, automatiques, scanned: res.messages.length };
 }
 
 // ---------------------------------------------------------------- planification des étapes dues

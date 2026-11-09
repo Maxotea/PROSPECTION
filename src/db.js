@@ -313,6 +313,7 @@ ensureColumn('campaigns', 'ends_on', `ends_on TEXT DEFAULT ''`);      // vide = 
 ensureColumn('contacts', 'icebreaker', `icebreaker TEXT DEFAULT ''`);   // le lien trouvé avec la personne
 ensureColumn('contacts', 'profile', `profile TEXT DEFAULT ''`);         // données brutes FullEnrich (JSON)
 ensureColumn('contacts', 'partage_memorem', 'partage_memorem INTEGER DEFAULT 0'); // 🤝 dossier partagé avec Memorem : pas de relance de devis automatique
+ensureColumn('replies', 'automatique', `automatique TEXT DEFAULT ''`); // '' = un humain ; sinon absence | accuse | automatique
 
 // ---------------------------------------------------------------- helpers
 function nowIso() { return new Date().toISOString(); }

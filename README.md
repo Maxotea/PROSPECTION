@@ -417,6 +417,7 @@ Premier projet livré : **Sponsoring HYROX · Pierre & Antoine** (jusqu'au 13 ju
 ### Garde-fous intégrés
 
 - Une réponse (même détectée à la main) **stoppe la séquence** : personne ne reçoit une relance après avoir répondu ;
+- **Une réponse automatique n'est pas une réponse** : absence du bureau, accusé de réception, répondeur de plateforme (reconnus à l'objet, aux premières lignes et aux en-têtes du mail). Elle n'arrête pas la séquence, ne crée aucune tâche « répondre » et ne compte pas comme réponse reçue. Une absence du bureau met la séquence **en pause sept jours** : on ne relance pas une boîte vide. La fiche garde une note « absence du bureau reçu (pas une réponse) » ;
 - Un bounce (adresse refusée) marque l'email invalide et stoppe la séquence ;
 - Un contact = **une seule séquence à la fois** ; jamais d'enrôlement sans email ; les contacts en séquence sortent de la file de la Prospection ;
 - Cap quotidien + fenêtre horaire + jours ouvrés + espacement aléatoire : le rythme d'un humain, pas d'un robot ;
