@@ -268,19 +268,21 @@ function tableau(clientId, { jusqu_a } = {}) {
   };
   const manques = [];
   const moisFini = moisSuivant(moisCourant(), -1);
-  if (mois.includes(moisFini) && !moisAvecReel.has(moisFini) && moisFini >= debut) manques.push(`Les chiffres de ${libelleMois(moisFini)} ne sont pas saisis.`);
+  const moisManquant = mois.includes(moisFini) && !moisAvecReel.has(moisFini) && moisFini >= debut ? moisFini : '';
+  if (moisManquant) manques.push(`Les chiffres de ${libelleMois(moisFini)} ne sont pas saisis.`);
   for (const ind of indicateurs) if (ind.baseline === null && ind.role !== 'pub') manques.push(`Point de départ manquant : ${ind.libelle}.`);
   if (!indResa) manques.push('Aucun indicateur ne compte les réservations : le coût par réservation ne peut pas se calculer.');
   if (!indCa && !c.panier_moyen) manques.push('Ni CA saisi ni panier moyen : le ROI ne peut pas se calculer.');
 
-  return { client: c, mois, indicateurs, synthese, cumul, manques, modeles: Object.fromEntries(Object.entries(MODELES).map(([k, m]) => [k, m.titre])) };
+  return { client: c, mois, indicateurs, synthese, cumul, manques, mois_manquant: moisManquant, modeles: Object.fromEntries(Object.entries(MODELES).map(([k, m]) => [k, m.titre])) };
 }
 
 function liste() {
   return all('SELECT * FROM clients_suivis WHERE archive = 0 ORDER BY nom').map((c) => {
     const t = tableau(c.id);
     const dernier = [...t.synthese].reverse().find((s) => s.actif) || null;
-    return { ...c, cumul: t.cumul, dernier_mois: dernier, manques: t.manques.length, premier_manque: t.manques[0] || '' };
+    return { ...c, cumul: t.cumul, dernier_mois: dernier, manques: t.manques.length, premier_manque: t.manques[0] || '',
+      mois_manquant: t.mois_manquant, mois_manquant_libelle: t.mois_manquant ? libelleMois(t.mois_manquant) : '' };
   });
 }
 

@@ -171,7 +171,7 @@ function ckDessiner() {
     <section class="ck-grille ${ckPremier && !ckMoinsDeMouvement() ? 'ck-entree' : ''}" aria-label="Tableau de bord">
       ${ckHeroHtml(E.argent, idx)}
       ${ckTuilesArgent(E.argent, idx)}
-      ${ckPlanHtml(E.plan, idx)}
+      ${ckPlanHtml(E.plan, idx, E)}
       <div class="card ck-4 ck-haut ${E.journee.vitaux ? 'bord-alerte' : ''}" ${idx()}>${ckJourneeHtml(E.journee)}</div>
       <div class="card ck-4 ck-haut ck-radar-carte" ${idx()}>${ckRadarHtml(E)}</div>
       <div class="card ck-4 ck-haut ck-chasse" ${idx()}>${ckChasseHtml(E)}</div>
@@ -182,6 +182,7 @@ function ckDessiner() {
       ${ckFilHtml(E.fil, idx)}
     </section>`;
 
+  $$('[data-ouvrir-client]', ckVue).forEach((el) => { el.onclick = () => { if (typeof clientOuvert !== 'undefined') clientOuvert = Number(el.dataset.ouvrirClient); }; });
   $('#ck-rafraichir').onclick = ckCharger;
   $('#ck-ecran').onclick = () => { ckPoserModeEcran(!ckEnModeEcran()); ckPremier = true; ckDessiner(); };
   $$('[data-open-contact]', ckVue).forEach((el) => {
@@ -381,7 +382,35 @@ function ckTuilesArgent(A, idx) {
 }
 
 // ---------------------------------------------------------------- 🎯 le plan : une piste, trois paliers, le repère du jour
-function ckPlanHtml(P, idx) {
+// ---------------------------------------------------------------- 🧾 l'argent réel (Pilotage) et les clients suivis
+// Seulement quand des factures existent : sinon le Cockpit reste sur le pipeline.
+function ckReelHtml(R) {
+  if (!R) return '';
+  const retard = R.en_retard
+    ? `<b class="texte-alerte">${eur(R.en_retard_ttc)} en retard</b> <span class="muted">(${ckPluriel(R.en_retard, 'facture', 'factures')})</span>`
+    : '<span class="texte-succes">rien en retard</span>';
+  return `<a class="ck-ligne-info ck-reel" href="#/pilotage" title="Ouvrir Pilotage : les factures, facturé et encaissé">
+    <b>Argent réel</b>
+    <span>Encaissé ce mois <b>${ckChiffre('encaisse_mois', R.encaisse_mois_ttc)}</b> TTC</span>
+    <span>Reste à encaisser <b>${ckChiffre('reste_encaisser', R.reste_ttc)}</b> TTC</span>
+    <span>${retard}</span>
+    <span class="ck-reel-fleche muted">Pilotage ${ckIco('fleche')}</span>
+  </a>`;
+}
+function ckClientsHtml(C) {
+  if (!C || !C.length) return '';
+  const lignes = C.slice(0, 4).map((c) => {
+    const roi = c.roi === null || c.roi === undefined
+      ? '<span class="muted">ROI à calculer</span>'
+      : `ROI <b class="${c.roi >= 0 ? 'texte-succes' : 'texte-alerte'}">${c.roi >= 0 ? '+' : ''}${Math.round(c.roi * 100)} %</b>`;
+    const manque = c.mois_manquant ? `<span class="texte-or">${esc(c.mois_manquant_libelle)} à saisir</span>` : '<span class="muted">à jour</span>';
+    return `<a class="ck-client" href="#/clients" data-ouvrir-client="${c.id}"><b>${esc(c.nom)}</b> ${roi} · ${manque}</a>`;
+  }).join('');
+  const reste = C.length > 4 ? `<a class="ck-client muted" href="#/clients">et ${C.length - 4} autres</a>` : '';
+  return `<div class="ck-ligne-info ck-clients"><a class="lien-texte" href="#/clients"><b>Résultats clients</b></a>${lignes}${reste}</div>`;
+}
+
+function ckPlanHtml(P, idx, E = {}) {
   const pct = (v) => Math.min(100, Math.round((v / P.paliers.wow) * 1000) / 10);
   const noms = { moyen: 'Moyen', bien: 'Bien', wow: 'Wow' };
   const trophees = { moyen: '🥉', bien: '🥈', wow: '🏆' };
@@ -412,6 +441,8 @@ function ckPlanHtml(P, idx) {
       <div class="ck-jauge ${P.atteint ? 'ok' : ''}"><i style="width:${pct(P.total)}%"></i>${paliers}</div>
       <div class="ck-repere" style="left:${repere}%"><span>aujourd’hui · ${Math.round(P.avancement * 100)} % du temps</span></div>
     </div>
+    ${ckReelHtml(E.argent_reel)}
+    ${ckClientsHtml(E.clients)}
   </div>`;
 }
 

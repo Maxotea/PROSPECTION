@@ -259,6 +259,31 @@ function prevision({ today = localDay() } = {}) {
   return { today, debut, fin, retard, semaines, plus_tard: plusTard, total };
 }
 
+// Les factures à payer, et celles dont l'échéance est passée. Lu par la revue et par le Cockpit.
+function creances(today) {
+  const aEncaisser = all(`SELECT * FROM pieces WHERE type = 'facture' AND statut = 'a_payer' ORDER BY CASE WHEN echeance = '' THEN date ELSE echeance END`)
+    .map((p) => ({ ...p, retard: p.echeance && p.echeance < today ? ecart(p.echeance, today) : 0 }));
+  return { aEncaisser, enRetard: aEncaisser.filter((p) => p.retard > 0) };
+}
+
+// L'argent réel, pour le Cockpit : ce qui est rentré ce mois, ce qui reste dû,
+// ce qui est en retard (TTC). Sans aucune facture (Pennylane ou saisie à la
+// main), rien : le Cockpit garde ses chiffres du pipeline.
+function argentReel({ today = localDay() } = {}) {
+  if (!get(`SELECT COUNT(*) AS n FROM pieces WHERE type = 'facture' AND statut != 'annulee'`).n) return null;
+  const m = argentDuMois(today.slice(0, 7));
+  const { aEncaisser, enRetard } = creances(today);
+  const somme = (l) => arr(l.reduce((a, p) => a + (Number(p.reste_du) || 0), 0));
+  return {
+    mois: m.mois,
+    encaisse_mois_ttc: m.encaisse_ttc, encaissements: m.encaissements,
+    facture_mois_ttc: m.facture_ttc,
+    reste_ttc: somme(aEncaisser), a_payer: aEncaisser.length,
+    en_retard_ttc: somme(enRetard), en_retard: enRetard.length,
+    sync_le: dbApi.getSetting('pilotage_sync_le') || '',
+  };
+}
+
 function revue({ today = localDay() } = {}) {
   const mois = today.slice(0, 7);
   const debutSemaine = lundi(today);
@@ -271,9 +296,7 @@ function revue({ today = localDay() } = {}) {
   const ceMois = historique[historique.length - 1];
   const moisPrecedent = historique[historique.length - 2];
 
-  const aEncaisser = all(`SELECT * FROM pieces WHERE type = 'facture' AND statut = 'a_payer' ORDER BY CASE WHEN echeance = '' THEN date ELSE echeance END`)
-    .map((p) => ({ ...p, retard: p.echeance && p.echeance < today ? ecart(p.echeance, today) : 0 }));
-  const enRetard = aEncaisser.filter((p) => p.retard > 0);
+  const { aEncaisser, enRetard } = creances(today);
   const brouillons = all(`SELECT * FROM pieces WHERE type = 'facture' AND statut = 'brouillon' ORDER BY date DESC`);
 
   const { devis, tousDevis } = devisOuverts(today);
@@ -471,6 +494,6 @@ module.exports = {
   STATUTS_FACTURE, STATUTS_DEVIS,
   factureDepuisPennylane, devisDepuisPennylane, enregistrer, synchroniserPennylane,
   creerPiece, modifierPiece, supprimerPiece,
-  argentDuMois, prevision, revue, texteRevue,
+  argentDuMois, creances, argentReel, prevision, revue, texteRevue,
   niveauRelance, texteRelance, relancePiece, tacheRelance,
 };
