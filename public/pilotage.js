@@ -45,6 +45,26 @@ function barresGroupees(lignes, series, { unite = 'euros', label = 'Graphique' }
   return `${legende}<svg class="chart-svg graphe-borne" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="${esc(label)}">${grille}${barres}</svg>${table}`;
 }
 
+// 💶 Ce qui doit rentrer : 8 semaines de trésorerie, l'échu en première colonne.
+function cartePrevision(pv) {
+  const jj = (d) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
+  const lignes = [
+    ...(pv.retard.a_encaisser_ttc ? [{ libelle: 'retard', a_encaisser: pv.retard.a_encaisser_ttc, acceptes: null }] : []),
+    ...pv.semaines.map((s) => ({ libelle: jj(s.debut), a_encaisser: s.a_encaisser_ttc, acceptes: s.acceptes_ttc })),
+  ];
+  const plusTard = pv.plus_tard.a_encaisser_ttc + pv.plus_tard.acceptes_ttc;
+  const vide = !pv.total.cumul_ttc;
+  return `<div class="card">
+    <h2>💶 Ce qui doit rentrer, 8 semaines</h2>
+    ${vide ? '<p class="muted small">Rien d’attendu d’ici le ' + fmtDay(pv.fin) + '. Lis Pennylane ou ajoute une pièce à la main.</p>' : `
+    <div class="spread small mb-2"><span>Cumul jusqu’au ${fmtDay(pv.fin)}</span><b>${eur(pv.total.cumul_ttc)} TTC</b></div>
+    ${barresGroupees(lignes,
+      [{ cle: 'a_encaisser', libelle: 'À encaisser', classe: 'serie-a' }, { cle: 'acceptes', libelle: 'Acceptés à facturer', classe: 'serie-c' }],
+      { label: 'Ce qui doit rentrer par semaine sur 8 semaines' })}
+    <p class="muted small mt-2">À encaisser : <b>${eur(pv.total.a_encaisser_ttc)}</b>${pv.retard.a_encaisser_ttc ? `, dont ${eur(pv.retard.a_encaisser_ttc)} déjà en retard` : ''}. Acceptés à facturer : <b>${eur(pv.total.acceptes_ttc)}</b> (potentiel, rangé à 30 jours).${plusTard ? ` Au-delà : ${eur(plusTard)}.` : ''} Semaines du lundi, montants TTC.</p>`}
+  </div>`;
+}
+
 // ================================================================ PILOTAGE
 async function vPilotage(view) {
   const r = await api('/pilotage');
@@ -85,7 +105,7 @@ async function vPilotage(view) {
               <td>${fmtDay(p.date)}</td>
               <td>${p.retard ? `<span class="chip due">${p.retard} j de retard</span>` : fmtDay(p.echeance)}</td>
               <td class="a-droite"><b>${eur(p.reste_du)}</b></td>
-              <td class="a-droite"><button class="small" data-payee="${p.id}">💶 Payée</button>${p.source === 'manuel' ? ` <button class="ghost small" data-suppr="${p.id}" aria-label="Supprimer">🗑️</button>` : ''}</td>
+              <td class="a-droite"><button class="small" data-relance="${p.id}">✉️ Relance</button> <button class="small" data-payee="${p.id}">💶 Payée</button>${p.source === 'manuel' ? ` <button class="ghost small" data-suppr="${p.id}" aria-label="Supprimer">🗑️</button>` : ''}</td>
             </tr>`).join('')}</tbody></table></div>` : '<p class="muted small">Tout est encaissé. Lis Pennylane pour mettre à jour.</p>'}
           ${r.brouillons.length ? `<p class="muted small mt-3">📝 En brouillon : ${r.brouillons.map((b) => `${esc(b.client || b.numero)} (${eur(b.montant_ttc)} TTC)`).join(', ')}</p>` : ''}
         </div>
@@ -108,6 +128,7 @@ async function vPilotage(view) {
             [{ cle: 'facture', libelle: 'Facturé TTC', classe: 'serie-a' }, { cle: 'encaisse', libelle: 'Encaissé TTC', classe: 'serie-b' }],
             { label: 'Facturé et encaissé sur 6 mois' })}
         </div>
+        ${r.prevision ? cartePrevision(r.prevision) : ''}
         <div class="card">
           <h2>📈 Clients suivis</h2>
           ${r.clients.length ? r.clients.map((c) => `<div class="spread small py-1 ligne-pointillee">
@@ -151,7 +172,46 @@ async function vPilotage(view) {
     if (!confirm('Supprimer cette pièce saisie à la main ?')) return;
     try { await api(`/pilotage/pieces/${b.dataset.suppr}`, { method: 'DELETE' }); render(); } catch (e) { fx.error(e.message); }
   }; });
+  $$('[data-relance]', view).forEach((b) => { b.onclick = () => relanceModal(b.dataset.relance); });
   $('#p-ajout').onclick = () => pieceModal();
+}
+
+// ✉️ Relance de facture : le texte est préparé par le serveur, rien ne part.
+// Maxime le relit, le copie ou l'ouvre dans sa messagerie.
+async function relanceModal(id, ton) {
+  let r;
+  try { r = (await api(`/pilotage/pieces/${id}/relance${ton ? `?ton=${ton}` : ''}`)).relance; } catch (e) { return fx.error(e.message); }
+  const chips = { courtoise: 'ok', ferme: 'former', derniere: 'due' };
+  const m = modal(`
+    <h2>✉️ Relance : ${esc(r.client || 'facture')}</h2>
+    <p class="small"><span class="chip ${chips[r.niveau] || ''}">${esc(r.libelle_niveau)}</span> ${r.retard ? `${r.retard} j de retard` : 'pas encore en retard'} · ${eur(r.montant_du)} TTC à encaisser</p>
+    <div class="form-grid mt-3">
+      <label class="field">Ton<select id="rl-ton"><option value="vous"${r.tutoiement ? '' : ' selected'}>Vouvoiement</option><option value="tu"${r.tutoiement ? ' selected' : ''}>Tutoiement</option></select></label>
+      <label class="field">Objet<input id="rl-sujet" value="${esc(r.sujet)}"></label>
+      <label class="field wide">Message<textarea id="rl-corps" rows="14">${esc(r.corps)}</textarea></label>
+    </div>
+    <p class="muted small mt-2">${r.email ? `Destinataire : ${esc(r.email)}.` : 'Aucun email connu pour ce client : la messagerie s’ouvrira sans destinataire, ajoute-le à la main.'} Rien ne part tout seul.</p>
+    <div class="row fin mt-3">
+      <button id="rl-tache">📌 Ajouter à Ma journée</button>
+      <a class="btn" id="rl-mail" href="#">📨 Ouvrir dans le mail</a>
+      <button class="primary" id="rl-copier">📋 Copier</button>
+    </div>`);
+  const texte = () => `Objet : ${$('#rl-sujet', m).value}\n\n${$('#rl-corps', m).value}`;
+  const majMail = () => { $('#rl-mail', m).href = mailtoHref(r.email || '', $('#rl-sujet', m).value, $('#rl-corps', m).value); };
+  majMail();
+  $('#rl-sujet', m).oninput = majMail;
+  $('#rl-corps', m).oninput = majMail;
+  $('#rl-ton', m).onchange = (e) => { fermerFenetre(m); relanceModal(id, e.target.value); };
+  $('#rl-copier', m).onclick = async () => { await copyText(texte()); fx.toast('Relance copiée : colle-la dans ton mail.', '', 2600); };
+  $('#rl-tache', m).onclick = async (e) => {
+    const b = e.currentTarget;
+    b.disabled = true;
+    try {
+      const t = await api(`/pilotage/pieces/${id}/relance/tache`, { method: 'POST' });
+      fx.toast(t.deja ? 'Déjà dans Ma journée pour aujourd’hui.' : 'Ajouté à Ma journée, pour aujourd’hui 📌', '', 2600);
+      b.textContent = '✅ Dans Ma journée';
+    } catch (err) { fx.error(err.message); b.disabled = false; }
+  };
 }
 
 function pieceModal() {
@@ -264,6 +324,7 @@ async function vClientDetail(view, id) {
       <div class="row">
         <button class="primary" id="cl-saisir">✍️ Saisir un mois</button>
         <button id="cl-rapport">📨 Rapport du mois</button>
+        <button id="cl-imprimable">🖨️ Version à envoyer</button>
         <button class="ghost" id="cl-reglages">⚙️ Réglages</button>
       </div>
     </div>
@@ -314,6 +375,11 @@ async function vClientDetail(view, id) {
   const g = $('#cl-graph'); if (g) g.onchange = () => { indicateurGraphique = Number(g.value); render(); };
   $('#cl-saisir').onclick = () => saisieMoisModal(t);
   $('#cl-rapport').onclick = () => rapportModal(t);
+  $('#cl-imprimable').onclick = () => {
+    const actifs = t.synthese.filter((s) => s.actif).map((s) => s.mois);
+    if (!actifs.length) return fx.error('Aucun mois saisi : saisis d’abord les chiffres d’un mois, la version à envoyer se remplira toute seule.');
+    ouvrirRapportClient(c.id, actifs[actifs.length - 1]);
+  };
   $('#cl-reglages').onclick = () => reglagesClientModal(c);
   $('#cl-ind-ajout').onclick = () => indicateurModal(c.id, null);
   $$('[data-ind]', view).forEach((b) => { b.onclick = () => indicateurModal(c.id, t.indicateurs.find((i) => i.id === Number(b.dataset.ind))); });
@@ -359,6 +425,139 @@ async function rapportModal(t, moisChoisi) {
     <div class="row fin mt-3"><button class="primary" id="rp-copier">📋 Copier</button></div>`);
   $('#rp-mois', m).onchange = (e) => { m.remove(); rapportModal(t, e.target.value); };
   $('#rp-copier', m).onclick = async () => { await copyText(texte); fx.toast('Rapport copié : colle-le dans le mail du client.', '', 2600); };
+}
+
+// ================================================================ VERSION À ENVOYER
+// 🖨️ Le rapport client imprimable : une page propre, sans menu ni bouton une fois
+// imprimée, que Maxime enregistre en PDF et envoie (Off Golf veut du chiffre).
+// La demande (client, mois) est posée avant de naviguer ; elle survit au rechargement.
+let rapportClientDemande = null;
+const CLE_RAPPORT = 'otea-rapport-client';
+
+function ouvrirRapportClient(clientId, mois) {
+  rapportClientDemande = { id: Number(clientId), mois: mois || '' };
+  try { sessionStorage.setItem(CLE_RAPPORT, JSON.stringify(rapportClientDemande)); } catch { /* navigation privée : la variable suffit */ }
+  location.hash = '#/rapport-client';
+}
+
+// L'impression se fait toujours en thème clair (une page sombre gâche l'encre et se lit mal),
+// et le titre de la page devient le nom du PDF proposé : « Rapport Off Golf, octobre 2026 ».
+let themeAvantImpression = null, titreAvantImpression = null, titreRapport = '';
+function themeClairPourImprimer() {
+  if (themeAvantImpression !== null) return;
+  themeAvantImpression = document.documentElement.getAttribute('data-theme') || '';
+  document.documentElement.setAttribute('data-theme', 'clair');
+  if (titreRapport) { titreAvantImpression = document.title; document.title = titreRapport; }
+}
+function themeApresImpression() {
+  if (themeAvantImpression === null) return;
+  if (themeAvantImpression) document.documentElement.setAttribute('data-theme', themeAvantImpression);
+  else document.documentElement.removeAttribute('data-theme');
+  themeAvantImpression = null;
+  if (titreAvantImpression !== null) { document.title = titreAvantImpression; titreAvantImpression = null; }
+}
+addEventListener('beforeprint', () => { if (document.querySelector('.rapport-imprimable')) themeClairPourImprimer(); });
+addEventListener('afterprint', themeApresImpression);
+
+// « d’octobre », « d’avril », « d’août », mais « de mai » : l'élision devant une voyelle.
+function deMois(libelle) { return /^[aeiouéèêâîôû]/i.test(libelle) ? `d’${libelle}` : `de ${libelle}`; }
+
+function kpiRapport(valeur, libelle, detail) {
+  return `<div class="kpi"><div class="n">${valeur}</div><div class="l">${libelle}</div>${detail ? `<div class="muted small">${detail}</div>` : ''}</div>`;
+}
+
+async function vRapportClient(view) {
+  if (!rapportClientDemande) {
+    try { rapportClientDemande = JSON.parse(sessionStorage.getItem(CLE_RAPPORT) || 'null'); } catch { rapportClientDemande = null; }
+  }
+  const sansClient = (raison) => {
+    view.innerHTML = `<div class="card bord-or"><h2>🖨️ Quel client ?</h2>
+      <p class="muted">${esc(raison)} Ouvre un client dans Résultats clients, puis « Version à envoyer ».</p>
+      <div class="row mt-3"><a class="btn primary" href="#/clients">📈 Résultats clients</a></div></div>`;
+  };
+  if (!rapportClientDemande || !rapportClientDemande.id) return sansClient('Aucun client choisi pour l’instant.');
+  const { id } = rapportClientDemande;
+  const q = rapportClientDemande.mois ? `?mois=${encodeURIComponent(rapportClientDemande.mois)}` : '';
+  let r;
+  try { r = await api(`/clients/${id}/rapport-imprimable${q}`); } catch (e) {
+    // Client supprimé depuis : on oublie la demande plutôt que de buter dessus à chaque visite.
+    if (/n’existe plus/.test(e.message)) {
+      rapportClientDemande = null;
+      try { sessionStorage.removeItem(CLE_RAPPORT); } catch { /* rien à ranger */ }
+      return sansClient('Ce client n’est plus suivi.');
+    }
+    throw e;
+  }
+  rapportClientDemande.mois = r.mois;
+  const c = r.client, k = r.cumul, s = r.du_mois;
+  titreRapport = `Rapport ${c.nom}, ${r.libelle_mois}`;
+  const signe = (n) => (n > 0 ? '+' : '');
+  const depuis = k.mois_suivis > 1 ? `depuis ${esc(moisLong(c.debut))} (${k.mois_suivis} mois)` : `sur ${esc(moisLong(r.mois))}`;
+  const choixMois = r.mois_saisis.includes(r.mois) ? r.mois_saisis : [...r.mois_saisis, r.mois].sort();
+
+  view.innerHTML = `
+    <div class="rapport-barre no-print">
+      <button type="button" class="lien-texte small" id="rc-retour">← Retour à ${esc(c.nom)}</button>
+      <div class="row">
+        <label class="field rapport-mois">Mois<select id="rc-mois">${choixMois.map((m) => `<option value="${m}" ${m === r.mois ? 'selected' : ''}>${esc(moisLong(m))}</option>`).join('')}</select></label>
+        <button class="primary" id="rc-imprimer">🖨️ Imprimer ou enregistrer en PDF</button>
+      </div>
+      <p class="muted small">Dans la fenêtre d’impression, choisis « Enregistrer au format PDF ». Le menu et les boutons disparaissent de la page imprimée.</p>
+    </div>
+    <article class="rapport-imprimable">
+      <header class="rapport-entete">
+        <div class="surtitre">Rapport mensuel</div>
+        <h1>${esc(c.nom)}</h1>
+        <div class="rapport-mois-titre">${esc(r.libelle_mois.charAt(0).toUpperCase() + r.libelle_mois.slice(1))}</div>
+      </header>
+
+      <section class="rapport-section">
+        <h2>Ce que les réseaux ont rapporté, ${depuis}</h2>
+        <div class="kpis">
+          ${kpiRapport(k.ca_total !== null ? eur(k.ca_total) : 'non saisi', `💰 CA généré${k.ca_estime ? ' (en partie estimé)' : ''}`, s.ca !== null ? `dont ${eur(s.ca)} en ${esc(moisLong(r.mois))}` : '')}
+          ${kpiRapport(eur(k.cout_total), '🧾 investi (accompagnement + pub, HT)', s.cout !== null ? `dont ${eur(s.cout)} ce mois` : '')}
+          ${kpiRapport(k.roi !== null ? fmtPct(k.roi, true) : 'à calculer', '📈 retour sur investissement', s.roi !== null ? `${fmtPct(s.roi, true)} ce mois` : '')}
+          ${kpiRapport(k.multiple !== null ? `${k.multiple.toLocaleString('fr-FR')} €` : 'à calculer', '💶 rapportés par euro investi', s.multiple !== null ? `${s.multiple.toLocaleString('fr-FR')} € ce mois` : '')}
+          ${kpiRapport(k.reservations !== null ? fmtVal(k.reservations) : 'non saisi', '🎟️ réservations', k.reservations_en_plus !== null ? `${signe(k.reservations_en_plus)}${fmtVal(k.reservations_en_plus)} par rapport au point de départ` : (s.reservations !== null ? `${fmtVal(s.reservations)} ce mois` : ''))}
+          ${kpiRapport(k.cout_par_reservation !== null ? eurFin(k.cout_par_reservation) : 'à calculer', '🎯 coût par réservation', s.cout_par_reservation !== null ? `${eurFin(s.cout_par_reservation)} ce mois` : '')}
+        </div>
+        ${k.ca_estime ? `<p class="muted small">CA estimé : réservations × panier moyen de ${eur(c.panier_moyen)}.</p>` : ''}
+      </section>
+
+      <section class="rapport-section">
+        <h2>Les chiffres ${esc(deMois(moisLong(r.mois)))}</h2>
+        ${r.lignes.length ? `<table class="list rapport-table"><thead><tr><th>Indicateur</th><th>Objectif</th><th>Réel</th><th>Atteinte</th><th>vs point de départ</th></tr></thead><tbody>
+          ${r.lignes.map((l) => `<tr>
+            <th scope="row">${esc(l.libelle)}</th>
+            <td>${l.objectif !== null ? fmtVal(l.objectif, l.unite) : ''}</td>
+            <td><b>${l.reel !== null ? fmtVal(l.reel, l.unite) : 'non saisi'}</b></td>
+            <td>${chipAtteinte(l.atteinte, l.sens) || (l.atteinte !== null ? fmtPct(l.atteinte) : '')}</td>
+            <td>${l.vs_baseline !== null && l.role !== 'pub' ? fmtPct(l.vs_baseline, true) : ''}</td>
+          </tr>`).join('')}
+        </tbody></table>` : '<p class="muted">Aucun chiffre saisi pour ce mois.</p>'}
+      </section>
+
+      ${r.graphique && r.graphique.mois.some((l) => l.reel !== null || l.objectif !== null) ? `<section class="rapport-section rapport-graphe">
+        <h2>${esc(r.graphique.libelle)} : objectif et réel</h2>
+        ${barresGroupees(r.graphique.mois.map((l) => ({ libelle: moisCourt(l.mois), objectif: l.objectif, reel: l.reel })),
+          [{ cle: 'objectif', libelle: 'Objectif', classe: 'serie-c' }, { cle: 'reel', libelle: 'Réel', classe: 'serie-a' }],
+          { unite: r.graphique.unite, label: `${r.graphique.libelle} : objectif et réel par mois` })}
+        ${r.graphique.baseline !== null ? `<p class="muted small">Point de départ avant l’accompagnement : <b>${fmtVal(r.graphique.baseline, r.graphique.unite)}</b> par mois.</p>` : ''}
+      </section>` : ''}
+
+      <section class="rapport-section">
+        <h2>Objectifs ${esc(deMois(r.libelle_mois_suivant))}</h2>
+        ${r.objectifs_suivants.length
+          ? `<ul class="points">${r.objectifs_suivants.map((o) => `<li>${esc(o.libelle)} : <b>${fmtVal(o.objectif, o.unite)}</b></li>`).join('')}</ul>`
+          : '<p class="muted">Les objectifs du mois prochain seront fixés ensemble.</p>'}
+      </section>
+
+      <footer class="rapport-pied">Préparé par OTEA Production</footer>
+    </article>`;
+
+  $('#rc-retour').onclick = () => { clientOuvert = id; location.hash = '#/clients'; };
+  $('#rc-mois').onchange = (e) => { ouvrirRapportClient(id, e.target.value); render(); };
+  $('#rc-imprimer').onclick = () => { themeClairPourImprimer(); window.print(); };
 }
 
 function reglagesClientModal(c) {

@@ -184,24 +184,9 @@ function argentDuMois(mois) {
   return { mois, facture_ht: arr(f.ht), facture_ttc: arr(f.ttc), factures: f.n, encaisse_ttc: arr(e.ttc), encaisse_ht: arr(e.ht), encaissements: e.n };
 }
 
-function revue({ today = localDay() } = {}) {
-  const mois = today.slice(0, 7);
-  const debutSemaine = lundi(today);
-  const finSemaine = addDays(debutSemaine, 6);
+// Les devis ouverts : Pennylane (ou saisis à la main) + ceux du pipeline local pas encore facturés.
+function devisOuverts(today) {
   const dans7 = addDays(today, 7);
-
-  // L'argent : ce mois, et les 6 derniers mois pour la tendance.
-  const historique = [];
-  for (let i = 5; i >= 0; i--) historique.push(argentDuMois(clients.moisSuivant(mois, -i)));
-  const ceMois = historique[historique.length - 1];
-  const moisPrecedent = historique[historique.length - 2];
-
-  const aEncaisser = all(`SELECT * FROM pieces WHERE type = 'facture' AND statut = 'a_payer' ORDER BY CASE WHEN echeance = '' THEN date ELSE echeance END`)
-    .map((p) => ({ ...p, retard: p.echeance && p.echeance < today ? ecart(p.echeance, today) : 0 }));
-  const enRetard = aEncaisser.filter((p) => p.retard > 0);
-  const brouillons = all(`SELECT * FROM pieces WHERE type = 'facture' AND statut = 'brouillon' ORDER BY date DESC`);
-
-  // Les devis : Pennylane (ou saisis à la main) + ceux du pipeline local pas encore facturés.
   const devis = all(`SELECT * FROM pieces WHERE type = 'devis' AND statut IN ('en_attente', 'accepte') ORDER BY date`)
     .map((p) => ({ ...p, origine: 'piece', age: p.date ? ecart(p.date, today) : 0, expire_bientot: !!(p.echeance && p.echeance >= today && p.echeance <= dans7), expire: !!(p.echeance && p.echeance < today) }));
   // Un devis connu de Pennylane se lit toujours par sa pièce (son vrai statut),
@@ -215,7 +200,117 @@ function revue({ today = localDay() } = {}) {
       libelle: d.title, montant_ht: d.amount, statut: d.status === 'accepte' ? 'accepte' : 'en_attente',
       date: jour(d.updated_at), age: ecart(jour(d.updated_at), today), expire_bientot: false, expire: false,
     }));
-  const tousDevis = [...devis, ...deals];
+  return { devis, deals, tousDevis: [...devis, ...deals] };
+}
+
+// ---------------------------------------------------------------- la prévision
+// Ce qui doit rentrer sur les 8 prochaines semaines (lundi au dimanche), en TTC.
+// · À encaisser : les factures « à payer », rangées à leur échéance (sans
+//   échéance : date de facture + 30 jours). Ce qui est déjà échu va dans une
+//   première colonne « en retard ».
+// · Acceptés à facturer : un potentiel, pas une créance. Un devis accepté pas
+//   encore facturé est supposé payé 30 jours après sa date, jamais avant
+//   aujourd'hui. Les montants HT sans TTC connu prennent 20 % de TVA (estimé).
+const NB_SEMAINES = 8;
+const DELAI_PAIEMENT = 30;
+const TVA = 0.2;
+
+function prevision({ today = localDay() } = {}) {
+  const debut = lundi(today);
+  const semaines = [];
+  for (let i = 0; i < NB_SEMAINES; i++) {
+    const d = addDays(debut, i * 7);
+    semaines.push({ debut: d, fin: addDays(d, 6), a_encaisser_ttc: 0, acceptes_ttc: 0, factures: 0, devis: 0 });
+  }
+  const fin = semaines[NB_SEMAINES - 1].fin;
+  const retard = { a_encaisser_ttc: 0, factures: 0 };
+  const plusTard = { a_encaisser_ttc: 0, acceptes_ttc: 0 };
+  const semaineDe = (d) => semaines[Math.floor(ecart(debut, d) / 7)];
+
+  for (const p of all(`SELECT * FROM pieces WHERE type = 'facture' AND statut = 'a_payer'`)) {
+    const du = Number(p.reste_du) || 0;
+    if (du <= 0) continue;
+    const attendu = echeanceAttendue(p) || today;
+    if (attendu < today) { retard.a_encaisser_ttc += du; retard.factures++; }
+    else if (attendu > fin) plusTard.a_encaisser_ttc += du;
+    else { const s = semaineDe(attendu); s.a_encaisser_ttc += du; s.factures++; }
+  }
+
+  for (const d of devisOuverts(today).tousDevis.filter((x) => x.statut === 'accepte')) {
+    const ttc = Number(d.montant_ttc) > 0 ? Number(d.montant_ttc) : (Number(d.montant_ht) || 0) * (1 + TVA);
+    if (ttc <= 0) continue;
+    let attendu = d.date ? addDays(d.date, DELAI_PAIEMENT) : today;
+    if (attendu < today) attendu = today;
+    if (attendu > fin) plusTard.acceptes_ttc += ttc;
+    else { const s = semaineDe(attendu); s.acceptes_ttc += ttc; s.devis++; }
+  }
+
+  for (const s of semaines) { s.a_encaisser_ttc = arr(s.a_encaisser_ttc); s.acceptes_ttc = arr(s.acceptes_ttc); }
+  retard.a_encaisser_ttc = arr(retard.a_encaisser_ttc);
+  plusTard.a_encaisser_ttc = arr(plusTard.a_encaisser_ttc); plusTard.acceptes_ttc = arr(plusTard.acceptes_ttc);
+  const total = {
+    a_encaisser_ttc: arr(retard.a_encaisser_ttc + semaines.reduce((a, s) => a + s.a_encaisser_ttc, 0)),
+    acceptes_ttc: arr(semaines.reduce((a, s) => a + s.acceptes_ttc, 0)),
+  };
+  total.cumul_ttc = arr(total.a_encaisser_ttc + total.acceptes_ttc);
+  // Le cumul semaine après semaine : ce qui sera rentré à la fin de chaque semaine si tout est payé à l'heure.
+  let c = retard.a_encaisser_ttc;
+  for (const s of semaines) { c += s.a_encaisser_ttc + s.acceptes_ttc; s.cumul_ttc = arr(c); }
+  return { today, debut, fin, retard, semaines, plus_tard: plusTard, total };
+}
+
+// L'échéance d'une facture : la sienne, sinon sa date + 30 jours. La même règle
+// partout (revue, Cockpit, prévision, relance) : sinon le Cockpit dirait « rien en
+// retard » pendant que la relance compte 39 jours de retard sur la même facture.
+function echeanceAttendue(p) {
+  return p.echeance || (p.date ? addDays(p.date, DELAI_PAIEMENT) : '');
+}
+
+// Les factures à payer, et celles dont l'échéance est passée. Lu par la revue et par le Cockpit.
+function creances(today) {
+  const aEncaisser = all(`SELECT * FROM pieces WHERE type = 'facture' AND statut = 'a_payer' ORDER BY id`)
+    .map((p) => {
+      const attendue = echeanceAttendue(p);
+      return { ...p, echeance_attendue: attendue, retard: attendue && attendue < today ? ecart(attendue, today) : 0 };
+    })
+    .sort((a, b) => (a.echeance_attendue || a.date || '').localeCompare(b.echeance_attendue || b.date || ''));
+  return { aEncaisser, enRetard: aEncaisser.filter((p) => p.retard > 0) };
+}
+
+// L'argent réel, pour le Cockpit : ce qui est rentré ce mois, ce qui reste dû,
+// ce qui est en retard (TTC). Sans aucune facture (Pennylane ou saisie à la
+// main), rien : le Cockpit garde ses chiffres du pipeline.
+function argentReel({ today = localDay() } = {}) {
+  if (!get(`SELECT COUNT(*) AS n FROM pieces WHERE type = 'facture' AND statut != 'annulee'`).n) return null;
+  const m = argentDuMois(today.slice(0, 7));
+  const { aEncaisser, enRetard } = creances(today);
+  const somme = (l) => arr(l.reduce((a, p) => a + (Number(p.reste_du) || 0), 0));
+  return {
+    mois: m.mois,
+    encaisse_mois_ttc: m.encaisse_ttc, encaissements: m.encaissements,
+    facture_mois_ttc: m.facture_ttc,
+    reste_ttc: somme(aEncaisser), a_payer: aEncaisser.length,
+    en_retard_ttc: somme(enRetard), en_retard: enRetard.length,
+    sync_le: dbApi.getSetting('pilotage_sync_le') || '',
+  };
+}
+
+function revue({ today = localDay() } = {}) {
+  const mois = today.slice(0, 7);
+  const debutSemaine = lundi(today);
+  const finSemaine = addDays(debutSemaine, 6);
+  const dans7 = addDays(today, 7);
+
+  // L'argent : ce mois, et les 6 derniers mois pour la tendance.
+  const historique = [];
+  for (let i = 5; i >= 0; i--) historique.push(argentDuMois(clients.moisSuivant(mois, -i)));
+  const ceMois = historique[historique.length - 1];
+  const moisPrecedent = historique[historique.length - 2];
+
+  const { aEncaisser, enRetard } = creances(today);
+  const brouillons = all(`SELECT * FROM pieces WHERE type = 'facture' AND statut = 'brouillon' ORDER BY date DESC`);
+
+  const { devis, tousDevis } = devisOuverts(today);
   const devisEnAttente = tousDevis.filter((d) => d.statut === 'en_attente');
   const acceptesAFacturer = tousDevis.filter((d) => d.statut === 'accepte');
 
@@ -259,6 +354,7 @@ function revue({ today = localDay() } = {}) {
     total, a_encaisser: aEncaisser, en_retard: enRetard.length, brouillons,
     devis_en_attente: devisEnAttente, acceptes_a_facturer: acceptesAFacturer,
     relances, nb_relances: nbRelances, echeances, clients: suivis, points,
+    prevision: prevision({ today }),
   };
 }
 
@@ -276,6 +372,17 @@ function texteRevue(r = revue()) {
   L.push(`Devis en attente : ${r.devis_en_attente.length} pour ${fmt(r.total.devis_en_attente_ht)} HT`);
   for (const x of r.devis_en_attente.slice(0, 8)) L.push(`   ${x.client || '?'} : ${fmt(x.montant_ht)} HT, envoyé il y a ${x.age} j`);
   if (r.acceptes_a_facturer.length) L.push(`Acceptés à facturer : ${r.acceptes_a_facturer.map((x) => `${x.client} (${fmt(x.montant_ht)} HT)`).join(', ')}`);
+  if (r.prevision) {
+    const pv = r.prevision;
+    L.push('');
+    L.push(`Ce qui doit rentrer, 8 semaines (jusqu’au ${d(pv.fin)}) : ${fmt(pv.total.cumul_ttc)} TTC`);
+    L.push(`· À encaisser : ${fmt(pv.total.a_encaisser_ttc)} TTC${pv.retard.a_encaisser_ttc ? `, dont ${fmt(pv.retard.a_encaisser_ttc)} déjà en retard` : ''}`);
+    L.push(`· Acceptés à facturer : ${fmt(pv.total.acceptes_ttc)} TTC (potentiel, rien n’est encore facturé)`);
+    for (const s of pv.semaines.filter((x) => x.a_encaisser_ttc || x.acceptes_ttc)) {
+      L.push(`   Semaine du ${d(s.debut)} : ${fmt(s.a_encaisser_ttc)} à encaisser${s.acceptes_ttc ? ` + ${fmt(s.acceptes_ttc)} à facturer` : ''}`);
+    }
+    if (pv.plus_tard.a_encaisser_ttc || pv.plus_tard.acceptes_ttc) L.push(`   Au-delà : ${fmt(pv.plus_tard.a_encaisser_ttc + pv.plus_tard.acceptes_ttc)} TTC`);
+  }
   L.push('');
   L.push('Points d’attention');
   for (const p of r.points) L.push(`· ${p.texte}`);
@@ -295,9 +402,109 @@ function texteRevue(r = revue()) {
   return L.join('\n');
 }
 
+// ---------------------------------------------------------------- relance de facture
+// Prépare un mail de relance pour une facture à encaisser. Rien ne part :
+// le texte est proposé à Maxime, qui le copie ou l'ouvre dans sa messagerie.
+// Trois tons selon le retard : courtoise (moins de 15 jours), ferme (15 à 45),
+// dernière relance (plus de 45). Vouvoiement par défaut ; tutoiement si le
+// contact lié porte l'étiquette « tutoiement » (ou si Maxime le demande).
+const SIGNATURE = 'Maxime Dietrich\nOTEA Production';
+const NIVEAUX_RELANCE = {
+  courtoise: 'Relance courtoise',
+  ferme: 'Relance ferme',
+  derniere: 'Dernière relance',
+};
+
+function niveauRelance(retard) {
+  if (retard > 45) return 'derniere';
+  if (retard >= 15) return 'ferme';
+  return 'courtoise';
+}
+
+function contactTutoie(contact) {
+  if (!contact) return false;
+  let tags = [];
+  try { tags = JSON.parse(contact.tags || '[]'); } catch { tags = String(contact.tags || '').split(','); }
+  if (!Array.isArray(tags)) tags = [];
+  return tags.some((t) => /^(tutoiement|tutoyer|tu)$/i.test(String(t).trim()));
+}
+
+function texteRelance(piece, { today = localDay(), contact = null, tutoiement } = {}) {
+  if (!piece) throw erreur('Cette facture n’existe plus. Recharge la page.', 404);
+  const fmtEur = (n) => `${(Number(n) || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace(/\u202f|\u00a0/g, ' ')} €`;
+  const fr = (d) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}` : '');
+  const echeance = echeanceAttendue(piece);
+  const retard = echeance && echeance < today ? ecart(echeance, today) : 0;
+  const niveau = niveauRelance(retard);
+  const tu = tutoiement === undefined ? contactTutoie(contact) : !!tutoiement;
+  const prenom = contact ? String(contact.first_name || '').trim() : '';
+  const client = piece.client || (contact && contact.company) || '';
+  const du = Number(piece.reste_du) > 0 ? Number(piece.reste_du) : Number(piece.montant_ttc) || 0;
+  const partiel = Number(piece.reste_du) > 0 && Number(piece.montant_ttc) > Number(piece.reste_du);
+  const ref = piece.numero ? `n° ${piece.numero}` : (piece.libelle ? `« ${piece.libelle} »` : '');
+  const laFacture = `la facture ${ref}`.trim();
+  const datee = piece.date ? ` du ${fr(piece.date)}` : '';
+  const montant = partiel ? `${fmtEur(du)} TTC restant dus sur ${fmtEur(piece.montant_ttc)} TTC` : `${fmtEur(du)} TTC`;
+  const pourEcheance = echeance ? (retard ? `, arrivée à échéance le ${fr(echeance)} (${retard} jour${retard > 1 ? 's' : ''} de retard)` : `, à régler pour le ${fr(echeance)}`) : '';
+  const v = (vous, toi) => (tu ? toi : vous);
+
+  const L = [];
+  if (niveau === 'courtoise') {
+    L.push(`${v('Je me permets de revenir vers vous', 'Je reviens vers toi')} au sujet de ${laFacture}${datee}, d’un montant de ${montant}${pourEcheance}.`);
+    L.push(`Sauf erreur de ma part, je n’ai pas encore vu passer le règlement. Il s’est peut-être croisé avec ce message : dans ce cas, ${v('merci de ne pas tenir compte de ce mail', 'ne tiens pas compte de ce mail')}.`);
+    L.push(`Si besoin, je ${v('vous', 'te')} renvoie la facture ou le RIB.`);
+  } else if (niveau === 'ferme') {
+    L.push(`Je ${v('vous', 'te')} relance concernant ${laFacture}${datee}, d’un montant de ${montant}${pourEcheance}.`);
+    L.push(`Le règlement n’est toujours pas arrivé. ${v('Pouvez-vous', 'Peux-tu')} me confirmer la date de paiement prévue, ou me dire si quelque chose bloque de ${v('votre', 'ton')} côté ?`);
+    L.push(`Je ${v('vous', 'te')} remercie de faire le nécessaire dans les prochains jours.`);
+  } else {
+    L.push(`Malgré mes précédentes relances, ${laFacture}${datee}, d’un montant de ${montant}${pourEcheance}, reste impayée.`);
+    L.push(`${v('Je vous demande', 'Je te demande')} de procéder au règlement sous 8 jours. Sans retour de ${v('votre', 'ta')} part d’ici là, je serai contraint d’engager une procédure de recouvrement, avec les pénalités de retard et l’indemnité forfaitaire de 40 € prévues par la loi.`);
+    L.push(`Si un souci empêche le paiement, ${v('appelez-moi', 'appelle-moi')} : on trouvera une solution ensemble.`);
+  }
+  const corps = [prenom ? `Bonjour ${prenom},` : 'Bonjour,', ...L, `${v('Bien cordialement,', 'Belle journée,')}\n${SIGNATURE}`].join('\n\n');
+
+  const sujet = {
+    courtoise: `Facture ${piece.numero || ''} : petit rappel`,
+    ferme: `Facture ${piece.numero || ''} : règlement en attente`,
+    derniere: `Dernière relance : facture ${piece.numero || ''} impayée`,
+  }[niveau].replace(/\s+/g, ' ').trim();
+
+  return {
+    piece_id: piece.id, niveau, libelle_niveau: NIVEAUX_RELANCE[niveau], retard, echeance,
+    tutoiement: tu, email: contact && contact.email ? String(contact.email).trim() : '',
+    destinataire: prenom || client, client, montant_du: arr(du),
+    sujet, corps,
+    tache: `Relancer ${client || 'le client'}${piece.numero ? ` (facture ${piece.numero})` : ''}`,
+  };
+}
+
+function relancePiece(id, { today = localDay(), tutoiement } = {}) {
+  const piece = get('SELECT * FROM pieces WHERE id = ?', Number(id));
+  if (!piece) throw erreur('Cette facture n’existe plus. Recharge la page.', 404);
+  if (piece.type !== 'facture') throw erreur('Seule une facture se relance. Pour un devis, passe par la fiche du contact.');
+  if (piece.statut !== 'a_payer') throw erreur('Cette facture n’est plus à encaisser : rien à relancer.');
+  const contact = piece.contact_id ? get('SELECT * FROM contacts WHERE id = ?', piece.contact_id) : null;
+  return texteRelance(piece, { today, contact, tutoiement });
+}
+
+// Pose « Relancer X (facture N°) » dans Ma journée, pour aujourd'hui.
+// Une seule fois : si la tâche existe déjà et n'est pas faite, on la renvoie.
+function tacheRelance(id, { today = localDay() } = {}) {
+  const r = relancePiece(id, { today });
+  const piece = get('SELECT contact_id FROM pieces WHERE id = ?', Number(id));
+  const deja = get(`SELECT * FROM journee_taches WHERE texte = ? AND statut = 'a_faire'`, r.tache);
+  if (deja) return { tache: deja, deja: true };
+  const journee = require('./journee');
+  let t = journee.ajouterTache(r.tache, { echeance: today, contact_id: piece.contact_id || null, importance: r.niveau === 'courtoise' ? 2 : 3 });
+  if (t.texte !== r.tache) t = journee.modifierTache(t.id, { texte: r.tache });
+  return { tache: t, deja: false };
+}
+
 module.exports = {
   STATUTS_FACTURE, STATUTS_DEVIS,
   factureDepuisPennylane, devisDepuisPennylane, enregistrer, synchroniserPennylane,
   creerPiece, modifierPiece, supprimerPiece,
-  argentDuMois, revue, texteRevue,
+  argentDuMois, creances, argentReel, prevision, revue, texteRevue,
+  niveauRelance, texteRelance, relancePiece, tacheRelance,
 };

@@ -282,3 +282,69 @@ test('un devis du pipeline connu de Pennylane (même refusé) ou déjà facturé
   assert.strictEqual(r.devis_en_attente.length, 0);
   assert.strictEqual(r.acceptes_a_facturer.length, 0);
 });
+
+// ================================================================ prévision de trésorerie
+test('la prévision range chaque facture dans sa semaine, du lundi au dimanche', () => {
+  vider();
+  const today = '2026-11-11'; // un mercredi : la semaine 1 va du lundi 09 au dimanche 15
+  pilotage.creerPiece({ client: 'Lundi', montant_ht: 100, date: '2026-10-01', echeance: '2026-11-16' });
+  pilotage.creerPiece({ client: 'Dimanche', montant_ht: 200, date: '2026-10-01', echeance: '2026-11-15' });
+  pilotage.creerPiece({ client: 'Aujourd’hui', montant_ht: 50, date: '2026-10-01', echeance: today });
+  pilotage.creerPiece({ client: 'Dernier jour', montant_ht: 10, date: '2026-10-01', echeance: '2027-01-03' });
+  pilotage.creerPiece({ client: 'Trop loin', montant_ht: 1000, date: '2026-10-01', echeance: '2027-01-04' });
+  const pv = pilotage.prevision({ today });
+  assert.strictEqual(pv.semaines.length, 8);
+  assert.strictEqual(pv.debut, '2026-11-09');
+  assert.strictEqual(pv.semaines[0].fin, '2026-11-15');
+  assert.strictEqual(pv.fin, '2027-01-03');
+  assert.strictEqual(pv.semaines[0].a_encaisser_ttc, 300); // dimanche 15 + aujourd'hui
+  assert.strictEqual(pv.semaines[0].factures, 2);
+  assert.strictEqual(pv.semaines[1].debut, '2026-11-16');
+  assert.strictEqual(pv.semaines[1].a_encaisser_ttc, 120);
+  assert.strictEqual(pv.semaines[7].a_encaisser_ttc, 12);
+  assert.strictEqual(pv.plus_tard.a_encaisser_ttc, 1200);
+  assert.strictEqual(pv.retard.a_encaisser_ttc, 0);
+  assert.strictEqual(pv.total.a_encaisser_ttc, 432);
+});
+
+test('la prévision met l’échu dans « en retard » et prend date + 30 jours sans échéance', () => {
+  vider();
+  const today = '2026-11-11';
+  pilotage.creerPiece({ client: 'Hier', montant_ht: 100, date: '2026-10-01', echeance: '2026-11-10' });
+  pilotage.creerPiece({ client: 'Sans échéance, vieille', montant_ht: 500, date: '2026-10-01' }); // 31/10 : échue
+  pilotage.creerPiece({ client: 'Sans échéance, récente', montant_ht: 1000, date: '2026-11-02' }); // 02/12 : semaine du 30/11
+  const payee = pilotage.creerPiece({ client: 'Payée', montant_ht: 800, date: '2026-11-01', echeance: '2026-11-20' });
+  pilotage.modifierPiece(payee.id, { statut: 'payee' });
+  const pv = pilotage.prevision({ today });
+  assert.strictEqual(pv.retard.a_encaisser_ttc, 720);
+  assert.strictEqual(pv.retard.factures, 2);
+  const s = pv.semaines.find((x) => x.debut === '2026-11-30');
+  assert.strictEqual(s.a_encaisser_ttc, 1200);
+  assert.strictEqual(pv.total.a_encaisser_ttc, 1920);
+  assert.strictEqual(pv.semaines[7].cumul_ttc, 1920);
+});
+
+test('les acceptés à facturer forment une série à part, jamais avant aujourd’hui', () => {
+  vider();
+  const today = '2026-11-11';
+  pilotage.creerPiece({ type: 'devis', client: 'Vieux devis', montant_ht: 1000, date: '2026-09-01', statut: 'accepte' }); // 01/10 : ramené à aujourd'hui
+  pilotage.creerPiece({ type: 'devis', client: 'Récent', montant_ht: 500, date: '2026-11-05', statut: 'accepte' }); // 05/12
+  pilotage.creerPiece({ type: 'devis', client: 'En attente', montant_ht: 9000, date: '2026-11-05' });
+  const c = dbApi.insertContact({ company: 'Pipeline' });
+  run(`INSERT INTO deals (contact_id, title, amount, status, created_at, updated_at) VALUES (?, 'Film', 300, 'accepte', ?, ?)`, c.id, '2026-11-10T09:00:00Z', '2026-11-10T09:00:00Z');
+  run(`INSERT INTO deals (contact_id, title, amount, status, pennylane_invoice_id, created_at, updated_at) VALUES (?, 'Déjà facturé', 700, 'accepte', '9', ?, ?)`, c.id, '2026-11-10T09:00:00Z', '2026-11-10T09:00:00Z');
+  const pv = pilotage.prevision({ today });
+  assert.strictEqual(pv.semaines[0].acceptes_ttc, 1200);
+  assert.strictEqual(pv.semaines.find((x) => x.debut === '2026-11-30').acceptes_ttc, 600);
+  assert.strictEqual(pv.semaines.find((x) => x.debut === '2026-12-07').acceptes_ttc, 360);
+  assert.strictEqual(pv.total.acceptes_ttc, 2160);
+  assert.strictEqual(pv.total.a_encaisser_ttc, 0);
+  assert.strictEqual(pv.total.cumul_ttc, 2160);
+
+  const r = pilotage.revue({ today });
+  assert.strictEqual(r.prevision.total.acceptes_ttc, 2160);
+  const texte = pilotage.texteRevue(r);
+  assert.match(texte, /Ce qui doit rentrer, 8 semaines/);
+  assert.match(texte, /Acceptés à facturer : 2 160 €/);
+  assert.ok(!texte.includes(TIRET));
+});

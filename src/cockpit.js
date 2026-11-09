@@ -19,6 +19,8 @@ const journee = require('./journee');
 const autopilot = require('./autopilot');
 const campaigns = require('./campaigns');
 const playbooks = require('./playbooks');
+const pilotage = require('./pilotage');
+const clients = require('./clients');
 
 const MOIS_COURTS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
 const STAGES_CHAUDS = ['en_discussion', 'rdv', 'devis_envoye', 'negociation'];
@@ -278,6 +280,16 @@ function agendaResume(p, now) {
   return { branche: true, prochains, total: evenements.length };
 }
 
+// ---------------------------------------------------------------- 📈 les clients suivis, une ligne chacun
+// Le ROI cumulé depuis le début du suivi, et le mois fini dont les chiffres manquent.
+function clientsSuivis() {
+  return clients.liste().map((c) => ({
+    id: c.id, nom: c.nom,
+    roi: c.cumul.roi, multiple: c.cumul.multiple, mois_suivis: c.cumul.mois_suivis,
+    mois_manquant: c.mois_manquant || '', mois_manquant_libelle: c.mois_manquant_libelle || '',
+  }));
+}
+
 // ---------------------------------------------------------------- l'état complet
 function etat({ now = new Date() } = {}) {
   const today = localDay(now);
@@ -289,6 +301,9 @@ function etat({ now = new Date() } = {}) {
     jour: today,
     jour_long: p.jour_long,
     argent: argent(today),
+    // L'argent réel (factures Pennylane ou saisies dans Pilotage) : null sans aucune facture.
+    argent_reel: pilotage.argentReel({ today }),
+    clients: clientsSuivis(),
     plan: plan(today),
     ca_mois: caParMois(today),
     pipeline: pipeline(),
@@ -313,4 +328,4 @@ function etat({ now = new Date() } = {}) {
   };
 }
 
-module.exports = { etat, argent, plan, caParMois, pipeline, conversion, relances, reponses, activite, fil, radar, cadence, jeu, journeeResume };
+module.exports = { etat, argent, clientsSuivis, plan, caParMois, pipeline, conversion, relances, reponses, activite, fil, radar, cadence, jeu, journeeResume };

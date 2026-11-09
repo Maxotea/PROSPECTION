@@ -268,19 +268,21 @@ function tableau(clientId, { jusqu_a } = {}) {
   };
   const manques = [];
   const moisFini = moisSuivant(moisCourant(), -1);
-  if (mois.includes(moisFini) && !moisAvecReel.has(moisFini) && moisFini >= debut) manques.push(`Les chiffres de ${libelleMois(moisFini)} ne sont pas saisis.`);
+  const moisManquant = mois.includes(moisFini) && !moisAvecReel.has(moisFini) && moisFini >= debut ? moisFini : '';
+  if (moisManquant) manques.push(`Les chiffres de ${libelleMois(moisFini)} ne sont pas saisis.`);
   for (const ind of indicateurs) if (ind.baseline === null && ind.role !== 'pub') manques.push(`Point de départ manquant : ${ind.libelle}.`);
   if (!indResa) manques.push('Aucun indicateur ne compte les réservations : le coût par réservation ne peut pas se calculer.');
   if (!indCa && !c.panier_moyen) manques.push('Ni CA saisi ni panier moyen : le ROI ne peut pas se calculer.');
 
-  return { client: c, mois, indicateurs, synthese, cumul, manques, modeles: Object.fromEntries(Object.entries(MODELES).map(([k, m]) => [k, m.titre])) };
+  return { client: c, mois, indicateurs, synthese, cumul, manques, mois_manquant: moisManquant, modeles: Object.fromEntries(Object.entries(MODELES).map(([k, m]) => [k, m.titre])) };
 }
 
 function liste() {
   return all('SELECT * FROM clients_suivis WHERE archive = 0 ORDER BY nom').map((c) => {
     const t = tableau(c.id);
     const dernier = [...t.synthese].reverse().find((s) => s.actif) || null;
-    return { ...c, cumul: t.cumul, dernier_mois: dernier, manques: t.manques.length, premier_manque: t.manques[0] || '' };
+    return { ...c, cumul: t.cumul, dernier_mois: dernier, manques: t.manques.length, premier_manque: t.manques[0] || '',
+      mois_manquant: t.mois_manquant, mois_manquant_libelle: t.mois_manquant ? libelleMois(t.mois_manquant) : '' };
   });
 }
 
@@ -331,21 +333,67 @@ function rapport(clientId, mois) {
     if (c.roi !== null) L.push(`· Retour sur investissement : ${c.roi >= 0 ? '+' : ''}${Math.round(c.roi * 100)} %`);
   }
   const suivant = moisSuivant(m);
-  const tSuiv = tableau(clientId, { jusqu_a: suivant });
-  const j = tSuiv.mois.indexOf(suivant);
-  const objectifs = j >= 0 ? tSuiv.indicateurs.filter((ind) => ind.mois[j].objectif !== null) : [];
+  const objectifs = objectifsDuMois(clientId, suivant);
   if (objectifs.length) {
     L.push('');
     L.push(`Objectifs de ${libelleMois(suivant)}`);
-    for (const ind of objectifs) L.push(`· ${ind.libelle} : ${fmtNombre(ind.mois[j].objectif, ind.unite)}`);
+    for (const o of objectifs) L.push(`· ${o.libelle} : ${fmtNombre(o.objectif, o.unite)}`);
   }
   return { mois: m, texte: L.join('\n') };
+}
+
+// Les objectifs déjà posés pour un mois (le suivant, dans un rapport).
+function objectifsDuMois(clientId, mois) {
+  const t = tableau(clientId, { jusqu_a: mois });
+  const j = t.mois.indexOf(mois);
+  if (j < 0) return [];
+  return t.indicateurs.filter((ind) => ind.mois[j].objectif !== null)
+    .map((ind) => ({ indicateur_id: ind.id, libelle: ind.libelle, unite: ind.unite, objectif: ind.mois[j].objectif }));
+}
+
+// 🖨️ La version à envoyer : tout ce que la page imprimable affiche pour un mois,
+// calculé par tableau() arrêté à ce mois (le cumul ne voit jamais la suite).
+function rapportImprimable(clientId, mois) {
+  const actifsDe = (t) => t.synthese.filter((s) => s.actif).map((s) => s.mois);
+  let m = mois ? verifierMois(mois) : null;
+  if (!m) {
+    // Sans mois choisi : le dernier mois saisi, sinon le mois qui vient de finir.
+    const actifs = actifsDe(tableau(clientId));
+    m = actifs.length ? actifs[actifs.length - 1] : moisSuivant(moisCourant(), -1);
+  }
+  const t = tableau(clientId, { jusqu_a: m });
+  const i = t.mois.indexOf(m);
+  if (i < 0) throw erreur(`${libelleMois(m)} est hors de la période suivie (depuis ${libelleMois(t.mois[0])}). Choisis un autre mois.`);
+  const indResa = t.indicateurs.find((ind) => ind.role === 'reservations') || null;
+  // Le graphique : 12 mois au plus, pour tenir sur la page A4.
+  const debutGraphe = Math.max(0, i - 11);
+  const graphique = indResa ? {
+    indicateur_id: indResa.id, libelle: indResa.libelle, unite: indResa.unite, baseline: indResa.baseline,
+    mois: indResa.mois.slice(debutGraphe, i + 1).map((l) => ({ mois: l.mois, objectif: l.objectif, reel: l.reel })),
+  } : null;
+  const lignes = t.indicateurs
+    .map((ind) => ({ indicateur_id: ind.id, libelle: ind.libelle, unite: ind.unite, sens: ind.sens, role: ind.role, baseline: ind.baseline, ...ind.mois[i] }))
+    .filter((l) => l.reel !== null || l.objectif !== null);
+  const suivant = moisSuivant(m);
+  return {
+    client: t.client,
+    mois: m,
+    libelle_mois: libelleMois(m),
+    mois_saisis: actifsDe(tableau(clientId)),
+    du_mois: t.synthese[i],
+    cumul: t.cumul,
+    lignes,
+    graphique,
+    mois_suivant: suivant,
+    libelle_mois_suivant: libelleMois(suivant),
+    objectifs_suivants: objectifsDuMois(clientId, suivant),
+  };
 }
 
 module.exports = {
   MODELES, UNITES, SENS, CUMULS, ROLES,
   creerClient, modifierClient, supprimerClient, client,
   ajouterIndicateur, modifierIndicateur, supprimerIndicateur,
-  saisirMois, tableau, liste, rapport,
+  saisirMois, tableau, liste, rapport, rapportImprimable, objectifsDuMois,
   moisSuivant, libelleMois, plageMois,
 };
