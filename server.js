@@ -86,6 +86,7 @@ const campaigns = require('./src/campaigns');
 const repertoire = require('./src/importers/repertoire');
 const { seedDemo } = require('./seed');
 const migrationTirets = require('./src/migrations/tirets');
+const migrationReponsesAuto = require('./src/migrations/reponses-auto');
 const journee = require('./src/journee');
 const cockpit = require('./src/cockpit');
 const fusion = require('./src/fusion');
@@ -114,6 +115,14 @@ if (bilanTirets.echec || bilanTirets.incidents) {
 } else if (!bilanTirets.deja_fait) {
   const total = Object.values(bilanTirets).filter((v) => typeof v === 'number').reduce((a, b) => a + b, 0);
   if (total) console.log(`✍️  Tirets cadratins retirés des textes enregistrés (${JSON.stringify(bilanTirets)})`);
+}
+
+// Reprise unique des absences prises pour de vraies réponses avant reponse-auto.js.
+const bilanReponsesAuto = migrationReponsesAuto.migrerSansRisque(dbApi);
+if (bilanReponsesAuto.echec) {
+  console.log('🤖 Reprise des réponses automatiques remise à plus tard :', bilanReponsesAuto.echec);
+} else if (bilanReponsesAuto.reponses) {
+  console.log(`🤖 ${bilanReponsesAuto.reponses} réponse(s) automatique(s) reprise(s) : ${bilanReponsesAuto.fiches.join(', ')}`);
 }
 
 const PORT = Number(process.env.PORT || 1337);
