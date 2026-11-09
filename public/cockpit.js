@@ -332,7 +332,7 @@ function ckInclinaison(view) {
 // ---------------------------------------------------------------- 💰 l'argent : une tuile héros et trois tuiles
 function ckLigneArgent(l, { montant = true } = {}) {
   return `<span class="ck-ligne-argent" data-open-contact="${l.contact_id}" role="link" tabindex="0">
-    <span class="ck-ligne-qui"><b>${esc(l.societe || l.nom)}</b>${l.societe ? ` <span class="muted">${esc(l.nom)}</span>` : ''}</span>
+    <span class="ck-ligne-qui"><b>${esc(l.societe || l.nom)}</b>${l.societe ? ` <span class="muted">${esc(l.nom)}</span>` : ''}${l.partage ? ' <span class="muted" title="Dossier partagé avec Memorem : relance à caler avec eux">🤝</span>' : ''}</span>
     ${montant ? `<span class="ck-ligne-montant">${eur(l.montant)}</span>` : ''}
     <span class="ck-ligne-jours ${l.jours >= 7 ? 'tard' : ''}">${l.jours} j</span>
   </span>`;

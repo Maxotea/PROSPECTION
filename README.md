@@ -274,6 +274,21 @@ liste se fait toute seule, à partir de ce qui se passe vraiment.
 | 🗂️ **CRM** | relance arrivée à échéance (un contact chaud a sa ligne ; au-delà de trois prospects froids en retard, ils tiennent sur une seule ligne « Relances de prospection »), devis envoyé sans nouvelle depuis N jours, devis accepté pas facturé, RDV pris sans devis, demande entrante pas traitée (une réponse automatique n'en est pas une, un contact qui a écrit n'est pas relancé en plus, une demande à laquelle tu as répondu depuis Gmail sort toute seule de la liste, et au-delà de trois semaines les vieilles demandes tiennent sur une ligne « à répondre ou classer »), emails de l'Autopilote à valider, post de campagne pas publié, session d'appels du jour |
 | 🧠 **Ton cerveau** | ce que tu tapes dans le vide-cerveau, en une ligne |
 
+### 🤝 La relance de la propal : J+3, et seulement quand OTEA est seul
+
+Un devis envoyé programme sa relance **trois jours plus tard** (« Relancer le devis »),
+et la journée, le Cockpit, la Prospection et les appels du jour te la servent à cette
+date. Le délai se règle dans Réglages (« Relancer un devis après »).
+
+**Exception : les dossiers partagés avec Memorem** (Lou Girault, Guillaume Dominguez :
+Off Golf, Bellefontaine, Emergence, tout client apporté ou piloté avec eux). Là, la
+relance se décide avec eux, jamais toute seule. Coche **« 🤝 Dossier partagé avec
+Memorem »** sur la fiche (ou pose le tag `memorem`) : l'outil ne programme aucune
+relance de devis, ne la met ni dans la journée ni dans le Cockpit (la ligne du devis
+reste visible, marquée 🤝), ne la fait pas revenir dans la Prospection ni dans les
+appels du jour, et l'Autopilote refuse d'enrôler la fiche. Une action que tu poses toi-même
+sur la fiche (« Appeler Lou pour caler la relance ») reste servie normalement.
+
 Sur téléphone ou en ligne, WhatsApp et les appels passent par le pont du Mac
 (`pont-mac.command`), comme pour le répertoire chaud : le Mac lit, envoie le
 résultat, rien de plus.
@@ -402,6 +417,7 @@ Premier projet livré : **Sponsoring HYROX · Pierre & Antoine** (jusqu'au 13 ju
 ### Garde-fous intégrés
 
 - Une réponse (même détectée à la main) **stoppe la séquence** : personne ne reçoit une relance après avoir répondu ;
+- **Une réponse automatique n'est pas une réponse** : absence du bureau, congés, accusé de réception, changement d'adresse, répondeur de plateforme (reconnus aux en-têtes du mail, à l'objet et aux premières lignes). Elle n'arrête pas la séquence, ne crée aucune tâche « répondre » et ne compte pas comme réponse reçue. La fiche garde une note qui dit pourquoi, et si rien n'était prévu, une relance est posée à J+7. Les fausses « réponses » enregistrées avant cette règle ont été reprises une fois au démarrage ;
 - Un bounce (adresse refusée) marque l'email invalide et stoppe la séquence ;
 - Un contact = **une seule séquence à la fois** ; jamais d'enrôlement sans email ; les contacts en séquence sortent de la file de la Prospection ;
 - Cap quotidien + fenêtre horaire + jours ouvrés + espacement aléatoire : le rythme d'un humain, pas d'un robot ;

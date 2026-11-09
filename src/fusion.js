@@ -131,6 +131,7 @@ function fusionnerBase(cheminAutre, { simulation = false } = {}) {
             if (v === '' || v === null || v === undefined || k === 'created_at' || k === 'updated_at') continue;
             if (k === 'stage') { if (avancement(v) > avancement(existant.stage)) patch.stage = v; continue; }
             if (k === 'is_former_client') { if (v && !existant.is_former_client) patch[k] = 1; continue; }
+            if (k === 'partage_memorem') { if (v && !existant.partage_memorem) patch[k] = 1; continue; }
             if (k === 'revenue_history') { if (v > (existant.revenue_history || 0)) patch[k] = v; continue; }
             if (k === 'segment') { if ((existant.segment === 'inconnu' || !existant.segment) && v !== 'inconnu') patch[k] = v; continue; }
             if (k === 'last_touch_at' || k === 'next_action_at') { if (!existant[k] || String(v) > String(existant[k])) patch[k] = v; continue; }

@@ -44,7 +44,7 @@ function nombre(v, defaut) {
 
 // ---------------------------------------------------------------- 💰 l'argent le plus proche
 function argent(today) {
-  const delaiDevis = Math.max(1, Number(getSetting('journee_delai_devis')) || 5);
+  const delaiDevis = Math.max(1, Number(getSetting('journee_delai_devis')) || 3);
 
   // Devis acceptés, pas encore facturés : la facture est à faire.
   const acceptes = all(`SELECT d.id, d.title, d.amount, d.updated_at, c.id AS contact_id, c.first_name, c.last_name, c.company
@@ -57,15 +57,17 @@ function argent(today) {
   };
 
   // Devis envoyés : combien attendent, combien sont à relancer (plus de N jours sans échange).
-  const envoyes = all(`SELECT d.id, d.title, d.amount, d.updated_at, c.id AS contact_id, c.first_name, c.last_name, c.company
+  // Un dossier partagé avec Memorem n'est jamais « à relancer » ici : la relance se cale avec eux.
+  const envoyes = all(`SELECT d.id, d.title, d.amount, d.updated_at, c.id AS contact_id, c.first_name, c.last_name, c.company, c.partage_memorem, c.tags
     FROM deals d JOIN contacts c ON c.id = d.contact_id WHERE d.status = 'devis_envoye' AND c.archived = 0 ORDER BY d.amount DESC`);
   let aRelancer = 0;
   const lignesDevis = envoyes.map((d) => {
+    const partage = playbooks.dossierPartage(d);
     const dernier = get(`SELECT MAX(day) AS j FROM activities WHERE contact_id = ? AND type IN ('relance', 'appel', 'message_envoye', 'devis_envoye', 'reponse_recue')`, d.contact_id);
     const jours = joursEntre((dernier && dernier.j) || d.updated_at.slice(0, 10), today);
-    const relancer = jours >= delaiDevis;
+    const relancer = !partage && jours >= delaiDevis;
     if (relancer) aRelancer++;
-    return { id: d.id, contact_id: d.contact_id, titre: d.title || 'Devis', nom: nomContact(d), societe: d.company || '', montant: Number(d.amount) || 0, jours, a_relancer: relancer };
+    return { id: d.id, contact_id: d.contact_id, titre: d.title || 'Devis', nom: nomContact(d), societe: d.company || '', montant: Number(d.amount) || 0, jours, a_relancer: relancer, partage };
   });
   const devisEnCours = {
     n: envoyes.length,

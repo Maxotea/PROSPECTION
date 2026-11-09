@@ -531,6 +531,7 @@ route('POST', '/api/import/csv', async (req) => {
       origin,
       segment: r.segment || default_segment,
       is_former_client: as_former ? 1 : (r.is_former_client ? 1 : 0),
+      partage_memorem: r.partage_memorem ? 1 : 0,
       campaign_id: Number(campaign_id) || 0,
     });
     if (isNew) created++; else merged++;
@@ -560,7 +561,7 @@ route('POST', '/api/import/parse', async (req) => {
 
 route('GET', '/api/export.csv', async (req, params, query, res) => {
   const rows = all('SELECT * FROM contacts WHERE archived = 0 ORDER BY id');
-  const headers = ['first_name', 'last_name', 'email', 'phone', 'company', 'job_title', 'linkedin_url', 'segment', 'stage', 'origin', 'is_former_client', 'revenue_history', 'city', 'notes'];
+  const headers = ['first_name', 'last_name', 'email', 'phone', 'company', 'job_title', 'linkedin_url', 'segment', 'stage', 'origin', 'is_former_client', 'partage_memorem', 'revenue_history', 'city', 'notes'];
   const body = csv.toCsv(headers, rows);
   res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="otea-moteur-contacts.csv"' });
   res.end(body);

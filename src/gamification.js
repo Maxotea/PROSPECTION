@@ -403,6 +403,13 @@ function melangerNouveaux(tries, limit, hist) {
   return choisis.sort((a, b) => b.score - a.score);
 }
 
+// 🤝 Un devis envoyé sur un dossier partagé avec Memorem ne revient pas dans les files pour
+// être relancé tout seul : la relance se décide avec eux. Une action que Maxime a posée
+// lui-même sur la fiche (autre libellé) reste servie.
+function relanceDevisPartagee(c) {
+  return playbooks.dossierPartage(c) && ['devis_envoye', 'negociation'].includes(c.stage) && /^Relancer le devis/i.test(c.next_action || '');
+}
+
 // File du Mode Chasse : les actions dues aujourd'hui, puis les jamais-contactés, triés par score.
 function huntQueue(limit = 15) {
   const today = localDay();
@@ -414,7 +421,7 @@ function huntQueue(limit = 15) {
     today
   );
   const hist = historiqueParContact();
-  const scored = due.map((c) => ({ ...c, score: contactScore(c, histo(hist, c.id).tentatives) }));
+  const scored = due.filter((c) => !relanceDevisPartagee(c)).map((c) => ({ ...c, score: contactScore(c, histo(hist, c.id).tentatives) }));
   scored.sort((a, b) => b.score - a.score || String(a.last_touch_at).localeCompare(String(b.last_touch_at)));
   return melangerNouveaux(scored, limit, hist).map((c) => {
     const touches = histo(hist, c.id).tentatives;
@@ -439,7 +446,7 @@ function callQueue(limit = 10) {
   );
   const hist = historiqueParContact();
   const scored = rows
-    .filter((c) => !called.has(c.id))
+    .filter((c) => !called.has(c.id) && !relanceDevisPartagee(c))
     .map((c) => ({ ...c, score: contactScore(c, histo(hist, c.id).tentatives) + (['en_discussion', 'rdv', 'devis_envoye', 'negociation'].includes(c.stage) ? 15 : 0) }));
   scored.sort((a, b) => b.score - a.score || String(a.last_touch_at).localeCompare(String(b.last_touch_at)));
   return melangerNouveaux(scored, limit, hist).map((c) => {

@@ -93,6 +93,20 @@ function etapeDeCadence(contact, touches) {
   return { gap: VEILLE_LONGUE, label: 'En veille : relancer seulement si tu as une vraie raison' };
 }
 
+// 🤝 Un dossier partagé avec Memorem (Lou Girault, Guillaume Dominguez) : la relance
+// du devis ne part jamais toute seule, elle se décide avec eux. La règle J+3 vaut pour
+// les clients où OTEA est seul. Le drapeau de la fiche fait foi, et un tag « memorem »
+// (ou « co-traitance ») compte aussi, pour les fiches importées.
+const TAGS_PARTAGE = ['memorem', 'co-traitance', 'cotraitance'];
+function dossierPartage(contact) {
+  if (!contact) return false;
+  if (Number(contact.partage_memorem) === 1) return true;
+  let tags = contact.tags;
+  if (typeof tags === 'string') { try { tags = JSON.parse(tags || '[]'); } catch { tags = []; } }
+  return Array.isArray(tags) && tags.some((t) => TAGS_PARTAGE.includes(String(t).trim().toLowerCase()));
+}
+const RELANCE_DEVIS_J = 3; // la propal se relance à J+3 quand OTEA est seul sur le dossier
+
 // Prochaine action planifiée après une action loggée.
 // `reports` = nombre de fois où ce contact a déjà été mis à « plus tard ».
 function nextStepAfter(contact, actionType, touches, helpers, reports = 0) {
@@ -101,7 +115,10 @@ function nextStepAfter(contact, actionType, touches, helpers, reports = 0) {
   if (['gagne', 'perdu'].includes(contact.stage)) return { next_action: '', next_action_at: '' };
   if (actionType === 'reponse_recue') return { next_action: 'Répondre et proposer un RDV', next_action_at: today };
   if (actionType === 'rdv_pris') return { next_action: 'Préparer le RDV + le devis', next_action_at: addDays(today, 1) };
-  if (actionType === 'devis_envoye') return { next_action: 'Relancer le devis', next_action_at: addDays(today, 4) };
+  if (actionType === 'devis_envoye') {
+    if (dossierPartage(contact)) return { next_action: 'Devis envoyé · relance à caler avec Memorem', next_action_at: '' };
+    return { next_action: 'Relancer le devis', next_action_at: addDays(today, RELANCE_DEVIS_J) };
+  }
   if (actionType === 'devis_accepte') return { next_action: 'Facturer 💰', next_action_at: today };
   if (actionType === 'reporte') {
     const jours = REPORTS[Math.min(Math.max(reports - 1, 0), REPORTS.length - 1)];
@@ -427,4 +444,4 @@ function renderTemplate(tpl, contact, settings) {
   return { subject: fill(tpl.subject), body: fill(tpl.body), channel: tpl.channel, name: tpl.name, code: tpl.code };
 }
 
-module.exports = { SEGMENTS, STAGES, CADENCES, REPORTS, ESPACEMENT_APRES_CADENCE, FIRST_TOUCH, TEMPLATE_SEED, SEQUENCE_SEED, seedTemplates, seedSequences, renderTemplate, suggestedTemplateCode, nextStepAfter, icebreakerHints };
+module.exports = { SEGMENTS, STAGES, CADENCES, REPORTS, ESPACEMENT_APRES_CADENCE, FIRST_TOUCH, TEMPLATE_SEED, SEQUENCE_SEED, RELANCE_DEVIS_J, TAGS_PARTAGE, dossierPartage, seedTemplates, seedSequences, renderTemplate, suggestedTemplateCode, nextStepAfter, icebreakerHints };

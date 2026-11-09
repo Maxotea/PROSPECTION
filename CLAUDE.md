@@ -40,6 +40,17 @@ aux prochaines modifications.
 - Un message d'erreur dit ce qui s'est passé **et** quoi faire pour le régler.
 - Les textes de prospection sont courts, concrets, sans superlatif marketing.
 
+## 🤝 Règle métier : la relance de propal
+
+- Une propal (devis envoyé) se relance à **J+3**, uniquement pour les clients où
+  **OTEA est seul** sur le dossier.
+- Un **dossier partagé avec Memorem** (Lou Girault, Guillaume Dominguez : Off Golf,
+  Bellefontaine, Emergence, et tout client apporté ou piloté avec eux) n'a **jamais**
+  de relance automatique : elle se cale avec eux. Dans le code, le drapeau
+  `partage_memorem` de la fiche (ou le tag `memorem`) fait foi, via
+  `playbooks.dossierPartage()`. Toute nouvelle relance automatique (journée, Cockpit,
+  files, Autopilote, routines) doit respecter ce test.
+
 ## 🧱 Technique
 
 - **Zéro dépendance** : Node ≥ 22.13, `node:sqlite`, frontend vanilla. Ne jamais

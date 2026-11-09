@@ -465,6 +465,7 @@ async function vChasse(view) {
           <div class="row mt-2">
             ${segChip(c.segment)}
             ${c.is_former_client ? `<span class="chip former">💰 Ancien client · ${eur(c.revenue_history)}</span>` : ''}
+            ${c.partage_memorem ? '<span class="chip partage">🤝 Partagé avec Memorem</span>' : ''}
             <span class="chip">${stageLabel(c.stage)}</span>
             ${c.next_action ? `<span class="chip due">${esc(c.next_action)} · ${dueLabel(c.next_action_at)}</span>` : ''}
           </div>
@@ -1067,7 +1068,7 @@ async function vContacts(view) {
         <tbody>
           ${contacts.map((c) => `<tr class="rowc" data-id="${c.id}" tabindex="0" aria-label="Ouvrir la fiche de ${esc(`${c.first_name} ${c.last_name}`.trim() || c.company || 'ce contact')}">
             <td><input type="checkbox" class="c-check" data-id="${c.id}" ${cSelected.has(c.id) ? 'checked' : ''}></td>
-            <td><div class="t-name">${esc(c.first_name)} ${esc(c.last_name)} ${c.is_former_client ? '💰' : ''}</div><div class="t-sub">${esc(c.company || '')}${c.job_title ? ' · ' + esc(c.job_title) : ''}</div></td>
+            <td><div class="t-name">${esc(c.first_name)} ${esc(c.last_name)} ${c.is_former_client ? '💰' : ''}${c.partage_memorem ? ' <span title="Dossier partagé avec Memorem">🤝</span>' : ''}</div><div class="t-sub">${esc(c.company || '')}${c.job_title ? ' · ' + esc(c.job_title) : ''}</div></td>
             <td><select class="cell-mini" data-seg-id="${c.id}" title="Changer la typologie">${Object.entries(S.segments).map(([k, s]) => `<option value="${k}" ${c.segment === k ? 'selected' : ''}>${s.emoji} ${esc(s.label)}</option>`).join('')}</select></td>
             <td><select class="cell-mini" data-stage-id="${c.id}" title="Changer l'étape">${S.stages.map((s) => `<option value="${s.code}" ${c.stage === s.code ? 'selected' : ''}>${s.emoji} ${esc(s.label)}</option>`).join('')}</select></td>
             <td class="presence" title="email / téléphone / LinkedIn">${c.email ? '✉️' : '·'}${c.phone ? '☎️' : '·'}${c.linkedin_url ? '🔗' : '·'}</td>
@@ -1282,6 +1283,7 @@ function newContactModal(after) {
       <label class="field">Ville<input id="n-ci"></label>
       <label class="field wide"><span>Notes</span><textarea id="n-no" rows="2"></textarea></label>
       <label class="chip wide cliquable"><input type="checkbox" id="n-former"> 💰 C'est un ancien client</label>
+      <label class="chip wide cliquable" title="La relance du devis ne partira pas toute seule : elle se cale avec Lou et Guillaume"><input type="checkbox" id="n-partage"> 🤝 Dossier partagé avec Memorem</label>
     </div>
     <div class="row mt-4 fin"><button class="primary" id="n-save">Créer</button></div>`);
   $('#n-seg', m).value = 'inconnu';
@@ -1292,6 +1294,7 @@ function newContactModal(after) {
         job_title: $('#n-jt', m).value, email: $('#n-em', m).value, phone: $('#n-ph', m).value,
         linkedin_url: $('#n-li', m).value, segment: $('#n-seg', m).value, city: $('#n-ci', m).value,
         notes: $('#n-no', m).value, is_former_client: $('#n-former', m).checked ? 1 : 0,
+        partage_memorem: $('#n-partage', m).checked ? 1 : 0,
       } });
       m.remove(); fx.toast('✅ Contact créé'); if (after) after();
     } catch (e) { fx.error(e.message); }
@@ -1329,6 +1332,7 @@ async function openContact(id) {
       ${segChip(c.segment)}
       <span class="chip">${stageLabel(c.stage)}</span>
       ${c.is_former_client ? `<span class="chip former">Ancien client · ${eur(c.revenue_history)}</span>` : ''}
+      ${c.partage_memorem ? '<span class="chip partage" title="Relance du devis à caler avec Memorem, jamais automatique">🤝 Partagé avec Memorem</span>' : ''}
       <span class="chip">${esc(c.origin)}</span>
     </div>
     <div class="row">
@@ -1357,6 +1361,7 @@ async function openContact(id) {
         <label class="field">Prochaine action<input id="e-na" value="${esc(c.next_action)}"></label>
         <label class="field">Échéance<input id="e-nad" type="date" value="${esc(c.next_action_at)}"></label>
         <label class="field wide"><span>Notes</span><textarea id="e-no" rows="3">${esc(c.notes)}</textarea></label>
+        <label class="chip wide cliquable" title="Dossier apporté ou piloté avec Memorem (Lou Girault, Guillaume Dominguez) : la relance du devis se décide avec eux, l'outil ne la programme pas"><input type="checkbox" id="e-partage" ${c.partage_memorem ? 'checked' : ''}> 🤝 Dossier partagé avec Memorem · pas de relance de devis automatique</label>
       </div>
       <div class="row fin mt-2"><button class="primary" id="d-save">💾 Enregistrer</button></div>
     </div>
@@ -1447,7 +1452,7 @@ async function openContact(id) {
         first_name: $('#e-fn').value, last_name: $('#e-ln').value, email: $('#e-em').value, phone: $('#e-ph').value,
         company: $('#e-co').value, job_title: $('#e-jt').value, segment: $('#e-seg').value, stage: $('#e-stage').value,
         next_action: $('#e-na').value, next_action_at: $('#e-nad').value, notes: $('#e-no').value,
-        icebreaker: $('#e-ice').value,
+        icebreaker: $('#e-ice').value, partage_memorem: $('#e-partage').checked ? 1 : 0,
       } });
       confirmerAvecRetour('Fiche enregistrée', res, async () => { await openContact(c.id); if (location.hash.includes('contacts')) render(); });
       await celebrate(res.celebration);
@@ -1908,6 +1913,7 @@ async function vAutopilot(view) {
       const r = await api('/autopilot/tick', { method: 'POST', body: { ignore_window: true } });
       const bits = [];
       if (r.replies && r.replies.replies) bits.push(`💬 ${r.replies.replies} réponse(s) détectée(s)`);
+      if (r.replies && r.replies.auto_replies) bits.push(`🤖 ${r.replies.auto_replies} réponse(s) automatique(s) écartée(s)`);
       if (r.due && r.due.queued) bits.push(`📝 ${r.due.queued} email(s) préparé(s)`);
       if (r.flush && r.flush.sent) bits.push(`📤 ${r.flush.sent} envoyé(s)`);
       if (r.due && r.due.reason) bits.push(r.due.reason);
@@ -2552,7 +2558,7 @@ async function vReglages(view) {
           <label class="field">Heure du brief<input id="s-jheure" type="time" value="${esc(s.journee_brief_heure)}"></label>
           <label class="field">Mails lus sur <span class="faint">(jours)</span><input id="s-jmail" type="number" min="1" max="60" value="${esc(s.journee_jours_mail)}"></label>
           <label class="field">WhatsApp et appels sur <span class="faint">(jours)</span><input id="s-jwa" type="number" min="1" max="90" value="${esc(s.journee_jours_whatsapp)}"></label>
-          <label class="field">Relancer un devis après <span class="faint">(jours sans nouvelle)</span><input id="s-jdevis" type="number" min="1" max="60" value="${esc(s.journee_delai_devis)}"></label>
+          <label class="field">Relancer un devis après <span class="faint">(jours sans nouvelle · dossiers OTEA seul ; un dossier partagé avec Memorem n'est jamais relancé tout seul)</span><input id="s-jdevis" type="number" min="1" max="60" value="${esc(s.journee_delai_devis)}"></label>
           <label class="chip wide cliquable"><input type="checkbox" id="s-jbriefmail" ${s.journee_brief_mail !== '0' ? 'checked' : ''}> m'envoyer le brief par mail chaque matin</label>
         </div>
       </div>
