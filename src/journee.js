@@ -32,6 +32,7 @@ const appels = require('./importers/appels');
 const repertoire = require('./importers/repertoire');
 const imap = require('./mail/imap');
 const smtp = require('./mail/smtp');
+const { estReponseAutomatique } = require('./mail/reponse-auto');
 const autopilot = require('./autopilot');
 const game = require('./gamification');
 const campaigns = require('./campaigns');
@@ -409,7 +410,7 @@ function signauxGmail(radar, index, now) {
     const from = m.from && m.from.email;
     if (!from || from === moi) continue;
     if (BRUIT_MAIL.test(from) || sig.ressembleAuBruit({ nom: m.from.name, texte: m.subject })) continue;
-    if (REPONSE_AUTO.test(m.subject || '')) continue;
+    if (REPONSE_AUTO.test(m.subject || '') || estReponseAutomatique({ subject: m.subject, headers: m.auto }).auto) continue;
     if (m.repondu || (m.message_id && repondus.has(m.message_id))) continue;
     const recu = Date.parse(m.date) || 0;
     if ((ecritsA[from] || 0) > recu) continue; // on lui a écrit depuis : la balle est chez lui
@@ -676,7 +677,7 @@ function signauxCrm(today, radar = {}) {
     return !!email && (ecritsA.get(email) || 0) > (Date.parse(r.created_at) || 0);
   };
   const demandes = all(`SELECT i.*, c.first_name, c.last_name, c.company, c.stage, c.email FROM inbox i LEFT JOIN contacts c ON c.id = i.contact_id WHERE i.status = 'nouveau' ORDER BY i.id`)
-    .filter((r) => !REPONSE_AUTO.test(String(r.content || '').slice(0, 300)))
+    .filter((r) => !REPONSE_AUTO.test(String(r.content || '').slice(0, 300)) && !estReponseAutomatique({ extrait: r.content }).auto)
     .filter((r) => !dejaRepondu(r));
   const contactsAvecDemande = new Set(demandes.map((r) => r.contact_id).filter(Boolean));
 

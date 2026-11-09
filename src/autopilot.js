@@ -11,6 +11,7 @@ const game = require('./gamification');
 const playbooks = require('./playbooks');
 const smtp = require('./mail/smtp');
 const imap = require('./mail/imap');
+const { estReponseAutomatique } = require('./mail/reponse-auto');
 
 // ---------------------------------------------------------------- config
 function isConfigured() {
@@ -98,6 +99,7 @@ async function pollReplies() {
   if (res.initialized) return { initialized: true, replies: 0 };
 
   let repliesFound = 0;
+  let autoReplies = 0;
   for (const msg of res.messages) {
     const ins = run('INSERT OR IGNORE INTO replies (imap_uid, from_email, subject, received_at, created_at) VALUES (?, ?, ?, ?, ?)',
       msg.uid, msg.from.email, msg.subject, msg.date, nowIso());
@@ -107,6 +109,17 @@ async function pollReplies() {
     if (!contact) continue;
 
     run('UPDATE replies SET contact_id = ? WHERE imap_uid = ?', contact.id, msg.uid);
+    // Une réponse automatique (absence, accusé de réception) n'est PAS une réponse :
+    // la séquence continue, rien n'arrive dans « Réponses », et la fiche le note
+    // pour que la prochaine relance parte quand même.
+    const auto = estReponseAutomatique({ subject: msg.subject, headers: msg.auto });
+    if (auto.auto) {
+      run('UPDATE replies SET automatique = 1 WHERE imap_uid = ?', msg.uid);
+      game.insertActivity({ contact_id: contact.id, type: 'note', note: `🤖 Réponse automatique, pas une vraie réponse (${auto.motif}) : la relance continue.`, meta: { auto: true, imap_uid: msg.uid, reponse_automatique: true } });
+      if (!contact.next_action_at) dbApi.updateContact(contact.id, { next_action: 'Relancer : il n’a envoyé qu’une réponse automatique', next_action_at: dbApi.addDays(localDay(), 7) });
+      autoReplies++;
+      continue;
+    }
     const hadSequence = stopForContact(contact.id, 'a répondu 🎉', 'replied');
     // Ne compter une "réponse reçue" que pour un contact réellement en prospection.
     const inProspection = hadSequence || !['gagne', 'perdu', 'a_contacter'].includes(contact.stage);
@@ -120,7 +133,7 @@ async function pollReplies() {
       repliesFound++;
     }
   }
-  return { replies: repliesFound, scanned: res.messages.length };
+  return { replies: repliesFound, auto_replies: autoReplies, scanned: res.messages.length };
 }
 
 // ---------------------------------------------------------------- planification des étapes dues

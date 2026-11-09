@@ -234,6 +234,33 @@ test('Autopilote : la relance part dans le même fil (In-Reply-To)', async () =>
   mock.server.close();
 });
 
+test('Autopilote : une réponse automatique ne stoppe pas la séquence et ne dit pas « il a répondu »', async () => {
+  const scenario = {
+    uidnext: 42,
+    inbox: [{
+      uid: 41,
+      headers: 'From: Test Client <client1@testco.fr>\nTo: maxime@otea.fr\nSubject: Réponse automatique : Absent du bureau\nAuto-Submitted: auto-replied\nDate: Wed, 26 Aug 2026 09:00:00 +0000\nMessage-ID: <auto1@testco.fr>',
+    }],
+    sent: [],
+  };
+  const mock = await startMockImap(scenario);
+  setSetting('imap_host', '127.0.0.1');
+  setSetting('imap_port', String(mock.port));
+  setSetting('imap_secure', '0');
+  setSetting('autopilot_last_uid', '40');
+
+  const res = await autopilot.pollReplies();
+  assert.strictEqual(res.replies, 0);
+  assert.strictEqual(res.auto_replies, 1);
+  const e = get(`SELECT * FROM enrollments ORDER BY id LIMIT 1`);
+  assert.notStrictEqual(e.status, 'replied');
+  assert.strictEqual(get('SELECT COUNT(*) AS n FROM inbox WHERE contact_id = ?', e.contact_id).n, 0);
+  assert.strictEqual(get('SELECT automatique FROM replies WHERE imap_uid = 41').automatique, 1);
+  const note = get(`SELECT note FROM activities WHERE contact_id = ? AND type = 'note' ORDER BY id DESC LIMIT 1`, e.contact_id);
+  assert.match(note.note, /Réponse automatique, pas une vraie réponse/);
+  mock.server.close();
+});
+
 test('Autopilote : une réponse détectée stoppe la séquence et crée la tâche', async () => {
   const scenario = {
     uidnext: 43,
