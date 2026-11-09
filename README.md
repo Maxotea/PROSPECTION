@@ -274,6 +274,21 @@ liste se fait toute seule, à partir de ce qui se passe vraiment.
 | 🗂️ **CRM** | relance arrivée à échéance (un contact chaud a sa ligne ; au-delà de trois prospects froids en retard, ils tiennent sur une seule ligne « Relances de prospection »), devis envoyé sans nouvelle depuis N jours, devis accepté pas facturé, RDV pris sans devis, demande entrante pas traitée (une réponse automatique n'en est pas une, un contact qui a écrit n'est pas relancé en plus, une demande à laquelle tu as répondu depuis Gmail sort toute seule de la liste, et au-delà de trois semaines les vieilles demandes tiennent sur une ligne « à répondre ou classer »), emails de l'Autopilote à valider, post de campagne pas publié, session d'appels du jour |
 | 🧠 **Ton cerveau** | ce que tu tapes dans le vide-cerveau, en une ligne |
 
+### 🤝 La relance de la propal : J+3, et seulement quand OTEA est seul
+
+Un devis envoyé programme sa relance **trois jours plus tard** (« Relancer le devis »),
+et la journée, le Cockpit, la Prospection et les appels du jour te la servent à cette
+date. Le délai se règle dans Réglages (« Relancer un devis après »).
+
+**Exception : les dossiers partagés avec Memorem** (Lou Girault, Guillaume Dominguez :
+Off Golf, Bellefontaine, Emergence, tout client apporté ou piloté avec eux). Là, la
+relance se décide avec eux, jamais toute seule. Coche **« 🤝 Dossier partagé avec
+Memorem »** sur la fiche (ou pose le tag `memorem`) : l'outil ne programme aucune
+relance de devis, ne la met ni dans la journée ni dans le Cockpit (la ligne du devis
+reste visible, marquée 🤝), ne la fait pas revenir dans la Prospection ni dans les
+appels du jour, et l'Autopilote refuse d'enrôler la fiche. Une action que tu poses toi-même
+sur la fiche (« Appeler Lou pour caler la relance ») reste servie normalement.
+
 Sur téléphone ou en ligne, WhatsApp et les appels passent par le pont du Mac
 (`pont-mac.command`), comme pour le répertoire chaud : le Mac lit, envoie le
 résultat, rien de plus.

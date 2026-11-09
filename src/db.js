@@ -312,6 +312,7 @@ ensureColumn('templates', 'campaign_id', 'campaign_id INTEGER DEFAULT 0');
 ensureColumn('campaigns', 'ends_on', `ends_on TEXT DEFAULT ''`);      // vide = campagne d'une semaine ; sinon un projet long, en cours jusqu'à cette date
 ensureColumn('contacts', 'icebreaker', `icebreaker TEXT DEFAULT ''`);   // le lien trouvé avec la personne
 ensureColumn('contacts', 'profile', `profile TEXT DEFAULT ''`);         // données brutes FullEnrich (JSON)
+ensureColumn('contacts', 'partage_memorem', 'partage_memorem INTEGER DEFAULT 0'); // 🤝 dossier partagé avec Memorem : pas de relance de devis automatique
 
 // ---------------------------------------------------------------- helpers
 function nowIso() { return new Date().toISOString(); }
@@ -376,7 +377,7 @@ const SETTINGS_DEFAULTS = {
   journee_brief_mail: '1',        // '1' : le brief part aussi par mail (à toi-même, via ton Gmail)
   journee_jours_mail: '10',       // fenêtre de lecture de la boîte Gmail, en jours
   journee_jours_whatsapp: '14',   // fenêtre de lecture WhatsApp et appels, en jours
-  journee_delai_devis: '5',       // jours sans nouvelle après un devis avant de relancer
+  journee_delai_devis: '3',       // jours sans nouvelle après un devis avant de relancer (J+3, dossiers OTEA seul uniquement)
   journee_dernier_brief: '',      // jour du dernier brief calculé automatiquement
   // 🗓️ Google Agenda (via le script Apps Script agenda.gs)
   agenda_url: '',                 // adresse /exec du déploiement
@@ -428,7 +429,7 @@ function allSettings() {
 // ---------------------------------------------------------------- contacts
 const CONTACT_FIELDS = [
   'first_name', 'last_name', 'email', 'email_status', 'phone', 'company', 'job_title',
-  'domain', 'linkedin_url', 'city', 'country', 'segment', 'origin', 'is_former_client',
+  'domain', 'linkedin_url', 'city', 'country', 'segment', 'origin', 'is_former_client', 'partage_memorem',
   'stage', 'revenue_history', 'next_action', 'next_action_at', 'last_touch_at',
   'pennylane_customer_id', 'hubspot_id', 'enrich_status', 'tags', 'notes', 'archived', 'campaign_id',
   'icebreaker', 'profile',
@@ -449,7 +450,7 @@ function cleanContactInput(data) {
   for (const f of CONTACT_FIELDS) {
     if (data[f] === undefined || data[f] === null) continue;
     let v = data[f];
-    if (f === 'is_former_client' || f === 'archived') v = v ? 1 : 0;
+    if (f === 'is_former_client' || f === 'archived' || f === 'partage_memorem') v = v ? 1 : 0;
     else if (f === 'revenue_history' || f === 'campaign_id') v = Number(v) || 0;
     else v = String(v).trim();
     if (f === 'email') v = normEmail(v);
@@ -541,6 +542,7 @@ function upsertContact(data) {
   for (const [k, v] of Object.entries(incoming)) {
     if (v === '' || v === null || v === undefined) continue;
     if (k === 'is_former_client') { if (v && !existing.is_former_client) patch[k] = 1; continue; }
+    if (k === 'partage_memorem') { if (v && !existing.partage_memorem) patch[k] = 1; continue; }
     if (k === 'revenue_history') { if (v > (existing.revenue_history || 0)) patch[k] = v; continue; }
     if (k === 'segment') { if ((existing.segment === 'inconnu' || !existing.segment) && v !== 'inconnu') patch[k] = v; continue; }
     if (k === 'stage' || k === 'origin' || k === 'archived') continue; // on garde l'état de travail existant

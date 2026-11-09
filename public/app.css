@@ -198,6 +198,7 @@ label.chip:focus-within { box-shadow: var(--focus); }
 .chip.faint { color: var(--encre-3); background: transparent; }
 .chip.seg { color: var(--encre); border-color: color-mix(in srgb, var(--seg, var(--seg-defaut)) 45%, transparent); background: color-mix(in srgb, var(--seg, var(--seg-defaut)) 13%, transparent); }
 .chip.former { color: var(--or-texte); background: var(--or-doux); border-color: var(--or-trait); }
+.chip.partage { color: var(--encre-2); background: var(--surface-2); border-color: var(--trait-fort); }
 .chip.due { color: var(--alerte); background: var(--alerte-doux); border-color: var(--alerte-trait); }
 .chip.ok { color: var(--succes); background: var(--succes-doux); border-color: var(--succes-trait); }
 

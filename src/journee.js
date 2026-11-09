@@ -25,6 +25,7 @@
 // marque « fait », « plus tard » ou « ignoré » ne revient pas le lendemain.
 
 const dbApi = require('./db');
+const playbooks = require('./playbooks');
 const { get, all, run, nowIso, localDay, addDays, getSetting, setSetting } = dbApi;
 const sig = require('./importers/signaux');
 const whatsapp = require('./importers/whatsapp');
@@ -620,12 +621,14 @@ function relanceItem(c, retard) {
 
 function signauxCrm(today, radar = {}) {
   const items = [];
-  const delaiDevis = Math.max(1, Number(getSetting('journee_delai_devis')) || 5);
+  const delaiDevis = Math.max(1, Number(getSetting('journee_delai_devis')) || 3);
 
   // Devis envoyés sans nouvelle depuis trop longtemps : l'argent qui dort.
+  // Sauf les dossiers partagés avec Memorem : là, la relance se décide avec eux, jamais toute seule.
   const contactsAvecDevis = new Set();
-  for (const d of all(`SELECT d.*, c.first_name, c.last_name, c.company, c.stage FROM deals d JOIN contacts c ON c.id = d.contact_id WHERE d.status = 'devis_envoye' AND c.archived = 0`)) {
+  for (const d of all(`SELECT d.*, c.first_name, c.last_name, c.company, c.stage, c.partage_memorem, c.tags FROM deals d JOIN contacts c ON c.id = d.contact_id WHERE d.status = 'devis_envoye' AND c.archived = 0`)) {
     contactsAvecDevis.add(d.contact_id);
+    if (playbooks.dossierPartage(d)) continue;
     const dernier = get(`SELECT MAX(day) AS j FROM activities WHERE contact_id = ? AND type IN ('relance', 'appel', 'message_envoye', 'devis_envoye', 'reponse_recue')`, d.contact_id);
     const depuisJ = joursDeRetard((dernier && dernier.j) || d.updated_at.slice(0, 10), today);
     if (depuisJ < delaiDevis) continue;

@@ -66,6 +66,7 @@ function enroll(sequenceId, contactIds) {
     if (!c.email) { skipped.push({ id, reason: 'pas d’email (enrichis-le d’abord)' }); continue; }
     if (c.email_status === 'invalid') { skipped.push({ id, reason: 'email invalide' }); continue; }
     if (['gagne', 'perdu'].includes(c.stage)) { skipped.push({ id, reason: `étape « ${c.stage} »` }); continue; }
+    if (playbooks.dossierPartage(c)) { skipped.push({ id, reason: 'dossier partagé avec Memorem : pas de relance automatique' }); continue; }
     if (get(`SELECT id FROM enrollments WHERE contact_id = ? AND status IN ('active','paused')`, id)) {
       skipped.push({ id, reason: 'déjà dans une séquence' }); continue;
     }
