@@ -673,6 +673,12 @@ route('POST', '/api/pilotage/sync', async () => {
 route('POST', '/api/pilotage/pieces', async (req) => ({ piece: pilotage.creerPiece(await readBody(req)) }));
 route('PATCH', '/api/pilotage/pieces/:id', async (req, params) => ({ piece: pilotage.modifierPiece(params.id, await readBody(req)) }));
 route('DELETE', '/api/pilotage/pieces/:id', async (req, params) => pilotage.supprimerPiece(params.id));
+// Relance de facture : un texte préparé, jamais envoyé. Maxime copie ou ouvre sa messagerie.
+route('GET', '/api/pilotage/pieces/:id/relance', async (req, params, query) => {
+  const ton = query.ton;
+  return { relance: pilotage.relancePiece(params.id, { tutoiement: ton === 'tu' ? true : ton === 'vous' ? false : undefined }) };
+});
+route('POST', '/api/pilotage/pieces/:id/relance/tache', async (req, params) => pilotage.tacheRelance(params.id));
 
 // ---- 📈 Résultats clients : baseline, objectifs du mois, réel, ROI, rapport mensuel
 route('GET', '/api/clients', async () => ({ clients: clientsSuivis.liste(), modeles: Object.fromEntries(Object.entries(clientsSuivis.MODELES).map(([k, m]) => [k, m.titre])) }));

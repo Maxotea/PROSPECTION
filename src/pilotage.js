@@ -368,9 +368,109 @@ function texteRevue(r = revue()) {
   return L.join('\n');
 }
 
+// ---------------------------------------------------------------- relance de facture
+// Prépare un mail de relance pour une facture à encaisser. Rien ne part :
+// le texte est proposé à Maxime, qui le copie ou l'ouvre dans sa messagerie.
+// Trois tons selon le retard : courtoise (moins de 15 jours), ferme (15 à 45),
+// dernière relance (plus de 45). Vouvoiement par défaut ; tutoiement si le
+// contact lié porte l'étiquette « tutoiement » (ou si Maxime le demande).
+const SIGNATURE = 'Maxime Dietrich\nOTEA Production';
+const NIVEAUX_RELANCE = {
+  courtoise: 'Relance courtoise',
+  ferme: 'Relance ferme',
+  derniere: 'Dernière relance',
+};
+
+function niveauRelance(retard) {
+  if (retard > 45) return 'derniere';
+  if (retard >= 15) return 'ferme';
+  return 'courtoise';
+}
+
+function contactTutoie(contact) {
+  if (!contact) return false;
+  let tags = [];
+  try { tags = JSON.parse(contact.tags || '[]'); } catch { tags = String(contact.tags || '').split(','); }
+  if (!Array.isArray(tags)) tags = [];
+  return tags.some((t) => /^(tutoiement|tutoyer|tu)$/i.test(String(t).trim()));
+}
+
+function texteRelance(piece, { today = localDay(), contact = null, tutoiement } = {}) {
+  if (!piece) throw erreur('Cette facture n’existe plus. Recharge la page.', 404);
+  const fmtEur = (n) => `${(Number(n) || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace(/\u202f|\u00a0/g, ' ')} €`;
+  const fr = (d) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}` : '');
+  const echeance = piece.echeance || (piece.date ? addDays(piece.date, DELAI_PAIEMENT) : '');
+  const retard = echeance && echeance < today ? ecart(echeance, today) : 0;
+  const niveau = niveauRelance(retard);
+  const tu = tutoiement === undefined ? contactTutoie(contact) : !!tutoiement;
+  const prenom = contact ? String(contact.first_name || '').trim() : '';
+  const client = piece.client || (contact && contact.company) || '';
+  const du = Number(piece.reste_du) > 0 ? Number(piece.reste_du) : Number(piece.montant_ttc) || 0;
+  const partiel = Number(piece.reste_du) > 0 && Number(piece.montant_ttc) > Number(piece.reste_du);
+  const ref = piece.numero ? `n° ${piece.numero}` : (piece.libelle ? `« ${piece.libelle} »` : '');
+  const laFacture = `la facture ${ref}`.trim();
+  const datee = piece.date ? ` du ${fr(piece.date)}` : '';
+  const montant = partiel ? `${fmtEur(du)} TTC restant dus sur ${fmtEur(piece.montant_ttc)} TTC` : `${fmtEur(du)} TTC`;
+  const pourEcheance = echeance ? (retard ? `, arrivée à échéance le ${fr(echeance)} (${retard} jour${retard > 1 ? 's' : ''} de retard)` : `, à régler pour le ${fr(echeance)}`) : '';
+  const v = (vous, toi) => (tu ? toi : vous);
+
+  const L = [];
+  if (niveau === 'courtoise') {
+    L.push(`${v('Je me permets de revenir vers vous', 'Je reviens vers toi')} au sujet de ${laFacture}${datee}, d’un montant de ${montant}${pourEcheance}.`);
+    L.push(`Sauf erreur de ma part, je n’ai pas encore vu passer le règlement. Il s’est peut-être croisé avec ce message : dans ce cas, ${v('merci de ne pas tenir compte de ce mail', 'ne tiens pas compte de ce mail')}.`);
+    L.push(`Si besoin, je ${v('vous', 'te')} renvoie la facture ou le RIB.`);
+  } else if (niveau === 'ferme') {
+    L.push(`Je ${v('vous', 'te')} relance concernant ${laFacture}${datee}, d’un montant de ${montant}${pourEcheance}.`);
+    L.push(`Le règlement n’est toujours pas arrivé. ${v('Pouvez-vous', 'Peux-tu')} me confirmer la date de paiement prévue, ou me dire si quelque chose bloque de ${v('votre', 'ton')} côté ?`);
+    L.push(`Je ${v('vous', 'te')} remercie de faire le nécessaire dans les prochains jours.`);
+  } else {
+    L.push(`Malgré mes précédentes relances, ${laFacture}${datee}, d’un montant de ${montant}${pourEcheance}, reste impayée.`);
+    L.push(`${v('Je vous demande', 'Je te demande')} de procéder au règlement sous 8 jours. Sans retour de ${v('votre', 'ta')} part d’ici là, je serai contraint d’engager une procédure de recouvrement, avec les pénalités de retard et l’indemnité forfaitaire de 40 € prévues par la loi.`);
+    L.push(`Si un souci empêche le paiement, ${v('appelez-moi', 'appelle-moi')} : on trouvera une solution ensemble.`);
+  }
+  const corps = [prenom ? `Bonjour ${prenom},` : 'Bonjour,', ...L, `${v('Bien cordialement,', 'Belle journée,')}\n${SIGNATURE}`].join('\n\n');
+
+  const sujet = {
+    courtoise: `Facture ${piece.numero || ''} : petit rappel`,
+    ferme: `Facture ${piece.numero || ''} : règlement en attente`,
+    derniere: `Dernière relance : facture ${piece.numero || ''} impayée`,
+  }[niveau].replace(/\s+/g, ' ').trim();
+
+  return {
+    piece_id: piece.id, niveau, libelle_niveau: NIVEAUX_RELANCE[niveau], retard, echeance,
+    tutoiement: tu, email: contact && contact.email ? String(contact.email).trim() : '',
+    destinataire: prenom || client, client, montant_du: arr(du),
+    sujet, corps,
+    tache: `Relancer ${client || 'le client'}${piece.numero ? ` (facture ${piece.numero})` : ''}`,
+  };
+}
+
+function relancePiece(id, { today = localDay(), tutoiement } = {}) {
+  const piece = get('SELECT * FROM pieces WHERE id = ?', Number(id));
+  if (!piece) throw erreur('Cette facture n’existe plus. Recharge la page.', 404);
+  if (piece.type !== 'facture') throw erreur('Seule une facture se relance. Pour un devis, passe par la fiche du contact.');
+  if (piece.statut !== 'a_payer') throw erreur('Cette facture n’est plus à encaisser : rien à relancer.');
+  const contact = piece.contact_id ? get('SELECT * FROM contacts WHERE id = ?', piece.contact_id) : null;
+  return texteRelance(piece, { today, contact, tutoiement });
+}
+
+// Pose « Relancer X (facture N°) » dans Ma journée, pour aujourd'hui.
+// Une seule fois : si la tâche existe déjà et n'est pas faite, on la renvoie.
+function tacheRelance(id, { today = localDay() } = {}) {
+  const r = relancePiece(id, { today });
+  const piece = get('SELECT contact_id FROM pieces WHERE id = ?', Number(id));
+  const deja = get(`SELECT * FROM journee_taches WHERE texte = ? AND statut = 'a_faire'`, r.tache);
+  if (deja) return { tache: deja, deja: true };
+  const journee = require('./journee');
+  let t = journee.ajouterTache(r.tache, { echeance: today, contact_id: piece.contact_id || null, importance: r.niveau === 'courtoise' ? 2 : 3 });
+  if (t.texte !== r.tache) t = journee.modifierTache(t.id, { texte: r.tache });
+  return { tache: t, deja: false };
+}
+
 module.exports = {
   STATUTS_FACTURE, STATUTS_DEVIS,
   factureDepuisPennylane, devisDepuisPennylane, enregistrer, synchroniserPennylane,
   creerPiece, modifierPiece, supprimerPiece,
   argentDuMois, prevision, revue, texteRevue,
+  niveauRelance, texteRelance, relancePiece, tacheRelance,
 };

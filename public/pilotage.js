@@ -105,7 +105,7 @@ async function vPilotage(view) {
               <td>${fmtDay(p.date)}</td>
               <td>${p.retard ? `<span class="chip due">${p.retard} j de retard</span>` : fmtDay(p.echeance)}</td>
               <td class="a-droite"><b>${eur(p.reste_du)}</b></td>
-              <td class="a-droite"><button class="small" data-payee="${p.id}">💶 Payée</button>${p.source === 'manuel' ? ` <button class="ghost small" data-suppr="${p.id}" aria-label="Supprimer">🗑️</button>` : ''}</td>
+              <td class="a-droite"><button class="small" data-relance="${p.id}">✉️ Relance</button> <button class="small" data-payee="${p.id}">💶 Payée</button>${p.source === 'manuel' ? ` <button class="ghost small" data-suppr="${p.id}" aria-label="Supprimer">🗑️</button>` : ''}</td>
             </tr>`).join('')}</tbody></table></div>` : '<p class="muted small">Tout est encaissé. Lis Pennylane pour mettre à jour.</p>'}
           ${r.brouillons.length ? `<p class="muted small mt-3">📝 En brouillon : ${r.brouillons.map((b) => `${esc(b.client || b.numero)} (${eur(b.montant_ttc)} TTC)`).join(', ')}</p>` : ''}
         </div>
@@ -172,7 +172,46 @@ async function vPilotage(view) {
     if (!confirm('Supprimer cette pièce saisie à la main ?')) return;
     try { await api(`/pilotage/pieces/${b.dataset.suppr}`, { method: 'DELETE' }); render(); } catch (e) { fx.error(e.message); }
   }; });
+  $$('[data-relance]', view).forEach((b) => { b.onclick = () => relanceModal(b.dataset.relance); });
   $('#p-ajout').onclick = () => pieceModal();
+}
+
+// ✉️ Relance de facture : le texte est préparé par le serveur, rien ne part.
+// Maxime le relit, le copie ou l'ouvre dans sa messagerie.
+async function relanceModal(id, ton) {
+  let r;
+  try { r = (await api(`/pilotage/pieces/${id}/relance${ton ? `?ton=${ton}` : ''}`)).relance; } catch (e) { return fx.error(e.message); }
+  const chips = { courtoise: 'ok', ferme: 'former', derniere: 'due' };
+  const m = modal(`
+    <h2>✉️ Relance : ${esc(r.client || 'facture')}</h2>
+    <p class="small"><span class="chip ${chips[r.niveau] || ''}">${esc(r.libelle_niveau)}</span> ${r.retard ? `${r.retard} j de retard` : 'pas encore en retard'} · ${eur(r.montant_du)} TTC à encaisser</p>
+    <div class="form-grid mt-3">
+      <label class="field">Ton<select id="rl-ton"><option value="vous"${r.tutoiement ? '' : ' selected'}>Vouvoiement</option><option value="tu"${r.tutoiement ? ' selected' : ''}>Tutoiement</option></select></label>
+      <label class="field">Objet<input id="rl-sujet" value="${esc(r.sujet)}"></label>
+      <label class="field wide">Message<textarea id="rl-corps" rows="14">${esc(r.corps)}</textarea></label>
+    </div>
+    <p class="muted small mt-2">${r.email ? `Destinataire : ${esc(r.email)}.` : 'Aucun email connu pour ce client : la messagerie s’ouvrira sans destinataire, ajoute-le à la main.'} Rien ne part tout seul.</p>
+    <div class="row fin mt-3">
+      <button id="rl-tache">📌 Ajouter à Ma journée</button>
+      <a class="btn" id="rl-mail" href="#">📨 Ouvrir dans le mail</a>
+      <button class="primary" id="rl-copier">📋 Copier</button>
+    </div>`);
+  const texte = () => `Objet : ${$('#rl-sujet', m).value}\n\n${$('#rl-corps', m).value}`;
+  const majMail = () => { $('#rl-mail', m).href = mailtoHref(r.email || '', $('#rl-sujet', m).value, $('#rl-corps', m).value); };
+  majMail();
+  $('#rl-sujet', m).oninput = majMail;
+  $('#rl-corps', m).oninput = majMail;
+  $('#rl-ton', m).onchange = (e) => { fermerFenetre(m); relanceModal(id, e.target.value); };
+  $('#rl-copier', m).onclick = async () => { await copyText(texte()); fx.toast('Relance copiée : colle-la dans ton mail.', '', 2600); };
+  $('#rl-tache', m).onclick = async (e) => {
+    const b = e.currentTarget;
+    b.disabled = true;
+    try {
+      const t = await api(`/pilotage/pieces/${id}/relance/tache`, { method: 'POST' });
+      fx.toast(t.deja ? 'Déjà dans Ma journée pour aujourd’hui.' : 'Ajouté à Ma journée, pour aujourd’hui 📌', '', 2600);
+      b.textContent = '✅ Dans Ma journée';
+    } catch (err) { fx.error(err.message); b.disabled = false; }
+  };
 }
 
 function pieceModal() {
