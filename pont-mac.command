@@ -37,20 +37,31 @@ fi
 if [ -f "$PLIST" ]; then
   echo "Le pont est DÉJÀ installé."
   echo ""
-  printf "Veux-tu le RETIRER ? (tape o pour oui, ou Entrée pour ne rien changer) : "
+  echo "  m : le METTRE À JOUR (nouvel horaire, adresse ou mot de passe)"
+  echo "  o : le RETIRER"
+  printf "Ton choix (ou Entrée pour ne rien changer) : "
   read -r REPONSE
-  if [ "$REPONSE" = "o" ] || [ "$REPONSE" = "O" ]; then
+  if [ "$REPONSE" = "m" ] || [ "$REPONSE" = "M" ]; then
+    launchctl bootout "gui/$(id -u)/$ETIQUETTE" 2>/dev/null || launchctl unload "$PLIST" 2>/dev/null
+    rm -f "$PLIST"
+    echo ""
+    echo "On le réinstalle."
+    echo ""
+  elif [ "$REPONSE" = "o" ] || [ "$REPONSE" = "O" ]; then
     launchctl bootout "gui/$(id -u)/$ETIQUETTE" 2>/dev/null || launchctl unload "$PLIST" 2>/dev/null
     rm -f "$PLIST" "$CONFIG"
     echo ""
     echo "✅ Retiré. Ton Mac n'envoie plus rien à OTEA Moteur."
+    echo ""
+    read -r -p "Appuie sur Entrée pour fermer… "
+    exit 0
   else
     echo ""
     echo "Rien n'a été changé."
+    echo ""
+    read -r -p "Appuie sur Entrée pour fermer… "
+    exit 0
   fi
-  echo ""
-  read -r -p "Appuie sur Entrée pour fermer… "
-  exit 0
 fi
 
 # ---------------------------------------------------------------- réglages
@@ -107,8 +118,8 @@ cat > "$PLIST" <<PLISTFIN
   <string>$DOSSIER</string>
   <key>StartCalendarInterval</key>
   <dict>
-    <key>Hour</key><integer>8</integer>
-    <key>Minute</key><integer>30</integer>
+    <key>Hour</key><integer>7</integer>
+    <key>Minute</key><integer>45</integer>
   </dict>
   <key>StandardOutPath</key>
   <string>$JOURNAL</string>
@@ -122,7 +133,7 @@ launchctl bootout "gui/$(id -u)/$ETIQUETTE" 2>/dev/null
 if launchctl bootstrap "gui/$(id -u)" "$PLIST" 2>/dev/null || launchctl load "$PLIST" 2>/dev/null; then
   echo "✅ LE PONT EST EN PLACE."
   echo ""
-  echo "   Chaque matin à 8h30, ton Mac enverra à OTEA Moteur les nouvelles"
+  echo "   Chaque matin à 7h45, avant le brief de 8h, ton Mac enverra à OTEA Moteur les nouvelles"
   echo "   relations trouvées dans tes appels et tes discussions WhatsApp."
   echo "   Tu les valides dans Imports, sur n'importe quel appareil."
   echo ""

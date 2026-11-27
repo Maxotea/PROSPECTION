@@ -192,7 +192,7 @@ Quand OTEA Moteur est hébergé en ligne, il n'a plus accès à ces fichiers. D'
 
 1. Double-clique **`pont-mac.command`** sur ton Mac, une seule fois.
 2. Il demande l'adresse de ton OTEA Moteur en ligne et ton mot de passe.
-3. Chaque matin à 8h30, ton Mac lit tes appels et tes discussions, et **envoie
+3. Chaque matin à 7h45, juste avant le brief de 8h, ton Mac lit tes appels et tes discussions, et **envoie
    seulement le résultat** : des compteurs, les mots de travail repérés, un court
    extrait du dernier message. Jamais tes conversations.
 4. Les relations trouvées t'attendent dans **Imports**, sur n'importe quel appareil.
